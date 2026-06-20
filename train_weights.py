@@ -7,7 +7,7 @@ import argparse
 import json
 import random
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -17,6 +17,41 @@ if str(PROJECT_ROOT) not in sys.path:
 from arena.deck import load_deck_csv
 from arena.policy import DEFAULT_WEIGHTS
 from arena.simulator import evaluate_weights
+
+DEFAULT_META_MATCHUPS: tuple[tuple[str, str, str, float], ...] = (
+    ("mirror", "deck.csv", "deck.csv", 0.5),
+    (
+        "vs_tea_party",
+        "deck.csv",
+        "data/meta_decks/decks/02_the-debauchery-tea-party.csv",
+        1.0,
+    ),
+    (
+        "vs_lucario",
+        "deck.csv",
+        "data/meta_decks/decks/08_stagapult.csv",
+        1.0,
+    ),
+)
+
+
+@dataclass
+class MatchupSpec:
+    name: str
+    deck_a: list[int]
+    deck_b: list[int]
+    weight: float = 1.0
+
+
+@dataclass
+class MatchupMetrics:
+    name: str
+    weight: float
+    reward: int
+    wins: int
+    losses: int
+    draws: int
+    avg_steps: float
 
 
 @dataclass
@@ -29,6 +64,7 @@ class CandidateResult:
     draws: int
     avg_steps: float
     weights: dict[str, float]
+    matchups: list[MatchupMetrics] = field(default_factory=list)
 
 
 def _resolve_path(path: Path) -> Path:
@@ -81,8 +117,41 @@ def _mutate_weights(
     return child
 
 
-def _score_key(result: CandidateResult) -> tuple[int, int, int, float]:
-    return (result.reward, result.wins, -result.losses, -result.avg_steps)
+def _parse_matchup(raw: str) -> tuple[str, str, str, float]:
+    parts = [part.strip() for part in raw.split(":")]
+    if len(parts) not in (3, 4):
+        raise ValueError(
+            f"invalid --matchup {raw!r}; expected name:deck_a:deck_b[:weight]"
+        )
+    name, deck_a, deck_b = parts[:3]
+    weight = float(parts[3]) if len(parts) == 4 else 1.0
+    return name, deck_a, deck_b, weight
+
+
+def _build_matchups(args: argparse.Namespace) -> list[MatchupSpec]:
+    raw_matchups: list[tuple[str, str, str, float]] = []
+    if args.meta_pool:
+        raw_matchups.extend(DEFAULT_META_MATCHUPS)
+    if args.matchup:
+        raw_matchups.extend(_parse_matchup(item) for item in args.matchup)
+    if not raw_matchups:
+        raw_matchups.append(("default", str(args.deck_a), str(args.deck_b), 1.0))
+
+    matchups: list[MatchupSpec] = []
+    for name, deck_a, deck_b, weight in raw_matchups:
+        matchups.append(
+            MatchupSpec(
+                name=name,
+                deck_a=_resolve_deck(Path(deck_a)),
+                deck_b=_resolve_deck(Path(deck_b)),
+                weight=weight,
+            )
+        )
+    return matchups
+
+
+def _score_key(result: CandidateResult) -> tuple[float, int, int, float]:
+    return (float(result.reward), result.wins, -result.losses, -result.avg_steps)
 
 
 def _evaluate_candidate(
@@ -90,32 +159,58 @@ def _evaluate_candidate(
     generation: int,
     candidate_index: int,
     weights: dict[str, float],
-    deck_a: list[int],
-    deck_b: list[int],
+    matchups: list[MatchupSpec],
     opponent_weights: dict[str, float],
     games: int,
     max_steps: int,
     eval_seed: int,
 ) -> CandidateResult:
-    # Reset RNG before every evaluation so candidate comparisons are fair.
-    random.seed(eval_seed)
-    metrics = evaluate_weights(
-        weights,
-        deck_a,
-        deck_b,
-        opponent_weights=opponent_weights,
-        games=games,
-        max_steps=max_steps,
-    )
+    matchup_metrics: list[MatchupMetrics] = []
+    weighted_reward = 0.0
+    total_wins = 0
+    total_losses = 0
+    total_draws = 0
+    total_steps = 0.0
+    total_games = 0
+
+    for index, matchup in enumerate(matchups):
+        # Offset seed per matchup so comparisons stay fair but not identical.
+        random.seed(eval_seed + index * 9973)
+        metrics = evaluate_weights(
+            weights,
+            matchup.deck_a,
+            matchup.deck_b,
+            opponent_weights=opponent_weights,
+            games=games,
+            max_steps=max_steps,
+        )
+        item = MatchupMetrics(
+            name=matchup.name,
+            weight=matchup.weight,
+            reward=int(metrics["reward"]),
+            wins=int(metrics["wins"]),
+            losses=int(metrics["losses"]),
+            draws=int(metrics["draws"]),
+            avg_steps=float(metrics["avg_steps"]),
+        )
+        matchup_metrics.append(item)
+        weighted_reward += item.reward * matchup.weight
+        total_wins += item.wins
+        total_losses += item.losses
+        total_draws += item.draws
+        total_steps += item.avg_steps * games
+        total_games += games
+
     return CandidateResult(
         generation=generation,
         candidate_index=candidate_index,
-        reward=int(metrics["reward"]),
-        wins=int(metrics["wins"]),
-        losses=int(metrics["losses"]),
-        draws=int(metrics["draws"]),
-        avg_steps=float(metrics["avg_steps"]),
+        reward=int(round(weighted_reward)),
+        wins=total_wins,
+        losses=total_losses,
+        draws=total_draws,
+        avg_steps=round(total_steps / total_games, 2) if total_games else 0.0,
         weights=dict(weights),
+        matchups=matchup_metrics,
     )
 
 
@@ -125,14 +220,22 @@ def _print_result(prefix: str, result: CandidateResult) -> None:
         f"reward={result.reward} W/L/D={result.wins}/{result.losses}/{result.draws} "
         f"avg_steps={result.avg_steps}"
     )
+    for item in result.matchups:
+        print(
+            f"  {item.name}: weight={item.weight} reward={item.reward} "
+            f"W/L/D={item.wins}/{item.losses}/{item.draws} avg_steps={item.avg_steps}"
+        )
 
 
 def run_search(args: argparse.Namespace) -> tuple[CandidateResult, list[dict[str, object]]]:
-    deck_a = _resolve_deck(args.deck_a)
-    deck_b = _resolve_deck(args.deck_b)
+    matchups = _build_matchups(args)
     base_weights = _load_weights(args.init_weights)
     opponent_weights = _load_weights(args.opponent_weights)
     rng = random.Random(args.seed)
+
+    print("matchups:")
+    for item in matchups:
+        print(f"  - {item.name}: weight={item.weight} games={args.games}")
 
     population: list[dict[str, float]] = [dict(base_weights)]
     for _ in range(max(0, args.population - 1)):
@@ -155,8 +258,7 @@ def run_search(args: argparse.Namespace) -> tuple[CandidateResult, list[dict[str
                 generation=generation,
                 candidate_index=candidate_index,
                 weights=weights,
-                deck_a=deck_a,
-                deck_b=deck_b,
+                matchups=matchups,
                 opponent_weights=opponent_weights,
                 games=args.games,
                 max_steps=args.max_steps,
@@ -179,6 +281,7 @@ def run_search(args: argparse.Namespace) -> tuple[CandidateResult, list[dict[str
                 "best_draws": best.draws,
                 "best_avg_steps": best.avg_steps,
                 "best_weights": best.weights,
+                "best_matchups": [asdict(item) for item in best.matchups],
             }
         )
 
@@ -232,6 +335,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Search policy weights with a simple evolution loop.")
     parser.add_argument("--deck-a", type=Path, default=Path("deck.csv"))
     parser.add_argument("--deck-b", type=Path, default=Path("deck.csv"))
+    parser.add_argument(
+        "--meta-pool",
+        action="store_true",
+        help="Train against mirror + #2 Tea Party + #8 Lucario matchups.",
+    )
+    parser.add_argument(
+        "--matchup",
+        action="append",
+        default=[],
+        help="Custom matchup as name:deck_a:deck_b[:weight]. Repeatable.",
+    )
     parser.add_argument("--init-weights", type=Path, default=None)
     parser.add_argument("--opponent-weights", type=Path, default=None)
     parser.add_argument("--games", type=int, default=20, help="Games per candidate evaluation.")
@@ -251,12 +365,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--weights-out",
         type=Path,
-        default=Path("data/training/best_weights.json"),
+        default=Path("data/training/best_weights_meta.json"),
     )
     parser.add_argument(
         "--history-out",
         type=Path,
-        default=Path("data/training/weight_search_history.json"),
+        default=Path("data/training/weight_search_meta_history.json"),
     )
     return parser
 
