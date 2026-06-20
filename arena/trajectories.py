@@ -11,26 +11,46 @@ from uuid import uuid4
 from arena.simulator import GameResult
 
 
-def game_to_record(game: GameResult, *, game_id: str | None = None) -> dict[str, Any]:
-    return {
+def game_to_record(
+    game: GameResult,
+    *,
+    game_id: str | None = None,
+    compact: bool = False,
+) -> dict[str, Any]:
+    record: dict[str, Any] = {
         "schema_version": 1,
         "game_id": game_id or uuid4().hex,
         "recorded_at": datetime.now(timezone.utc).isoformat(),
-        "deck_a": game.deck_a,
-        "deck_b": game.deck_b,
-        "weights_a": game.weights_a,
-        "weights_b": game.weights_b,
         "winner": game.winner,
         "reward_for_a": game.reward_for_a,
         "steps": game.steps,
         "truncated": game.truncated,
         "steps_data": game.trajectory,
     }
+    if not compact:
+        record["deck_a"] = game.deck_a
+        record["deck_b"] = game.deck_b
+        record["weights_a"] = game.weights_a
+        record["weights_b"] = game.weights_b
+    return record
+
+
+def append_jsonl_line(record: dict[str, Any], output_path: Path) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
 
 
 def write_jsonl(records: Iterable[dict[str, Any]], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as handle:
+        for record in records:
+            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+def append_jsonl(records: Iterable[dict[str, Any]], output_path: Path) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("a", encoding="utf-8") as handle:
         for record in records:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 

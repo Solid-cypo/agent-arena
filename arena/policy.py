@@ -29,14 +29,18 @@ DEFAULT_WEIGHTS: dict[str, float] = {
     "random_noise": 0.02,
 }
 
-_CARD_TABLE: dict[int, Any] | None = None
+# card_id -> (cardType, is_basic). Much smaller than caching full CardData objects.
+_CARD_META: dict[int, tuple[int, bool]] | None = None
 
 
-def card_table() -> dict[int, Any]:
-    global _CARD_TABLE
-    if _CARD_TABLE is None:
-        _CARD_TABLE = {card.cardId: card for card in all_card_data()}
-    return _CARD_TABLE
+def card_meta_table() -> dict[int, tuple[int, bool]]:
+    global _CARD_META
+    if _CARD_META is None:
+        _CARD_META = {
+            card.cardId: (int(card.cardType), bool(card.basic))
+            for card in all_card_data()
+        }
+    return _CARD_META
 
 
 def get_card(obs, area, index, player_index):
@@ -73,12 +77,13 @@ def damaged_amount(card) -> int:
 def card_type_score(card, weights: dict[str, float]) -> float:
     if card is None:
         return 0.0
-    data = card_table().get(getattr(card, "id", -1))
-    if data is None:
+    meta = card_meta_table().get(getattr(card, "id", -1))
+    if meta is None:
         return 0.0
-    if data.cardType == CardType.POKEMON:
-        return weights["card_basic"] if data.basic else weights["card_pokemon"]
-    if data.cardType == CardType.ENERGY:
+    card_type, is_basic = meta
+    if card_type == CardType.POKEMON:
+        return weights["card_basic"] if is_basic else weights["card_pokemon"]
+    if card_type == CardType.ENERGY:
         return weights["card_energy"]
     return weights["card_trainer"]
 

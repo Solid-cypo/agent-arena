@@ -33,9 +33,22 @@ def _winner_from_result(result: int, perspective: int) -> int | None:
     return None
 
 
-def _compact_step(obs: dict[str, Any], player_index: int, action: list[int]) -> dict[str, Any]:
+def _compact_step(
+    obs: dict[str, Any],
+    player_index: int,
+    action: list[int],
+    *,
+    slim: bool = False,
+) -> dict[str, Any]:
     current = obs.get("current") or {}
     select = obs.get("select") or {}
+    if slim:
+        return {
+            "player": player_index,
+            "action": action,
+            "turn": current.get("turn"),
+            "select_type": select.get("type"),
+        }
     options = select.get("option") or []
     option_types = [option.get("type") for option in options]
     return {
@@ -63,10 +76,13 @@ def play_game(
     weights_b: dict[str, float] | None = None,
     max_steps: int = 700,
     record_trajectory: bool = False,
+    store_metadata: bool = True,
+    slim_trajectory: bool = False,
 ) -> GameResult:
     """Play one game. Return +1 if agent_a wins, -1 if agent_a loses, 0 otherwise."""
     resolved_weights_a = dict(DEFAULT_WEIGHTS if weights_a is None else weights_a)
     resolved_weights_b = dict(DEFAULT_WEIGHTS if weights_b is None else weights_b)
+    keep_metadata = store_metadata or record_trajectory
     trajectory: list[dict[str, Any]] = []
 
     obs, start_data = battle_start(deck_a, deck_b)
@@ -83,7 +99,9 @@ def play_game(
             player_index = obs["current"]["yourIndex"]
             selected = agent_a(obs) if player_index == 0 else agent_b(obs)
             if record_trajectory:
-                trajectory.append(_compact_step(obs, player_index, selected))
+                trajectory.append(
+                    _compact_step(obs, player_index, selected, slim=slim_trajectory)
+                )
             obs = battle_select(selected)
             steps += 1
         result = obs["current"]["result"]
@@ -102,10 +120,10 @@ def play_game(
         reward_for_a=reward,
         steps=steps,
         winner=_winner_from_result(result, 0) if result >= 0 else None,
-        deck_a=list(deck_a),
-        deck_b=list(deck_b),
-        weights_a=resolved_weights_a,
-        weights_b=resolved_weights_b,
+        deck_a=list(deck_a) if keep_metadata else [],
+        deck_b=list(deck_b) if keep_metadata else [],
+        weights_a=resolved_weights_a if keep_metadata else {},
+        weights_b=resolved_weights_b if keep_metadata else {},
         trajectory=trajectory,
         truncated=truncated,
     )
@@ -185,9 +203,16 @@ def run_self_play_batch(
     games: int = 1,
     max_steps: int = 700,
     record_trajectories: bool = False,
+    store_metadata: bool | None = None,
+    agent_a: AgentFn | None = None,
+    agent_b: AgentFn | None = None,
+    slim_trajectory: bool = False,
 ) -> list[GameResult]:
-    agent_a = make_agent(deck_a, weights_a)
-    agent_b = make_agent(deck_b, weights_b)
+    if agent_a is None:
+        agent_a = make_agent(deck_a, weights_a)
+    if agent_b is None:
+        agent_b = make_agent(deck_b, weights_b)
+    resolved_store_metadata = record_trajectories if store_metadata is None else store_metadata
     resolved_weights_a = dict(DEFAULT_WEIGHTS if weights_a is None else weights_a)
     resolved_weights_b = dict(DEFAULT_WEIGHTS if weights_b is None else weights_b)
 
@@ -204,6 +229,8 @@ def run_self_play_batch(
                 weights_b=resolved_weights_a,
                 max_steps=max_steps,
                 record_trajectory=record_trajectories,
+                store_metadata=resolved_store_metadata,
+                slim_trajectory=slim_trajectory,
             )
             game.reward_for_a = -game.reward_for_a
             if game.winner is not None:
@@ -220,6 +247,8 @@ def run_self_play_batch(
                 weights_b=resolved_weights_b,
                 max_steps=max_steps,
                 record_trajectory=record_trajectories,
+                store_metadata=resolved_store_metadata,
+                slim_trajectory=slim_trajectory,
             )
         results.append(game)
     return results
