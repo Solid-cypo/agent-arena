@@ -1,0 +1,46 @@
+deck_a_id,deck_a_label,deck_b_id,deck_b_label,games,wins_a,losses_a,draws,win_rate_a,avg_steps
+01_trusthub-hiroingk,TrustHub hiroingk,02_the-debauchery-tea-party,The Debauchery Tea Party,20,8,12,0,0.4,170.4
+01_trusthub-hiroingk,TrustHub hiroingk,03_foo-foo,foo_foo,20,3,17,0,0.15,189.05
+01_trusthub-hiroingk,TrustHub hiroingk,04_third-ptcg-club,THIRD PTCG Club,20,7,13,0,0.35,150.6
+01_trusthub-hiroingk,TrustHub hiroingk,05_kadoraba,カドラバ Kadoraba,20,13,7,0,0.65,178.75
+01_trusthub-hiroingk,TrustHub hiroingk,06_naoki-maeda,Naoki Maeda,20,2,18,0,0.1,177.6
+01_trusthub-hiroingk,TrustHub hiroingk,07_graybackcat,graybackcat,20,5,15,0,0.25,193.95
+01_trusthub-hiroingk,TrustHub hiroingk,08_stagapult,Stagapult,20,11,9,0,0.55,139.6
+01_trusthub-hiroingk,TrustHub hiroingk,09_team,好吃的台灣拉麵,20,5,15,0,0.25,177.95
+01_trusthub-hiroingk,TrustHub hiroingk,10_kouki-k-4869,kouki__k_4869,20,15,5,0,0.75,171.45
+02_the-debauchery-tea-party,The Debauchery Tea Party,03_foo-foo,foo_foo,20,8,12,0,0.4,150.8
+02_the-debauchery-tea-party,The Debauchery Tea Party,04_third-ptcg-club,THIRD PTCG Club,20,19,1,0,0.95,139.35
+02_the-debauchery-tea-party,The Debauchery Tea Party,05_kadoraba,カドラバ Kadoraba,20,15,5,0,0.75,168.0
+02_the-debauchery-tea-party,The Debauchery Tea Party,06_naoki-maeda,Naoki Maeda,20,10,10,0,0.5,145.45
+02_the-debauchery-tea-party,The Debauchery Tea Party,07_graybackcat,graybackcat,20,6,14,0,0.3,150.05
+02_the-debauchery-tea-party,The Debauchery Tea Party,08_stagapult,Stagapult,20,19,1,0,0.95,130.6
+02_the-debauchery-tea-party,The Debauchery Tea Party,09_team,好吃的台灣拉麵,20,12,8,0,0.6,154.65
+02_the-debauchery-tea-party,The Debauchery Tea Party,10_kouki-k-4869,kouki__k_4869,20,17,3,0,0.85,172.7
+03_foo-foo,foo_foo,04_third-ptcg-club,THIRD PTCG Club,20,15,5,0,0.75,179.8
+03_foo-foo,foo_foo,05_kadoraba,カドラバ Kadoraba,20,19,1,0,0.95,160.75
+03_foo-foo,foo_foo,06_naoki-maeda,Naoki Maeda,20,6,14,0,0.3,187.95
+03_foo-foo,foo_foo,07_graybackcat,graybackcat,16,10,6,0,0.625,164.81
+03_foo-foo,foo_foo,08_stagapult,Stagapult,16,10,6,0,0.625,130.88
+03_foo-foo,foo_foo,09_team,好吃的台灣拉麵,16,11,5,0,0.6875,172.56
+03_foo-foo,foo_foo,10_kouki-k-4869,kouki__k_4869,16,15,1,0,0.9375,159.31
+04_third-ptcg-club,THIRD PTCG Club,05_kadoraba,カドラバ Kadoraba,16,11,5,0,0.6875,190.19
+04_third-ptcg-club,THIRD PTCG Club,06_naoki-maeda,Naoki Maeda,16,1,15,0,0.0625,178.38
+04_third-ptcg-club,THIRD PTCG Club,07_graybackcat,graybackcat,16,3,13,0,0.1875,178.69
+04_third-ptcg-club,THIRD PTCG Club,08_stagapult,Stagapult,16,14,2,0,0.875,164.5
+04_third-ptcg-club,THIRD PTCG Club,09_team,好吃的台灣拉麵,16,2,14,0,0.125,185.56
+04_third-ptcg-club,THIRD PTCG Club,10_kouki-k-4869,kouki__k_4869,16,14,2,0,0.875,196.25
+05_kadoraba,カドラバ Kadoraba,06_naoki-maeda,Naoki Maeda,16,1,15,0,0.0625,195.31
+05_kadoraba,カドラバ Kadoraba,07_graybackcat,graybackcat,16,2,14,0,0.125,157.0
+05_kadoraba,カドラバ Kadoraba,08_stagapult,Stagapult,16,11,5,0,0.6875,160.31
+05_kadoraba,カドラバ Kadoraba,09_team,好吃的台灣拉麵,16,1,15,0,0.0625,181.0
+05_kadoraba,カドラバ Kadoraba,10_kouki-k-4869,kouki__k_4869,16,11,5,0,0.6875,181.0
+06_naoki-maeda,Naoki Maeda,07_graybackcat,graybackcat,16,8,7,1,0.5,198.12
+06_naoki-maeda,Naoki Maeda,08_stagapult,Stagapult,16,14,2,0,0.875,123.56
+06_naoki-maeda,Naoki Maeda,09_team,好吃的台灣拉麵,16,8,8,0,0.5,193.75
+06_naoki-maeda,Naoki Maeda,10_kouki-k-4869,kouki__k_4869,16,16,0,0,1.0,144.44
+07_graybackcat,graybackcat,08_stagapult,Stagapult,16,13,3,0,0.8125,152.31
+07_graybackcat,graybackcat,09_team,好吃的台灣拉麵,16,10,6,0,0.625,163.12
+07_graybackcat,graybackcat,10_kouki-k-4869,kouki__k_4869,16,16,0,0,1.0,155.56
+08_stagapult,Stagapult,09_team,好吃的台灣拉麵,16,3,13,0,0.1875,146.25
+08_stagapult,Stagapult,10_kouki-k-4869,kouki__k_4869,16,6,10,0,0.375,146.12
+09_team,好吃的台灣拉麵,10_kouki-k-4869,kouki__k_4869,16,15,1,0,0.9375,167.19
