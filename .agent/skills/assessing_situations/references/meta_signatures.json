@@ -1,0 +1,45 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "generated_from": "data/meta_decks/index.json + ptcg_dimension_theory.md",
+    "note": "fingerprint_ids = cards appearing ≥3 copies; used for Jaccard similarity match"
+  },
+  "signatures": {
+    "Alakazam_Dudunsparce": {
+      "fingerprint_ids": [741, 742, 743, 66, 305, 1081, 1079, 1182],
+      "style": "Tempo",
+      "speed": "Medium",
+      "win_strategy": "远程伤害 + 过牌引擎，强化锤破控手",
+      "known_teams": ["TrustHub hiroingk", "blue0620", "kouki__k_4869"],
+      "known_ranks": [1, 8, 9],
+      "counter_note": "弱于 Hops 控手 Mist Energy，需靠 1081 反克"
+    },
+    "Hops_Control": {
+      "fingerprint_ids": [878, 879, 311, 1115, 1134, 11, 1171, 1219, 1227],
+      "style": "Control",
+      "speed": "Slow",
+      "win_strategy": "Mist Energy 免疫 + 遗产能量改奖 + Xerosic 手牌剥夺",
+      "known_teams": ["The Debauchery Tea Party"],
+      "known_ranks": [2],
+      "counter_note": "爆发克控手：面对 Alakazam 时用 1081 移除特殊能量"
+    },
+    "Hops_Aggro_Tempo": {
+      "fingerprint_ids": [878, 65, 66, 11, 19, 1115, 1086, 1171, 1227, 1255],
+      "style": "Tempo",
+      "speed": "Medium",
+      "win_strategy": "Hops 线 + 高速过牌 + 侧面工具压制",
+      "known_teams": ["foo_foo", "Naoki Maeda", "graybackcat", "persn"],
+      "known_ranks": [3, 6, 7, 10],
+      "counter_note": "与 Hops_Control 相似，但缺 1134/311；置信度低时退化"
+    },
+    "Alakazam_Dawn_Variant": {
+      "fingerprint_ids": [741, 742, 743, 305, 1086, 1231, 1225, 1182],
+      "style": "Tempo",
+      "speed": "Medium",
+      "win_strategy": "胡地 + Dawn 能量加速，快速建立 Energy Lead",
+      "known_teams": ["THIRD PTCG Club", "カドラバ Kadoraba"],
+      "known_ranks": [4, 5],
+      "counter_note": "缺 1081 强化锤，对 Control 克制效果弱于 #1/#8"
+    }
+  }
+}

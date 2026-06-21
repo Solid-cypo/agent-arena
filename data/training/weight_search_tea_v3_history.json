@@ -1,0 +1,733 @@
+{
+  "best": {
+    "generation": 11,
+    "candidate_index": 7,
+    "reward": 36,
+    "wins": 52,
+    "losses": 20,
+    "draws": 0,
+    "avg_steps": 149.89,
+    "weights": {
+      "attack": 2.2738194872113633,
+      "attach": 3.5087040323948453,
+      "evolve": 1.400581781930308,
+      "play": 2.3036090999524794,
+      "ability": 1.9909782464750467,
+      "retreat": -0.8406102737477934,
+      "yes": 0.23621306134902748,
+      "no": 1.1295050108752736,
+      "card_basic": 1.151554633514762,
+      "card_pokemon": 3.235586890073186,
+      "card_energy": 0.6903838909931065,
+      "card_trainer": 2.5829702808144774,
+      "damage_target": 2.892127996441826,
+      "own_damaged": 1.6024909631692754,
+      "active_bonus": 0.47979850057095697,
+      "bench_penalty": 0.14825238295466006,
+      "random_noise": 0.02
+    },
+    "matchups": [
+      {
+        "name": "mirror",
+        "weight": 0.5,
+        "reward": 12,
+        "wins": 18,
+        "losses": 6,
+        "draws": 0,
+        "avg_steps": 133.75
+      },
+      {
+        "name": "vs_naoki",
+        "weight": 1.5,
+        "reward": 12,
+        "wins": 18,
+        "losses": 6,
+        "draws": 0,
+        "avg_steps": 154.08
+      },
+      {
+        "name": "vs_gray",
+        "weight": 1.5,
+        "reward": 8,
+        "wins": 16,
+        "losses": 8,
+        "draws": 0,
+        "avg_steps": 161.83
+      }
+    ]
+  },
+  "history": [
+    {
+      "generation": 0,
+      "best_reward": 23,
+      "best_wins": 47,
+      "best_losses": 25,
+      "best_draws": 0,
+      "best_avg_steps": 151.19,
+      "best_weights": {
+        "attack": 2.6840218648253753,
+        "attach": 2.0686583580750266,
+        "evolve": 1.4815174062543022,
+        "play": 2.3760166694541547,
+        "ability": 1.2940685890920778,
+        "retreat": -0.28193110636394264,
+        "yes": 0.24587622822726998,
+        "no": 1.1951335240308552,
+        "card_basic": 1.2792432725792664,
+        "card_pokemon": 2.633156166691925,
+        "card_energy": 0.48675236377980735,
+        "card_trainer": 0.718731334117634,
+        "damage_target": 2.9606873770843984,
+        "own_damaged": 2.0172357555737777,
+        "active_bonus": 0.7725734315111031,
+        "bench_penalty": -0.016502825560517437,
+        "random_noise": 0.02
+      },
+      "best_matchups": [
+        {
+          "name": "mirror",
+          "weight": 0.5,
+          "reward": 10,
+          "wins": 17,
+          "losses": 7,
+          "draws": 0,
+          "avg_steps": 141.88
+        },
+        {
+          "name": "vs_naoki",
+          "weight": 1.5,
+          "reward": 4,
+          "wins": 14,
+          "losses": 10,
+          "draws": 0,
+          "avg_steps": 142.58
+        },
+        {
+          "name": "vs_gray",
+          "weight": 1.5,
+          "reward": 8,
+          "wins": 16,
+          "losses": 8,
+          "draws": 0,
+          "avg_steps": 169.12
+        }
+      ]
+    },
+    {
+      "generation": 1,
+      "best_reward": 26,
+      "best_wins": 46,
+      "best_losses": 26,
+      "best_draws": 0,
+      "best_avg_steps": 147.94,
+      "best_weights": {
+        "attack": 2.766686205549582,
+        "attach": 2.553655485887969,
+        "evolve": 1.9094470280242304,
+        "play": 1.5265896810537771,
+        "ability": 0.8964131588361981,
+        "retreat": -0.28193110636394264,
+        "yes": 0.12459547122223907,
+        "no": 0.34683395558862684,
+        "card_basic": 1.597042776986271,
+        "card_pokemon": 2.0276734791594095,
+        "card_energy": 0.48675236377980735,
+        "card_trainer": 1.0750443765798903,
+        "damage_target": 3.191160494236698,
+        "own_damaged": 1.7382551658099608,
+        "active_bonus": 0.57137769916301,
+        "bench_penalty": -0.2106777532141401,
+        "random_noise": 0.02
+      },
+      "best_matchups": [
+        {
+          "name": "mirror",
+          "weight": 0.5,
+          "reward": 4,
+          "wins": 14,
+          "losses": 10,
+          "draws": 0,
+          "avg_steps": 128.17
+        },
+        {
+          "name": "vs_naoki",
+          "weight": 1.5,
+          "reward": 8,
+          "wins": 16,
+          "losses": 8,
+          "draws": 0,
+          "avg_steps": 143.83
+        },
+        {
+          "name": "vs_gray",
+          "weight": 1.5,
+          "reward": 8,
+          "wins": 16,
+          "losses": 8,
+          "draws": 0,
+          "avg_steps": 171.83
+        }
+      ]
+    },
+    {
+      "generation": 2,
+      "best_reward": 29,
+      "best_wins": 45,
+      "best_losses": 27,
+      "best_draws": 0,
+      "best_avg_steps": 140.39,
+      "best_weights": {
+        "attack": 2.766686205549582,
+        "attach": 2.553655485887969,
+        "evolve": 1.8314101805608658,
+        "play": 1.5265896810537771,
+        "ability": 0.611911090005196,
+        "retreat": -0.11309904936652684,
+        "yes": -0.06425498306529048,
+        "no": 0.34683395558862684,
+        "card_basic": 2.0444320504431954,
+        "card_pokemon": 2.0530442326673373,
+        "card_energy": 0.4448489780649536,
+        "card_trainer": 1.3795687141372959,
+        "damage_target": 3.191160494236698,
+        "own_damaged": 1.8516159921400166,
+        "active_bonus": 0.6496010073157812,
+        "bench_penalty": -0.2106777532141401,
+        "random_noise": 0.02
+      },
+      "best_matchups": [
+        {
+          "name": "mirror",
+          "weight": 0.5,
+          "reward": -2,
+          "wins": 11,
+          "losses": 13,
+          "draws": 0,
+          "avg_steps": 124.46
+        },
+        {
+          "name": "vs_naoki",
+          "weight": 1.5,
+          "reward": 4,
+          "wins": 14,
+          "losses": 10,
+          "draws": 0,
+          "avg_steps": 147.17
+        },
+        {
+          "name": "vs_gray",
+          "weight": 1.5,
+          "reward": 16,
+          "wins": 20,
+          "losses": 4,
+          "draws": 0,
+          "avg_steps": 149.54
+        }
+      ]
+    },
+    {
+      "generation": 3,
+      "best_reward": 24,
+      "best_wins": 44,
+      "best_losses": 27,
+      "best_draws": 1,
+      "best_avg_steps": 152.77,
+      "best_weights": {
+        "attack": 1.6522535987185534,
+        "attach": 2.0686583580750266,
+        "evolve": 1.1819976190210735,
+        "play": 2.574873371185453,
+        "ability": 1.3234066029900984,
+        "retreat": -0.28193110636394264,
+        "yes": 0.08227127346065735,
+        "no": 1.4365954635689093,
+        "card_basic": 0.7102871089091685,
+        "card_pokemon": 3.0242755745710013,
+        "card_energy": 0.49384228557156623,
+        "card_trainer": 1.533557991748376,
+        "damage_target": 3.1076255231903516,
+        "own_damaged": 1.3328555463155178,
+        "active_bonus": 1.2144962326710216,
+        "bench_penalty": -0.016502825560517437,
+        "random_noise": 0.02
+      },
+      "best_matchups": [
+        {
+          "name": "mirror",
+          "weight": 0.5,
+          "reward": 1,
+          "wins": 12,
+          "losses": 11,
+          "draws": 1,
+          "avg_steps": 143.5
+        },
+        {
+          "name": "vs_naoki",
+          "weight": 1.5,
+          "reward": 6,
+          "wins": 15,
+          "losses": 9,
+          "draws": 0,
+          "avg_steps": 162.42
+        },
+        {
+          "name": "vs_gray",
+          "weight": 1.5,
+          "reward": 10,
+          "wins": 17,
+          "losses": 7,
+          "draws": 0,
+          "avg_steps": 152.38
+        }
+      ]
+    },
+    {
+      "generation": 4,
+      "best_reward": 26,
+      "best_wins": 48,
+      "best_losses": 23,
+      "best_draws": 1,
+      "best_avg_steps": 149.69,
+      "best_weights": {
+        "attack": 1.928737186301357,
+        "attach": 2.2352698848765855,
+        "evolve": 0.9726127250012981,
+        "play": 2.703343106004004,
+        "ability": 1.1182614053819606,
+        "retreat": -0.15138120657744475,
+        "yes": -0.21321524767429567,
+        "no": 0.5758370376725852,
+        "card_basic": 0.9720252464925234,
+        "card_pokemon": 3.0242755745710013,
+        "card_energy": -0.10159158375302835,
+        "card_trainer": 1.6719592388543483,
+        "damage_target": 3.9330511748463257,
+        "own_damaged": 2.2508636729540257,
+        "active_bonus": 1.2144962326710216,
+        "bench_penalty": -0.16393660648575037,
+        "random_noise": 0.02
+      },
+      "best_matchups": [
+        {
+          "name": "mirror",
+          "weight": 0.5,
+          "reward": 11,
+          "wins": 17,
+          "losses": 6,
+          "draws": 1,
+          "avg_steps": 126.08
+        },
+        {
+          "name": "vs_naoki",
+          "weight": 1.5,
+          "reward": 4,
+          "wins": 14,
+          "losses": 10,
+          "draws": 0,
+          "avg_steps": 160.54
+        },
+        {
+          "name": "vs_gray",
+          "weight": 1.5,
+          "reward": 10,
+          "wins": 17,
+          "losses": 7,
+          "draws": 0,
+          "avg_steps": 162.46
+        }
+      ]
+    },
+    {
+      "generation": 5,
+      "best_reward": 29,
+      "best_wins": 51,
+      "best_losses": 21,
+      "best_draws": 0,
+      "best_avg_steps": 149.69,
+      "best_weights": {
+        "attack": 2.6468473749366463,
+        "attach": 2.2007249946093963,
+        "evolve": 1.155904514941044,
+        "play": 2.574873371185453,
+        "ability": 2.071061080578986,
+        "retreat": 0.18720215385190575,
+        "yes": -0.38608277976491634,
+        "no": 2.044684794025596,
+        "card_basic": 0.9720252464925234,
+        "card_pokemon": 3.0170489269892387,
+        "card_energy": 0.2905836783861433,
+        "card_trainer": 2.041171961733003,
+        "damage_target": 2.7735577762419927,
+        "own_damaged": 1.7315238313341568,
+        "active_bonus": 0.8832867306165115,
+        "bench_penalty": 0.09937135153077847,
+        "random_noise": 0.02
+      },
+      "best_matchups": [
+        {
+          "name": "mirror",
+          "weight": 0.5,
+          "reward": 16,
+          "wins": 20,
+          "losses": 4,
+          "draws": 0,
+          "avg_steps": 133.12
+        },
+        {
+          "name": "vs_naoki",
+          "weight": 1.5,
+          "reward": 8,
+          "wins": 16,
+          "losses": 8,
+          "draws": 0,
+          "avg_steps": 167.42
+        },
+        {
+          "name": "vs_gray",
+          "weight": 1.5,
+          "reward": 6,
+          "wins": 15,
+          "losses": 9,
+          "draws": 0,
+          "avg_steps": 148.54
+        }
+      ]
+    },
+    {
+      "generation": 6,
+      "best_reward": 24,
+      "best_wins": 44,
+      "best_losses": 28,
+      "best_draws": 0,
+      "best_avg_steps": 154.68,
+      "best_weights": {
+        "attack": 2.4580800021326454,
+        "attach": 2.2007249946093963,
+        "evolve": 1.155904514941044,
+        "play": 2.574873371185453,
+        "ability": 2.071061080578986,
+        "retreat": 0.18720215385190575,
+        "yes": -0.003285159059878029,
+        "no": 2.459233793212573,
+        "card_basic": 0.9720252464925234,
+        "card_pokemon": 3.0170489269892387,
+        "card_energy": 0.999768777997847,
+        "card_trainer": 1.8010839438990043,
+        "damage_target": 2.814667687365787,
+        "own_damaged": 1.759758673938569,
+        "active_bonus": 0.8832867306165115,
+        "bench_penalty": 0.17070589839527536,
+        "random_noise": 0.02
+      },
+      "best_matchups": [
+        {
+          "name": "mirror",
+          "weight": 0.5,
+          "reward": 0,
+          "wins": 12,
+          "losses": 12,
+          "draws": 0,
+          "avg_steps": 141.67
+        },
+        {
+          "name": "vs_naoki",
+          "weight": 1.5,
+          "reward": 8,
+          "wins": 16,
+          "losses": 8,
+          "draws": 0,
+          "avg_steps": 163.21
+        },
+        {
+          "name": "vs_gray",
+          "weight": 1.5,
+          "reward": 8,
+          "wins": 16,
+          "losses": 8,
+          "draws": 0,
+          "avg_steps": 159.17
+        }
+      ]
+    },
+    {
+      "generation": 7,
+      "best_reward": 24,
+      "best_wins": 46,
+      "best_losses": 26,
+      "best_draws": 0,
+      "best_avg_steps": 159.28,
+      "best_weights": {
+        "attack": 1.8594777126748345,
+        "attach": 2.432320332289617,
+        "evolve": 0.57682814244022,
+        "play": 2.622328876373608,
+        "ability": 2.6645573772509366,
+        "retreat": -0.19616923049244536,
+        "yes": 0.08227127346065735,
+        "no": 1.6949525952709719,
+        "card_basic": 0.4711002978460025,
+        "card_pokemon": 3.235586890073186,
+        "card_energy": 0.7179954838820666,
+        "card_trainer": 1.7291956781420237,
+        "damage_target": 2.764036189523995,
+        "own_damaged": 1.1813702659132677,
+        "active_bonus": 0.809999837487557,
+        "bench_penalty": -0.016502825560517437,
+        "random_noise": 0.02
+      },
+      "best_matchups": [
+        {
+          "name": "mirror",
+          "weight": 0.5,
+          "reward": 6,
+          "wins": 15,
+          "losses": 9,
+          "draws": 0,
+          "avg_steps": 136.29
+        },
+        {
+          "name": "vs_naoki",
+          "weight": 1.5,
+          "reward": 4,
+          "wins": 14,
+          "losses": 10,
+          "draws": 0,
+          "avg_steps": 174.29
+        },
+        {
+          "name": "vs_gray",
+          "weight": 1.5,
+          "reward": 10,
+          "wins": 17,
+          "losses": 7,
+          "draws": 0,
+          "avg_steps": 167.25
+        }
+      ]
+    },
+    {
+      "generation": 8,
+      "best_reward": 24,
+      "best_wins": 46,
+      "best_losses": 24,
+      "best_draws": 2,
+      "best_avg_steps": 146.91,
+      "best_weights": {
+        "attack": 1.8594777126748345,
+        "attach": 2.432320332289617,
+        "evolve": 0.57682814244022,
+        "play": 2.622328876373608,
+        "ability": 2.6645573772509366,
+        "retreat": -0.19616923049244536,
+        "yes": 0.08227127346065735,
+        "no": 1.6949525952709719,
+        "card_basic": 0.4711002978460025,
+        "card_pokemon": 3.235586890073186,
+        "card_energy": 0.7179954838820666,
+        "card_trainer": 1.7291956781420237,
+        "damage_target": 2.764036189523995,
+        "own_damaged": 1.1813702659132677,
+        "active_bonus": 0.809999837487557,
+        "bench_penalty": -0.016502825560517437,
+        "random_noise": 0.02
+      },
+      "best_matchups": [
+        {
+          "name": "mirror",
+          "weight": 0.5,
+          "reward": 9,
+          "wins": 16,
+          "losses": 7,
+          "draws": 1,
+          "avg_steps": 120.29
+        },
+        {
+          "name": "vs_naoki",
+          "weight": 1.5,
+          "reward": 3,
+          "wins": 13,
+          "losses": 10,
+          "draws": 1,
+          "avg_steps": 144.83
+        },
+        {
+          "name": "vs_gray",
+          "weight": 1.5,
+          "reward": 10,
+          "wins": 17,
+          "losses": 7,
+          "draws": 0,
+          "avg_steps": 175.62
+        }
+      ]
+    },
+    {
+      "generation": 9,
+      "best_reward": 36,
+      "best_wins": 50,
+      "best_losses": 22,
+      "best_draws": 0,
+      "best_avg_steps": 151.68,
+      "best_weights": {
+        "attack": 2.5519509531963993,
+        "attach": 2.7879352657613174,
+        "evolve": 1.6182808498506305,
+        "play": 2.866728172227227,
+        "ability": 1.9909782464750467,
+        "retreat": -0.3929222411024307,
+        "yes": 0.12061423229815658,
+        "no": 1.6949525952709719,
+        "card_basic": 0.5044117033392297,
+        "card_pokemon": 3.2151419917010315,
+        "card_energy": 0.7179954838820666,
+        "card_trainer": 2.927431423114207,
+        "damage_target": 3.043376422895532,
+        "own_damaged": 1.3341010711421353,
+        "active_bonus": 1.1624200501431186,
+        "bench_penalty": -0.254619530796364,
+        "random_noise": 0.02
+      },
+      "best_matchups": [
+        {
+          "name": "mirror",
+          "weight": 0.5,
+          "reward": 6,
+          "wins": 15,
+          "losses": 9,
+          "draws": 0,
+          "avg_steps": 131.0
+        },
+        {
+          "name": "vs_naoki",
+          "weight": 1.5,
+          "reward": 12,
+          "wins": 18,
+          "losses": 6,
+          "draws": 0,
+          "avg_steps": 170.92
+        },
+        {
+          "name": "vs_gray",
+          "weight": 1.5,
+          "reward": 10,
+          "wins": 17,
+          "losses": 7,
+          "draws": 0,
+          "avg_steps": 153.12
+        }
+      ]
+    },
+    {
+      "generation": 10,
+      "best_reward": 32,
+      "best_wins": 50,
+      "best_losses": 22,
+      "best_draws": 0,
+      "best_avg_steps": 151.28,
+      "best_weights": {
+        "attack": 3.4654123260458625,
+        "attach": 2.7879352657613174,
+        "evolve": 1.6182808498506305,
+        "play": 2.866728172227227,
+        "ability": 1.4578023459880542,
+        "retreat": -0.3862173645018278,
+        "yes": 0.12061423229815658,
+        "no": 1.6949525952709719,
+        "card_basic": 0.6255348468957436,
+        "card_pokemon": 3.2151419917010315,
+        "card_energy": 1.0439294120829978,
+        "card_trainer": 2.927431423114207,
+        "damage_target": 3.043376422895532,
+        "own_damaged": 1.3341010711421353,
+        "active_bonus": 1.1624200501431186,
+        "bench_penalty": -0.254619530796364,
+        "random_noise": 0.02
+      },
+      "best_matchups": [
+        {
+          "name": "mirror",
+          "weight": 0.5,
+          "reward": 10,
+          "wins": 17,
+          "losses": 7,
+          "draws": 0,
+          "avg_steps": 141.83
+        },
+        {
+          "name": "vs_naoki",
+          "weight": 1.5,
+          "reward": 8,
+          "wins": 16,
+          "losses": 8,
+          "draws": 0,
+          "avg_steps": 153.58
+        },
+        {
+          "name": "vs_gray",
+          "weight": 1.5,
+          "reward": 10,
+          "wins": 17,
+          "losses": 7,
+          "draws": 0,
+          "avg_steps": 158.42
+        }
+      ]
+    },
+    {
+      "generation": 11,
+      "best_reward": 36,
+      "best_wins": 52,
+      "best_losses": 20,
+      "best_draws": 0,
+      "best_avg_steps": 149.89,
+      "best_weights": {
+        "attack": 2.2738194872113633,
+        "attach": 3.5087040323948453,
+        "evolve": 1.400581781930308,
+        "play": 2.3036090999524794,
+        "ability": 1.9909782464750467,
+        "retreat": -0.8406102737477934,
+        "yes": 0.23621306134902748,
+        "no": 1.1295050108752736,
+        "card_basic": 1.151554633514762,
+        "card_pokemon": 3.235586890073186,
+        "card_energy": 0.6903838909931065,
+        "card_trainer": 2.5829702808144774,
+        "damage_target": 2.892127996441826,
+        "own_damaged": 1.6024909631692754,
+        "active_bonus": 0.47979850057095697,
+        "bench_penalty": 0.14825238295466006,
+        "random_noise": 0.02
+      },
+      "best_matchups": [
+        {
+          "name": "mirror",
+          "weight": 0.5,
+          "reward": 12,
+          "wins": 18,
+          "losses": 6,
+          "draws": 0,
+          "avg_steps": 133.75
+        },
+        {
+          "name": "vs_naoki",
+          "weight": 1.5,
+          "reward": 12,
+          "wins": 18,
+          "losses": 6,
+          "draws": 0,
+          "avg_steps": 154.08
+        },
+        {
+          "name": "vs_gray",
+          "weight": 1.5,
+          "reward": 8,
+          "wins": 16,
+          "losses": 8,
+          "draws": 0,
+          "avg_steps": 161.83
+        }
+      ]
+    }
+  ]
+}

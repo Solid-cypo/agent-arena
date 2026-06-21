@@ -1,0 +1,84 @@
+# Hop's Control Premium — v1.0
+# Built: 2026-06-22
+# Based on Tea Party v4 weights (transferable)
+#
+# Key upgrades over base Tea Party:
+#   - Dubwool (310) Defiant Horn: evolve = free Boss's Orders
+#   - Snorlax (304) Extra Helpings +30 stacks with Choice Band +30 + Postwick +30 = 180 dmg
+#   - Lillie's Clefairy ex (272) Fairy Zone: {N} weakness -> {P}x2
+#   - Shaymin (343) Flower Curtain: bench protection for non-rule-box Pokemon
+#   - Ruffian (1209): strip opponent Tool + Special Energy
+#   - Hassel (1193): reactive draw after KO
+#   - Air Balloon (1174): retreat cost -2
+
+# Pokemon x14
+878
+878
+878
+878
+879
+879
+879
+304
+304
+309
+310
+311
+272
+343
+
+# Supporters x14
+1227
+1227
+1227
+1227
+1219
+1219
+1219
+1219
+1182
+1182
+1182
+1193
+1193
+1209
+
+# Items x15
+1152
+1152
+1152
+1152
+1122
+1122
+1122
+1097
+1097
+1097
+1115
+1115
+1121
+1092
+1123
+
+# Tools x5
+1171
+1171
+1171
+1171
+1174
+
+# Stadium x4
+1255
+1255
+1255
+1255
+
+# Energy x8
+19
+19
+19
+19
+11
+11
+11
+11

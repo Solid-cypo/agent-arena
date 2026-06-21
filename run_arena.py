@@ -127,6 +127,40 @@ def cmd_export(args: argparse.Namespace) -> None:
     print(json.dumps(summary, indent=2))
 
 
+def cmd_fsm(args: argparse.Namespace) -> None:
+    """Evaluate FSM agent vs policy.py baseline."""
+    from arena.fsm_agent import make_fsm_agent
+
+    random.seed(args.seed)
+    deck_a = _resolve_deck(args.deck_a)
+    deck_b = _resolve_deck(args.deck_b)
+    fw = _load_weights(args.weights)
+
+    fsm_agent    = make_fsm_agent(deck_a, fw)
+    base_agent_b = __import__("arena.policy", fromlist=["make_agent"]).make_agent(deck_b, fw)
+
+    wins = losses = draws = steps_total = 0
+    for i in range(args.games):
+        from arena.simulator import play_game
+        if i % 2 == 0:
+            g = play_game(fsm_agent, base_agent_b, deck_a, deck_b,
+                          weights_a=fw, weights_b=fw, max_steps=args.max_steps)
+            r = g.reward_for_a
+        else:
+            g = play_game(base_agent_b, fsm_agent, deck_b, deck_a,
+                          weights_a=fw, weights_b=fw, max_steps=args.max_steps)
+            r = -g.reward_for_a
+        wins   += r > 0
+        losses += r < 0
+        draws  += r == 0
+        steps_total += g.steps
+        print(f"  game {i+1:3d}  {'W' if r>0 else 'L' if r<0 else 'D'}  steps={g.steps}")
+
+    avg = round(steps_total / max(args.games, 1), 2)
+    print(f"\nfsm_agent vs baseline: games={args.games} W/L/D={wins}/{losses}/{draws} "
+          f"win_rate={wins/args.games:.1%} avg_steps={avg}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run local cabt arena simulations.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -166,6 +200,15 @@ def build_parser() -> argparse.ArgumentParser:
     export_cmd.add_argument("--weights-b", type=Path, default=None)
     export_cmd.add_argument("--out", type=Path, default=Path("data/trajectories/run.jsonl"))
     export_cmd.set_defaults(func=cmd_export)
+
+    fsm_cmd = subparsers.add_parser("fsm", help="Evaluate FSM-Math agent vs policy.py baseline.")
+    add_common_flags(fsm_cmd)
+    fsm_cmd.add_argument("--games", type=int, default=10)
+    fsm_cmd.add_argument("--deck-a", type=Path, default=Path("deck.csv"))
+    fsm_cmd.add_argument("--deck-b", type=Path, default=Path("deck.csv"))
+    fsm_cmd.add_argument("--weights", type=Path, default=None,
+                         help="Shared weights for FSM baseline-ranker and opponent (default: DEFAULT_WEIGHTS).")
+    fsm_cmd.set_defaults(func=cmd_fsm)
 
     return parser
 

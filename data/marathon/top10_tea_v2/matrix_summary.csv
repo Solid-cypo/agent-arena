@@ -1,0 +1,46 @@
+deck_a_id,deck_a_label,deck_b_id,deck_b_label,games,wins_a,losses_a,draws,win_rate_a,avg_steps
+01_trusthub-hiroingk,TrustHub hiroingk,02_the-debauchery-tea-party,The Debauchery Tea Party,100,28,72,0,0.28,167.0
+01_trusthub-hiroingk,TrustHub hiroingk,03_foo-foo,foo_foo,100,23,77,0,0.23,162.44
+01_trusthub-hiroingk,TrustHub hiroingk,04_third-ptcg-club,THIRD PTCG Club,100,55,45,0,0.55,161.43
+01_trusthub-hiroingk,TrustHub hiroingk,05_kadoraba,カドラバ Kadoraba,100,60,40,0,0.6,153.24
+01_trusthub-hiroingk,TrustHub hiroingk,06_naoki-maeda,Naoki Maeda,100,19,79,2,0.19,167.17
+01_trusthub-hiroingk,TrustHub hiroingk,07_graybackcat,graybackcat,100,20,80,0,0.2,163.22
+01_trusthub-hiroingk,TrustHub hiroingk,08_blue0620,blue0620,100,47,53,0,0.47,151.76
+01_trusthub-hiroingk,TrustHub hiroingk,09_kouki-k-4869,kouki__k_4869,100,75,25,0,0.75,161.78
+01_trusthub-hiroingk,TrustHub hiroingk,10_persn,persn,100,35,65,0,0.35,172.28
+02_the-debauchery-tea-party,The Debauchery Tea Party,03_foo-foo,foo_foo,100,57,43,0,0.57,159.47
+02_the-debauchery-tea-party,The Debauchery Tea Party,04_third-ptcg-club,THIRD PTCG Club,100,94,6,0,0.94,156.67
+02_the-debauchery-tea-party,The Debauchery Tea Party,05_kadoraba,カドラバ Kadoraba,100,89,11,0,0.89,153.49
+02_the-debauchery-tea-party,The Debauchery Tea Party,06_naoki-maeda,Naoki Maeda,100,53,47,0,0.53,146.47
+02_the-debauchery-tea-party,The Debauchery Tea Party,07_graybackcat,graybackcat,100,58,42,0,0.58,149.41
+02_the-debauchery-tea-party,The Debauchery Tea Party,08_blue0620,blue0620,100,90,10,0,0.9,157.6
+02_the-debauchery-tea-party,The Debauchery Tea Party,09_kouki-k-4869,kouki__k_4869,100,87,13,0,0.87,168.76
+02_the-debauchery-tea-party,The Debauchery Tea Party,10_persn,persn,100,58,41,1,0.58,155.45
+03_foo-foo,foo_foo,04_third-ptcg-club,THIRD PTCG Club,100,93,7,0,0.93,161.72
+03_foo-foo,foo_foo,05_kadoraba,カドラバ Kadoraba,100,83,17,0,0.83,153.64
+03_foo-foo,foo_foo,06_naoki-maeda,Naoki Maeda,100,73,27,0,0.73,162.45
+03_foo-foo,foo_foo,07_graybackcat,graybackcat,100,66,33,1,0.66,169.02
+03_foo-foo,foo_foo,08_blue0620,blue0620,100,93,7,0,0.93,149.52
+03_foo-foo,foo_foo,09_kouki-k-4869,kouki__k_4869,100,97,3,0,0.97,154.49
+03_foo-foo,foo_foo,10_persn,persn,100,73,27,0,0.73,158.99
+04_third-ptcg-club,THIRD PTCG Club,05_kadoraba,カドラバ Kadoraba,100,74,25,1,0.74,171.27
+04_third-ptcg-club,THIRD PTCG Club,06_naoki-maeda,Naoki Maeda,100,20,79,1,0.2,161.02
+04_third-ptcg-club,THIRD PTCG Club,07_graybackcat,graybackcat,100,23,76,1,0.23,182.29
+04_third-ptcg-club,THIRD PTCG Club,08_blue0620,blue0620,100,75,25,0,0.75,177.26
+04_third-ptcg-club,THIRD PTCG Club,09_kouki-k-4869,kouki__k_4869,100,71,27,2,0.71,196.11
+04_third-ptcg-club,THIRD PTCG Club,10_persn,persn,100,14,86,0,0.14,159.08
+05_kadoraba,カドラバ Kadoraba,06_naoki-maeda,Naoki Maeda,100,16,84,0,0.16,166.96
+05_kadoraba,カドラバ Kadoraba,07_graybackcat,graybackcat,100,21,79,0,0.21,173.99
+05_kadoraba,カドラバ Kadoraba,08_blue0620,blue0620,100,52,48,0,0.52,151.83
+05_kadoraba,カドラバ Kadoraba,09_kouki-k-4869,kouki__k_4869,100,67,33,0,0.67,158.93
+05_kadoraba,カドラバ Kadoraba,10_persn,persn,100,22,78,0,0.22,167.2
+06_naoki-maeda,Naoki Maeda,07_graybackcat,graybackcat,100,75,22,3,0.75,171.4
+06_naoki-maeda,Naoki Maeda,08_blue0620,blue0620,100,93,7,0,0.93,160.52
+06_naoki-maeda,Naoki Maeda,09_kouki-k-4869,kouki__k_4869,100,97,3,0,0.97,153.13
+06_naoki-maeda,Naoki Maeda,10_persn,persn,100,71,29,0,0.71,171.58
+07_graybackcat,graybackcat,08_blue0620,blue0620,100,92,8,0,0.92,150.16
+07_graybackcat,graybackcat,09_kouki-k-4869,kouki__k_4869,100,96,4,0,0.96,159.33
+07_graybackcat,graybackcat,10_persn,persn,100,62,36,2,0.62,165.31
+08_blue0620,blue0620,09_kouki-k-4869,kouki__k_4869,100,72,28,0,0.72,169.11
+08_blue0620,blue0620,10_persn,persn,100,20,79,1,0.2,157.58
+09_kouki-k-4869,kouki__k_4869,10_persn,persn,100,11,89,0,0.11,150.07

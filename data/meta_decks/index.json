@@ -3,9 +3,9 @@
     "rank": 1,
     "team_id": 16376775,
     "team_name": "TrustHub hiroingk",
-    "score": 1313.8,
+    "score": 1312.7,
     "submission_id": 53802029,
-    "episode_id": 80889993,
+    "episode_id": 80911247,
     "deck_path": "/root/agent-arena/data/meta_decks/decks/01_trusthub-hiroingk.csv",
     "deck_unique_cards": 19,
     "deck_top_cards": [
@@ -30,16 +30,16 @@
         4
       ]
     ],
-    "opponent_name": "The Debauchery Tea Party",
-    "source_replay": "/root/agent-arena/data/meta_decks/replays/16376775/episode-80889993-replay.json"
+    "opponent_name": "THIRD PTCG Club",
+    "source_replay": "/root/agent-arena/data/meta_decks/replays/16376775/episode-80911247-replay.json"
   },
   {
     "rank": 2,
     "team_id": 16378170,
     "team_name": "The Debauchery Tea Party",
-    "score": 1311.5,
+    "score": 1304.2,
     "submission_id": 53880887,
-    "episode_id": 80894375,
+    "episode_id": 80909450,
     "deck_path": "/root/agent-arena/data/meta_decks/decks/02_the-debauchery-tea-party.csv",
     "deck_unique_cards": 19,
     "deck_top_cards": [
@@ -64,8 +64,8 @@
         4
       ]
     ],
-    "opponent_name": "graybackcat",
-    "source_replay": "/root/agent-arena/data/meta_decks/replays/16378170/episode-80894375-replay.json"
+    "opponent_name": "TrustHub hiroingk",
+    "source_replay": "/root/agent-arena/data/meta_decks/replays/16378170/episode-80909450-replay.json"
   },
   {
     "rank": 3,
@@ -105,9 +105,9 @@
     "rank": 4,
     "team_id": 16372380,
     "team_name": "THIRD PTCG Club",
-    "score": 1259.4,
+    "score": 1267.6,
     "submission_id": 53878567,
-    "episode_id": 80889444,
+    "episode_id": 80911247,
     "deck_path": "/root/agent-arena/data/meta_decks/decks/04_third-ptcg-club.csv",
     "deck_unique_cards": 22,
     "deck_top_cards": [
@@ -132,14 +132,14 @@
         4
       ]
     ],
-    "opponent_name": "The Debauchery Tea Party",
-    "source_replay": "/root/agent-arena/data/meta_decks/replays/16372380/episode-80889444-replay.json"
+    "opponent_name": "TrustHub hiroingk",
+    "source_replay": "/root/agent-arena/data/meta_decks/replays/16372380/episode-80911247-replay.json"
   },
   {
     "rank": 5,
     "team_id": 16377364,
     "team_name": "カドラバ Kadoraba",
-    "score": 1249.8,
+    "score": 1252.0,
     "submission_id": 53800247,
     "episode_id": 80895694,
     "deck_path": "/root/agent-arena/data/meta_decks/decks/05_kadoraba.csv",
@@ -173,9 +173,9 @@
     "rank": 6,
     "team_id": 16377948,
     "team_name": "Naoki Maeda",
-    "score": 1249.2,
+    "score": 1240.6,
     "submission_id": 53878693,
-    "episode_id": 80893110,
+    "episode_id": 80904056,
     "deck_path": "/root/agent-arena/data/meta_decks/decks/06_naoki-maeda.csv",
     "deck_unique_cards": 19,
     "deck_top_cards": [
@@ -200,8 +200,8 @@
         4
       ]
     ],
-    "opponent_name": "The Debauchery Tea Party",
-    "source_replay": "/root/agent-arena/data/meta_decks/replays/16377948/episode-80893110-replay.json"
+    "opponent_name": "Praxel",
+    "source_replay": "/root/agent-arena/data/meta_decks/replays/16377948/episode-80904056-replay.json"
   },
   {
     "rank": 7,
@@ -239,80 +239,46 @@
   },
   {
     "rank": 8,
-    "team_id": 16385029,
-    "team_name": "Stagapult",
-    "score": 1217.5,
-    "submission_id": 53823054,
-    "episode_id": 80890510,
-    "deck_path": "/root/agent-arena/data/meta_decks/decks/08_stagapult.csv",
-    "deck_unique_cards": 18,
-    "deck_top_cards": [
-      [
-        6,
-        13
-      ],
-      [
-        677,
-        4
-      ],
-      [
-        1102,
-        4
-      ],
-      [
-        1141,
-        4
-      ],
-      [
-        1142,
-        4
-      ]
-    ],
-    "opponent_name": "The Debauchery Tea Party",
-    "source_replay": "/root/agent-arena/data/meta_decks/replays/16385029/episode-80890510-replay.json"
-  },
-  {
-    "rank": 9,
-    "team_id": 16386344,
-    "team_name": "好吃的台灣拉麵",
-    "score": 1215.1,
-    "submission_id": 53871141,
-    "episode_id": 80892542,
-    "deck_path": "/root/agent-arena/data/meta_decks/decks/09_team.csv",
+    "team_id": 16385046,
+    "team_name": "blue0620",
+    "score": 1201.8,
+    "submission_id": 53869725,
+    "episode_id": 80891279,
+    "deck_path": "/root/agent-arena/data/meta_decks/decks/08_blue0620.csv",
     "deck_unique_cards": 19,
     "deck_top_cards": [
       [
-        878,
+        743,
         4
       ],
       [
-        65,
+        742,
+        4
+      ],
+      [
+        741,
+        4
+      ],
+      [
+        305,
         4
       ],
       [
         1086,
         4
-      ],
-      [
-        1152,
-        4
-      ],
-      [
-        1122,
-        4
       ]
     ],
     "opponent_name": "The Debauchery Tea Party",
-    "source_replay": "/root/agent-arena/data/meta_decks/replays/16386344/episode-80892542-replay.json"
+    "source_replay": "/root/agent-arena/data/meta_decks/replays/16385046/episode-80891279-replay.json"
   },
   {
-    "rank": 10,
+    "rank": 9,
     "team_id": 16400126,
     "team_name": "kouki__k_4869",
-    "score": 1207.2,
+    "score": 1198.1,
     "submission_id": 53880999,
-    "episode_id": 80893120,
-    "deck_path": "/root/agent-arena/data/meta_decks/decks/10_kouki-k-4869.csv",
+    "episode_id": 80909452,
+    "deck_path": "/root/agent-arena/data/meta_decks/decks/09_kouki-k-4869.csv",
     "deck_unique_cards": 21,
     "deck_top_cards": [
       [
@@ -336,7 +302,41 @@
         4
       ]
     ],
-    "opponent_name": "Pik-AI-chu",
-    "source_replay": "/root/agent-arena/data/meta_decks/replays/16400126/episode-80893120-replay.json"
+    "opponent_name": "N",
+    "source_replay": "/root/agent-arena/data/meta_decks/replays/16400126/episode-80909452-replay.json"
+  },
+  {
+    "rank": 10,
+    "team_id": 16374516,
+    "team_name": "persn",
+    "score": 1189.1,
+    "submission_id": 53867979,
+    "episode_id": 80886411,
+    "deck_path": "/root/agent-arena/data/meta_decks/decks/10_persn.csv",
+    "deck_unique_cards": 19,
+    "deck_top_cards": [
+      [
+        11,
+        4
+      ],
+      [
+        19,
+        4
+      ],
+      [
+        65,
+        4
+      ],
+      [
+        878,
+        4
+      ],
+      [
+        1086,
+        4
+      ]
+    ],
+    "opponent_name": "The Debauchery Tea Party",
+    "source_replay": "/root/agent-arena/data/meta_decks/replays/16374516/episode-80886411-replay.json"
   }
 ]

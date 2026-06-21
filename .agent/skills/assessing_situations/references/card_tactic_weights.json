@@ -1,0 +1,64 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "source": "ptcg_dimension_theory.md + Top10 meta analysis",
+    "note": "All constants are heuristic; update via train_weights empirical feedback"
+  },
+  "draw_potential": {
+    "66": 2.0,
+    "1086": 1.5,
+    "1115": 1.5,
+    "1122": 1.2,
+    "1079": 1.2,
+    "1152": 1.0,
+    "1097": 0.8,
+    "1227": 0.8,
+    "1182": 0.6,
+    "1225": 0.6,
+    "1231": 0.6,
+    "305": 0.5,
+    "65": 0.5,
+    "1171": 0.4,
+    "1255": 0.4,
+    "_note": "card_id -> bonus added to S_hand for each copy in hand"
+  },
+  "board_tactic": {
+    "1081": {
+      "bonus_vs_control": 50.0,
+      "note": "Enhanced Hammer: 对 Control 对手反克制加成"
+    },
+    "1182": {
+      "tempo_bonus": 15.0,
+      "note": "Boss's Orders: 抓杀轮次加速"
+    },
+    "1197": {
+      "control_flag": true,
+      "note": "Xerosic: 对手使用时标记 Control 风格"
+    },
+    "11": {
+      "control_flag": true,
+      "note": "Mist Energy: 对手场上出现时标记 Control 风格"
+    },
+    "1134": {
+      "control_flag": true,
+      "note": "Team Rocket's Transceivers: Control 专属卡"
+    },
+    "19": {
+      "tempo_flag": true,
+      "note": "Telepath Psychic Energy: Hops 轴标记"
+    }
+  },
+  "iono_priority": {
+    "1227": {
+      "base_mult": 1.0,
+      "lambda": 2.5,
+      "note": "Iono(奇树): w_hand *= 1 + lambda * max(0, opp_prize_taken - my_prize_taken) / 6"
+    }
+  },
+  "hammer_vs_control_bonus": 50.0,
+  "weakness_damage_multiplier": 2.0,
+  "energy_readiness_full_threshold": 1.0,
+  "tc_prize_hp_default": 100,
+  "tc_damage_default": 80,
+  "_prize_hp_note": "used when MaxHP/MaxDmg unavailable from obs; conservative fallback"
+}
