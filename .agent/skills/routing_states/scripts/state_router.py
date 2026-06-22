@@ -83,6 +83,17 @@ _STYLE_COUNTER_BIAS: dict[str, str] = {
     "Tempo":   StateEnum.BURST,   # 爆发克运营: 抢轮次压时钟
 }
 
+# Root → weight correction mapping
+# 理论: 攻击对手的战术根 (ptcg_dimension_theory.md §2)
+_ROOT_WEIGHT_CORRECTIONS: dict[str, dict[str, float]] = {
+    # 対手根: 場面 (Burst) → 攻击其场面 → 提高 w_board (消耗能量/打手)
+    "場面": {"w_board": 0.15, "w_turn": 0.10, "w_hand": 0.0},
+    # 対手根: 手牌 (Tempo) → 攻击其手牌引擎 → 提高 w_hand (Xerosic/Iono)
+    "手牌": {"w_hand": 0.20, "w_board": 0.05, "w_turn": 0.0},
+    # 対手根: 規則 (Control) → 破坏其特殊能量 → 提高 w_board (1081/Ruffian)
+    "規則": {"w_board": 0.20, "w_turn": -0.05, "w_hand": 0.0},
+}
+
 # Thresholds
 _BURST_PRIZE_THRESHOLD     = 2      # self prize ≤ this → consider BURST
 _BURST_READINESS_THRESHOLD = 0.8    # board readiness ≥ this → BURST fires
@@ -150,7 +161,15 @@ def _apply_corrections(
     if scores.s_hand_diff <= _HAND_DEFICIT_THRESHOLD:
         w_hand = min(_HAND_CAP, w_hand + _HAND_BOOST_AMOUNT)
 
-    # ── B. Opponent is Control: boost w_board for side-tools (1081 etc.) ──
+    # ── B. Root-based weight correction (攻击战术根) ──────────────────────
+    opp_root = getattr(profile, "root", "Unknown")
+    if opp_root in _ROOT_WEIGHT_CORRECTIONS and profile.confidence >= 0.3:
+        corr = _ROOT_WEIGHT_CORRECTIONS[opp_root]
+        w_turn  = max(0.02, min(0.95, w_turn  + corr.get("w_turn",  0.0)))
+        w_board = max(0.02, min(0.95, w_board + corr.get("w_board", 0.0)))
+        w_hand  = max(0.02, min(0.95, w_hand  + corr.get("w_hand",  0.0)))
+
+    # ── C. Opponent is Control: boost w_board for side-tools (1081 etc.) ──
     if profile.style == "Control" and profile.confidence >= 0.3:
         w_board = min(0.85, w_board + _BOARD_BOOST_VS_CONTROL)
 

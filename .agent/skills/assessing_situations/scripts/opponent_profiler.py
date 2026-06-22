@@ -30,13 +30,32 @@ _tactic_cfg: dict[str, Any] | None = None
 # ---------------------------------------------------------------------------
 
 _battle_state: dict[str, Any] = {
-    "last_turn": -1,          # detect new battle
-    "hand_counts": [],         # [(turn, count), ...]
-    "active_ids": set(),       # all active card IDs seen so far
-    "bench_ids": set(),        # all bench card IDs seen
-    "peak_hand": 0,            # max hand count in this battle
-    "min_hand": 999,           # min hand count in this battle
-    "energy_t1": 0,            # opponent energy count at turn 1
+    # ── Meta ─────────────────────────────────────────────────────────────
+    "last_turn": -1,
+
+    # ── S_hand dimension signals ─────────────────────────────────────────
+    # Root: 手牌 → Tempo decks drive from hand; their hand peaks high
+    # and recovers quickly after disruption.
+    "hand_counts": [],          # per-turn opp handCount values
+    "peak_hand": 0,             # highest opp hand count seen
+    "min_hand": 999,            # lowest opp hand count seen
+    "hand_deltas": [],          # turn-over-turn Δ hand count
+
+    # ── S_board dimension signals ─────────────────────────────────────────
+    # Root: 場面 → Burst decks charge energy fast; board grows fast.
+    "active_ids": set(),        # all active Pokemon IDs seen
+    "bench_ids": set(),         # all bench Pokemon IDs seen
+    "bench_count_by_turn": [],  # per-turn bench count
+    "energy_counts": [],        # per-turn energy attached to opp active
+    "energy_t1": 0,             # energy on opp active at T1-T2 (fast charge = Burst)
+    "peak_energy": 0,           # max energy ever seen on one Pokemon
+    "hp_loss_per_turn": [],     # opp active HP drops (attack aggressiveness proxy)
+
+    # ── S_turn dimension signals ──────────────────────────────────────────
+    # Root: 規則 → Control decks manipulate prize/hand rules, slow TC_opp.
+    "prize_counts": [],         # per-turn opp prizeCount
+    "prizes_lost": 0,           # total prizes opponent has taken from us
+    "first_attack_turn": 999,   # turn when opp first attacked (HP drop detected)
 }
 
 
@@ -44,16 +63,23 @@ def _reset_battle_state() -> None:
     """Reset cross-turn state in-place (preserves the dict reference for importers)."""
     _battle_state["last_turn"] = -1
     _battle_state["hand_counts"] = []
-    _battle_state["active_ids"] = set()
-    _battle_state["bench_ids"] = set()
     _battle_state["peak_hand"] = 0
     _battle_state["min_hand"] = 999
+    _battle_state["hand_deltas"] = []
+    _battle_state["active_ids"] = set()
+    _battle_state["bench_ids"] = set()
+    _battle_state["bench_count_by_turn"] = []
+    _battle_state["energy_counts"] = []
     _battle_state["energy_t1"] = 0
+    _battle_state["peak_energy"] = 0
+    _battle_state["hp_loss_per_turn"] = []
+    _battle_state["prize_counts"] = []
+    _battle_state["prizes_lost"] = 0
+    _battle_state["first_attack_turn"] = 999
 
 
 def _update_battle_state(obs_dict: dict[str, Any]) -> None:
-    """Accumulate per-turn observable signals into _battle_state."""
-    global _battle_state
+    """Accumulate per-turn three-dimensional signals into _battle_state."""
     try:
         from cg.api import to_observation_class
         obs = to_observation_class(obs_dict)
@@ -62,80 +88,192 @@ def _update_battle_state(obs_dict: dict[str, Any]) -> None:
             return
 
         turn = int(getattr(current, "turn", 0) or 0)
-
-        # Detect new battle: turn reset
         if turn < _battle_state["last_turn"]:
             _reset_battle_state()
         _battle_state["last_turn"] = turn
 
-        opp_index = 1 - int(current.yourIndex)
+        my_index  = int(current.yourIndex)
+        opp_index = 1 - my_index
         opp = current.players[opp_index]
+        me  = current.players[my_index]
 
-        # Hand count
+        # ── S_hand: hand count per turn ───────────────────────────────────
         hand_count = int(getattr(opp, "handCount", 5) or 5)
+        prev_hand  = _battle_state["hand_counts"][-1] if _battle_state["hand_counts"] else hand_count
         _battle_state["hand_counts"].append(hand_count)
+        _battle_state["hand_deltas"].append(hand_count - prev_hand)
         _battle_state["peak_hand"] = max(_battle_state["peak_hand"], hand_count)
-        _battle_state["min_hand"] = min(_battle_state["min_hand"], hand_count)
+        _battle_state["min_hand"]  = min(_battle_state["min_hand"],  hand_count)
 
-        # Active + bench IDs
-        for p in (getattr(opp, "active", None) or []):
+        # ── S_board: bench size + energy per active + card IDs ────────────
+        bench = getattr(opp, "bench", None) or []
+        bench_count = sum(1 for p in bench if p is not None)
+        _battle_state["bench_count_by_turn"].append(bench_count)
+
+        active_list = getattr(opp, "active", None) or []
+        for p in active_list:
             if p is not None:
                 cid = _safe_int(getattr(p, "id", None))
                 if cid:
                     _battle_state["active_ids"].add(cid)
+                energies = getattr(p, "energies", None) or []
+                e_count = len(energies)
+                _battle_state["energy_counts"].append(e_count)
+                _battle_state["peak_energy"] = max(_battle_state["peak_energy"], e_count)
+                if turn <= 2 and _battle_state["energy_t1"] == 0 and e_count > 0:
+                    _battle_state["energy_t1"] = e_count
 
-        for p in (getattr(opp, "bench", None) or []):
+        for p in bench:
             if p is not None:
                 cid = _safe_int(getattr(p, "id", None))
                 if cid:
                     _battle_state["bench_ids"].add(cid)
 
-        # Energy at turn 1 (fast energy = Burst deck signal)
-        if turn <= 2 and _battle_state["energy_t1"] == 0:
-            for p in (getattr(opp, "active", None) or []):
-                if p is not None:
-                    energies = getattr(p, "energies", None) or []
-                    _battle_state["energy_t1"] = len(energies)
+        # ── S_turn: prize count + attack detection ────────────────────────
+        opp_prize_count = len(getattr(opp, "prize", None) or []) or int(getattr(opp, "prizeCount", 6) or 6)
+        _battle_state["prize_counts"].append(opp_prize_count)
+
+        # Detect if opponent attacked (our active HP dropped)
+        my_active = (getattr(me, "active", None) or [None])[0]
+        if my_active is not None:
+            my_hp = int(getattr(my_active, "hp", 999) or 999)
+            prev_hp_list = _battle_state["hp_loss_per_turn"]
+            if prev_hp_list:
+                loss = prev_hp_list[-1] - my_hp
+                _battle_state["hp_loss_per_turn"].append(my_hp)
+                if loss > 0 and _battle_state["first_attack_turn"] == 999:
+                    _battle_state["first_attack_turn"] = turn
+            else:
+                _battle_state["hp_loss_per_turn"].append(my_hp)
 
     except Exception:
         pass
 
 
-def _behavioral_confidence_boost() -> tuple[str, str, float]:
-    """Infer style/speed hint and confidence boost from behavioral patterns.
+def _dimensional_scores() -> dict[str, float]:
+    """Compute three normalised dimensional scores [0..1] for the OPPONENT.
 
-    Returns (style_hint, speed_hint, confidence_boost).
-    All inputs come from _battle_state (no card IDs needed).
+    Based on the Three-Dimensional Theory (ptcg_dimension_theory.md):
+      S_hand:  hand resource richness & stability
+      S_board: board/energy setup speed
+      S_turn:  prize clock aggressiveness
+
+    Returns a dict with keys: s_hand, s_board, s_turn, hand_volatility.
     """
     state = _battle_state
     counts = state["hand_counts"]
+    n = max(len(counts), 1)
 
-    if len(counts) < 1:
+    # ── S_hand proxy ──────────────────────────────────────────────────────
+    peak  = state["peak_hand"]
+    low   = state["min_hand"] if state["min_hand"] < 999 else peak
+    # Tempo root: hand engine drives consistently high hand counts
+    s_hand = min(1.0, peak / 15.0)           # normalise: 15 = upper bound (嘟嘟利 max)
+    # Volatility: high swing = control discard-draw pattern
+    hand_volatility = (peak - low) / max(peak, 1)
+
+    # ── S_board proxy ─────────────────────────────────────────────────────
+    # Burst root: energy attaches fast, bench grows fast
+    e_counts = state["energy_counts"]
+    avg_energy = sum(e_counts) / len(e_counts) if e_counts else 0.0
+    bench_counts = state["bench_count_by_turn"]
+    avg_bench = sum(bench_counts) / len(bench_counts) if bench_counts else 0.0
+    s_board = min(1.0, (avg_energy / 3.0 + avg_bench / 3.0) / 2.0)
+
+    # ── S_turn proxy ──────────────────────────────────────────────────────
+    # Burst: attacks early (low first_attack_turn)
+    first_atk = state["first_attack_turn"]
+    s_turn = 1.0 - min(1.0, first_atk / 8.0)  # T2 attack → s_turn=0.75, T6+ → 0.25
+
+    return {
+        "s_hand": s_hand,
+        "s_board": s_board,
+        "s_turn": s_turn,
+        "hand_volatility": hand_volatility,
+        "peak_hand": peak,
+        "min_hand": low,
+        "energy_t1": state["energy_t1"],
+    }
+
+
+def _infer_tactical_root(dim: dict[str, float]) -> str:
+    """Identify the deck's 战术根 (tactical root) from dimensional scores.
+
+    Theory (ptcg_dimension_theory.md §2):
+      Burst   → root: 场面 (board/energy)  — win by prize-clock speed
+      Tempo   → root: 手牌 (hand)          — win by resource accumulation
+      Control → root: 規則 (rules)         — win by disrupting opponent resources
+
+    Returns one of: "场面", "手牌", "規則", "Unknown"
+    """
+    s_hand        = dim["s_hand"]
+    s_board       = dim["s_board"]
+    hand_vol      = dim["hand_volatility"]
+    peak_hand     = dim["peak_hand"]
+    energy_t1     = dim["energy_t1"]
+
+    # Control root: high hand volatility (discard-draw cycles are distinctive)
+    if hand_vol >= 0.5 and dim["min_hand"] <= 2:
+        return "規則"
+
+    # Tempo root: hand dimension clearly dominant (draw engine)
+    if peak_hand >= 8 and s_hand >= 0.5 and hand_vol < 0.5:
+        return "手牌"
+
+    # Burst root: board/energy setup is fast
+    if energy_t1 >= 2 or s_board >= 0.4:
+        return "場面"
+
+    return "Unknown"
+
+
+def _behavioral_confidence_boost() -> tuple[str, str, float]:
+    """Three-dimensional style/speed classifier.
+
+    Implements the nine-square grid from ptcg_dimension_theory.md §2.
+    Returns (style_hint, speed_hint, confidence_boost).
+    """
+    state  = _battle_state
+    counts = state["hand_counts"]
+    if not counts:
         return "Unknown", "Unknown", 0.0
 
-    peak   = state["peak_hand"]
-    low    = state["min_hand"]
-    latest = counts[-1]
+    dim  = _dimensional_scores()
+    root = _infer_tactical_root(dim)
 
-    # ── Signal A: Hand explosion (≥10 cards) → Tempo/draw-heavy deck ───────
-    # Alakazam deck: Dudunsparce draws 2+ per turn, routinely reaches 10-19 cards
+    peak      = dim["peak_hand"]
+    low       = dim["min_hand"]
+    hand_vol  = dim["hand_volatility"]
+    energy_t1 = dim["energy_t1"]
+    s_board   = dim["s_board"]
+    s_turn    = dim["s_turn"]
+
+    # ── Style classification (九宫格 Style axis) ──────────────────────────
+    # Control (控手): root = 規則, high hand volatility
+    if root == "規則":
+        style, boost = "Control", 0.30
+        speed = "Slow" if s_turn < 0.4 else "Medium"
+        return style, speed, boost
+
+    # Tempo (運營): root = 手牌, draw engine dominant
+    if root == "手牌":
+        style, boost = "Tempo", 0.35
+        speed = "Fast" if s_turn >= 0.6 else "Medium"
+        return style, speed, boost
+
+    # Burst (爆発): root = 場面, energy fast
+    if root == "場面":
+        style, boost = "Burst", 0.28
+        speed = "Fast" if energy_t1 >= 2 else "Medium"
+        return style, speed, boost
+
+    # Weak signals — use dimensional tiebreakers
     if peak >= 10:
-        return "Tempo", "Medium", 0.35
-
-    # ── Signal B: Hand drop then refill → Control discard-draw pattern ──────
-    # Tea Party: Carmine drops to 1-2, Lillie's refills to 6+
-    # Characteristic: min ≤ 2 AND max ≥ 5 in same battle
+        return "Tempo", "Medium", 0.30
     if low <= 2 and peak >= 5 and len(counts) >= 2:
-        return "Control", "Slow", 0.28
-
-    # ── Signal C: Consistent mid-range hand + moderate peak ─────────────────
-    # Hops Aggro / Tempo decks: hand stays 4-8, no extreme swings
-    if 4 <= latest <= 8 and peak < 10:
-        return "Tempo", "Medium", 0.15
-
-    # ── Signal D: Early energy attachment (Burst deck) ───────────────────────
-    if state["energy_t1"] >= 2:
-        return "Burst", "Fast", 0.20
+        return "Control", "Slow", 0.22
+    if energy_t1 >= 2:
+        return "Burst", "Fast", 0.18
 
     return "Unknown", "Unknown", 0.05
 
@@ -159,10 +297,17 @@ class OpponentProfile:
     style: str       # "Burst" | "Tempo" | "Control" | "Unknown"
     speed: str       # "Fast" | "Medium" | "Slow" | "Unknown"
     signature: str   # key from meta_signatures.json, or ""
-    confidence: float  # Jaccard similarity ∈ [0, 1]
+    confidence: float  # combined Jaccard + behavioral ∈ [0, 1]
+    root: str = "Unknown"  # 战术根: "場面" | "手牌" | "規則" | "Unknown"
+    # Counter-strategy: what WE should do against this root
+    # 場面 → disrupt board (KO setup early)
+    # 手牌 → disrupt hand (Xerosic, Iono)
+    # 規則 → break rules (Enhanced Hammer 1081)
 
 
-_UNKNOWN = OpponentProfile(style="Unknown", speed="Unknown", signature="", confidence=0.0)
+_UNKNOWN = OpponentProfile(
+    style="Unknown", speed="Unknown", signature="", confidence=0.0, root="Unknown"
+)
 
 _CONFIDENCE_THRESHOLD = 0.3
 
@@ -294,11 +439,15 @@ def profile_opponent(obs_dict: dict[str, Any]) -> OpponentProfile:
             speed = beh_speed
             best_key = f"behavioral_{beh_style.lower()}"
 
+        dim  = _dimensional_scores()
+        root = _infer_tactical_root(dim)
+
         return OpponentProfile(
             style=style,
             speed=speed,
             signature=best_key,
             confidence=round(combined_confidence, 4),
+            root=root,
         )
 
     # ── Last resort: card-level heuristic flags ───────────────────────────────
@@ -307,12 +456,12 @@ def profile_opponent(obs_dict: dict[str, Any]) -> OpponentProfile:
         if flags["has_control_flag"]:
             return OpponentProfile(
                 style="Control", speed="Unknown",
-                signature="heuristic_control", confidence=0.2,
+                signature="heuristic_control", confidence=0.2, root="規則",
             )
         if flags["has_tempo_flag"]:
             return OpponentProfile(
                 style="Tempo", speed="Unknown",
-                signature="heuristic_tempo", confidence=0.2,
+                signature="heuristic_tempo", confidence=0.2, root="手牌",
             )
 
     return _UNKNOWN
@@ -326,6 +475,13 @@ def profile_from_known_ids(card_ids: list[int]) -> OpponentProfile:
     return _profile_from_set(set(card_ids))
 
 
+_STYLE_TO_ROOT: dict[str, str] = {
+    "Burst":   "場面",
+    "Tempo":   "手牌",
+    "Control": "規則",
+}
+
+
 def _profile_from_set(visible: set[int]) -> OpponentProfile:
     sigs_data = _load_sigs()
     signatures: dict[str, Any] = sigs_data.get("signatures", {})
@@ -336,9 +492,11 @@ def _profile_from_set(visible: set[int]) -> OpponentProfile:
             best_score, best_key, best_sig = score, key, sig
     if best_score < _CONFIDENCE_THRESHOLD:
         return _UNKNOWN
+    style = best_sig.get("style", "Unknown")
     return OpponentProfile(
-        style=best_sig.get("style", "Unknown"),
+        style=style,
         speed=best_sig.get("speed", "Unknown"),
         signature=best_key,
         confidence=round(best_score, 4),
+        root=_STYLE_TO_ROOT.get(style, "Unknown"),
     )
