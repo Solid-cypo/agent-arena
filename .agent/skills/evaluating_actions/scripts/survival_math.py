@@ -99,6 +99,30 @@ def get_iono_priority_weight(
 # D. Enhanced Hammer vs Control bonus
 # ──────────────────────────────────────────────────────────────────────────
 
+def get_deck_safety_penalty(current_deck_size: int, draw_count: int) -> float:
+    """Prevent self-deck-out by penalising draw actions that would empty the deck.
+
+    In cabt the losing condition triggers when a player must draw but can't.
+    Penalty tiers (additive, not multiplied):
+      remaining ≤ 0  → -100000  (certain loss — hard block)
+      remaining ≤ 3  → -5000    (near-certain loss — strong deterrent)
+      remaining ≤ 5  → -500     (risky — soft deterrent)
+      otherwise      → 0.0
+
+    Args:
+        current_deck_size: Cards left in own deck before drawing.
+        draw_count:        Number of cards this action would draw.
+    """
+    remaining = current_deck_size - draw_count
+    if remaining <= 0:
+        return -100_000.0
+    if remaining <= 3:
+        return -5_000.0
+    if remaining <= 5:
+        return -500.0
+    return 0.0
+
+
 def get_hammer_bonus(
     played_card_id: int,
     opp_style: str,

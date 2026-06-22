@@ -18,16 +18,19 @@ sys.path.insert(0, str(_here))
 from ko_math import (
     best_attacker_index,
     calculate_ko_efficiency,
+    is_cramorant_attack_valid,
     energy_routing_bonus,
 )
 from survival_math import (
     _IONO_LAMBDA_DEFAULT,
     _SURVIVAL_BONUS_VALUE,
     evaluate_survival_bonus,
+    get_deck_safety_penalty,
     get_hammer_bonus,
     get_iono_priority_weight,
     prizes_given_for_card,
 )
+from tempo_planner import PrizePathPlanner, TargetPokemon
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -251,6 +254,132 @@ def test_hammer_bonus_wrong_card():
     Then returns 0.0 regardless of style
     """
     assert get_hammer_bonus(played_card_id=1182, opp_style="Control") == 0.0
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Cramorant filter tests
+# ──────────────────────────────────────────────────────────────────────────
+
+def test_cramorant_valid_at_3_prizes():
+    """
+    Given opponent has exactly 3 prize cards remaining
+    When is_cramorant_attack_valid()
+    Then returns True (attack effective)
+    """
+    assert is_cramorant_attack_valid(3) is True
+
+
+def test_cramorant_valid_at_4_prizes():
+    """
+    Given opponent has exactly 4 prize cards remaining
+    When is_cramorant_attack_valid()
+    Then returns True
+    """
+    assert is_cramorant_attack_valid(4) is True
+
+
+def test_cramorant_blocked_at_5_prizes():
+    """
+    Given opponent has 5 prize cards (attack does nothing)
+    When is_cramorant_attack_valid()
+    Then returns False — action should be hard-blocked
+    """
+    assert is_cramorant_attack_valid(5) is False
+
+
+def test_cramorant_blocked_at_1_prize():
+    """
+    Given opponent is near winning (1 prize left)
+    When is_cramorant_attack_valid()
+    Then returns False
+    """
+    assert is_cramorant_attack_valid(1) is False
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Deck-out safety tests
+# ──────────────────────────────────────────────────────────────────────────
+
+def test_deck_safety_no_penalty_healthy_deck():
+    """
+    Given deck has 20 cards, drawing 3
+    When get_deck_safety_penalty()
+    Then penalty == 0.0 (safe)
+    """
+    assert get_deck_safety_penalty(20, 3) == 0.0
+
+
+def test_deck_safety_hard_block_on_zero():
+    """
+    Given deck has 3 cards, drawing 3 (would empty deck → lose)
+    When get_deck_safety_penalty()
+    Then penalty <= -100000 (hard block)
+    """
+    assert get_deck_safety_penalty(3, 3) <= -100_000.0
+
+
+def test_deck_safety_soft_penalty_risky():
+    """
+    Given deck has 5 cards, drawing 3 (remaining = 2, near KO)
+    When get_deck_safety_penalty()
+    Then penalty <= -5000 (strong deterrent)
+    """
+    assert get_deck_safety_penalty(5, 3) <= -5_000.0
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Tempo planner tests
+# ──────────────────────────────────────────────────────────────────────────
+
+def test_tempo_planner_picks_fastest_path():
+    """
+    Given:
+      opp_active:    ex (HP=70,  prize=2) — T_KO=1 (ceil 70/130)
+      opp_bench_A:   ex (HP=210, prize=2) — T_KO=2 (ceil 210/130)
+      opp_bench_B:  non-ex (HP=110, prize=1) — T_KO=1 (ceil 110/130)
+      remaining_prizes = 3
+    When plan()
+    Then optimal path = [active ex (70HP) + bench_B (110HP)]
+         total_turns = 2  (not 3 for active + bench_A)
+    """
+    planner = PrizePathPlanner(base_damage_est=130.0)
+    targets = [
+        TargetPokemon(pokemon_id=743, hp=70,  prize_value=2),  # active ex
+        TargetPokemon(pokemon_id=140, hp=210, prize_value=2),  # bench ex A
+        TargetPokemon(pokemon_id=311, hp=110, prize_value=1),  # bench normal B
+    ]
+    path = planner.plan(targets, remaining_prizes=3)
+
+    assert 743 in path.target_ids, "active ex must be in optimal path"
+    assert 311 in path.target_ids, "bench_B must be in optimal path (fast 1-turn)"
+    assert 140 not in path.target_ids, "bench_A is too thick (2 turns), not optimal"
+    assert path.total_turns == 2
+    assert path.total_prizes >= 3
+
+
+def test_tempo_planner_single_target_enough():
+    """
+    Given opponent has 1 mega-ex (prize=3) and remaining_prizes=2
+    When plan()
+    Then optimal path = [just the mega-ex] — covers ≥ 2 prizes in 1 turn
+    """
+    planner = PrizePathPlanner(base_damage_est=200.0)
+    targets = [TargetPokemon(pokemon_id=99, hp=150, prize_value=3)]
+    path = planner.plan(targets, remaining_prizes=2)
+    assert 99 in path.target_ids
+    assert path.total_turns == 1
+
+
+def test_tempo_planner_empty_board():
+    """
+    Given no opponent targets
+    When plan()
+    Then returns empty path gracefully
+    """
+    planner = PrizePathPlanner()
+    path = planner.plan([], remaining_prizes=3)
+    assert path.target_ids == []
+    assert path.total_turns == 0
 
 
 # ──────────────────────────────────────────────────────────────────────────

@@ -43,13 +43,20 @@ for _p in (_here, _skill1, _skill2, _project):
 from situation_assessor import SituationScores, assess
 from opponent_profiler import OpponentProfile
 from state_router import PolicyWeights, StateEnum
-from ko_math import best_attacker_index, energy_routing_bonus
+from ko_math import best_attacker_index, energy_routing_bonus, is_cramorant_attack_valid
 from survival_math import (
     evaluate_survival_bonus,
+    get_deck_safety_penalty,
     get_hammer_bonus,
     get_iono_priority_weight,
     prizes_given_for_card,
 )
+from tempo_planner import PrizePathPlanner, PrizePath, boss_orders_bonus
+
+_CRAMORANT_CARD_ID = 311
+
+# Prize-path planner — one instance per agent turn (stateless across turns)
+_TEMPO_PLANNER = PrizePathPlanner(base_damage_est=130.0)
 
 # ──────────────────────────────────────────────────────────────────────────
 # Constants
@@ -422,6 +429,10 @@ def _math_correction(
     return bonus
 
 
+# prize_path is injected by select_action; default empty for tests
+_CURRENT_PRIZE_PATH: PrizePath = PrizePath(target_ids=[], total_turns=0, total_prizes=0)
+
+
 def _is_ex_card(card_id: int) -> bool:
     """Quick check whether a card ID is an ex Pokemon."""
     try:
@@ -500,12 +511,58 @@ def select_action(
         my_index = int(obs.current.yourIndex)
         opp_index = 1 - my_index
 
-        # ── Step 1: baseline ranking with policy.py ────────────────────────
+        # ── Step 1: Hard filters (deterministic safety rules) ─────────────
+        # Block Cramorant (311) attack when opp prize count is not 3 or 4.
+        # Block any option that would cause deck-out.
+        allowed: list[int] = []
+        for idx, opt in enumerate(options):
+            try:
+                # Cramorant empty-attack filter
+                if opt.type == OptionType.ATTACK:
+                    cid = _safe_int(getattr(opt, "cardId", None), 0)
+                    if cid == _CRAMORANT_CARD_ID:
+                        if not is_cramorant_attack_valid(scores.prize_left_opp):
+                            continue   # hard block — attack does nothing
+
+                # Deck-out safety filter for draw cards
+                card_id = _option_played_card_id(obs, opt, my_index)
+                if card_id:
+                    from cg.api import CardType as _CT  # noqa: F401 (local import)
+                    db_entry = _card_db().get(str(card_id), {})
+                    if db_entry.get("cardTypeLabel") in ("Supporter", "Item"):
+                        # Estimate draw count from skill text (rough heuristic)
+                        skill_text = " ".join(
+                            s.get("text", "") for s in db_entry.get("skills", [])
+                        ).lower()
+                        draw_est = 7 if "draw 7" in skill_text else \
+                                   6 if "draw 6" in skill_text else \
+                                   5 if "draw 5" in skill_text else \
+                                   3 if "draw 3" in skill_text else 0
+                        own_deck = _safe_int(
+                            getattr(obs.current.players[my_index], "deckCount", None), 60
+                        )
+                        if get_deck_safety_penalty(own_deck, draw_est) <= -5000:
+                            continue   # block near-deck-out draw
+            except Exception:
+                pass
+            allowed.append(idx)
+
+        # If every option was blocked, fall back to all options (safety net)
+        if not allowed:
+            allowed = list(range(n))
+
+        # ── Step 2: Compute optimal prize path for Boss's Orders alignment ──
+        try:
+            prize_path = _TEMPO_PLANNER.plan_from_obs(obs_dict, scores.prize_left_self)
+        except Exception:
+            prize_path = PrizePath(target_ids=[], total_turns=0, total_prizes=0)
+
+        # ── Step 3: baseline ranking with policy.py ────────────────────────
         fb_weights = policy_weights_fallback or {}
         baseline = _baseline_scores(obs_dict, fb_weights)
         if not baseline:
             baseline = [0.0] * n
-        ranked = sorted(range(n), key=lambda i: baseline[i], reverse=True)
+        ranked = sorted(allowed, key=lambda i: baseline[i], reverse=True)
         candidates = ranked[:_MAX_SEARCH_CANDIDATES]
 
         # ── Precompute best attacker index for energy routing ──────────────
@@ -540,17 +597,14 @@ def select_action(
         search_ids: list[int] = []
         search_active = False
 
-        # ── Step 2: math corrections on top of baseline (no Search noise) ───
-        # Search API simulation with unknown opponent deck produces misleading
-        # utility estimates that override the well-calibrated policy.py scores.
-        # Strategy: trust policy.py ordering; add only the deterministic math
-        # bonuses (survival, hammer, iono, energy routing) as additive signals.
-        # Search API is reserved for future use when opponent confidence ≥ 0.6.
+        # ── Step 4: math corrections on top of baseline ───────────────────
         for idx in candidates:
             math_bonus = _math_correction(
                 options[idx], obs, None,
                 scores, profile, my_index, best_atk_idx,
             )
+            # Prize-path Boss's Orders alignment bonus
+            math_bonus += boss_orders_bonus(options[idx], obs, prize_path, my_index)
             utility[idx] = baseline[idx] + math_bonus
 
         # ── Step 3: Fill remaining candidates from baseline ────────────────

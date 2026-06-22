@@ -76,6 +76,17 @@ def best_attacker_index(
     return max(range(len(scores)), key=lambda i: scores[i])
 
 
+def is_cramorant_attack_valid(opp_prize_left: int) -> bool:
+    """Hop's Cramorant (311) Fickle Spitting is only effective when the
+    opponent has exactly 3 or 4 Prize cards remaining.
+
+    Returns False (block the action) in all other prize states.
+    Card text: "If your opponent doesn't have exactly 3 or 4 Prize cards
+    remaining, this attack does nothing."
+    """
+    return opp_prize_left in (3, 4)
+
+
 def energy_routing_bonus(
     attacker_idx: int,
     option_target_idx: int,
