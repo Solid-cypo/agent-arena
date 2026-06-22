@@ -81,7 +81,10 @@ def read_deck_csv() -> list[int]:
         return _DECK
     path = os.path.join(_agent_dir(), "deck.csv")
     with open(path, encoding="utf-8") as handle:
-        lines = [line.strip() for line in handle.read().splitlines() if line.strip()]
+        lines = [
+            line.strip() for line in handle.read().splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
     _DECK = [int(line) for line in lines[:60]]
     return _DECK
 
