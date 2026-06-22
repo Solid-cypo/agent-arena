@@ -22,8 +22,11 @@ sys.path.insert(0, str(_scripts))
 from opponent_profiler import (
     OpponentProfile,
     _CONFIDENCE_THRESHOLD,
+    _battle_state,
+    _behavioral_confidence_boost,
     _jaccard,
     _profile_from_set,
+    _reset_battle_state,
     profile_from_known_ids,
 )
 
@@ -225,6 +228,66 @@ def test_hand_diff_control_trigger():
 # ──────────────────────────────────────────────────────────────────────────
 # Runner
 # ──────────────────────────────────────────────────────────────────────────
+
+def test_behavioral_hand_explosion_signals_tempo():
+    """
+    Given opponent hand count reaches 12 in battle (Dudunsparce draw)
+    When _behavioral_confidence_boost()
+    Then style=Tempo, confidence_boost >= 0.3
+    """
+    _reset_battle_state()
+    _battle_state["hand_counts"] = [5, 6, 12]
+    _battle_state["peak_hand"] = 12
+    _battle_state["min_hand"] = 5
+    style, speed, boost = _behavioral_confidence_boost()
+    assert style == "Tempo", f"expected Tempo, got {style}"
+    assert boost >= 0.3, f"boost should be >= 0.3 for hand explosion, got {boost}"
+
+
+def test_behavioral_discard_refill_signals_control():
+    """
+    Given hand drops to 1 (Carmine) then recovers to 6 (Lillie's)
+    When _behavioral_confidence_boost()
+    Then style=Control
+    """
+    _reset_battle_state()
+    _battle_state["hand_counts"] = [5, 1, 6]
+    _battle_state["peak_hand"] = 6
+    _battle_state["min_hand"] = 1
+    style, speed, boost = _behavioral_confidence_boost()
+    assert style == "Control", f"expected Control, got {style}"
+    assert boost > 0.0
+
+
+def test_behavioral_low_jaccard_fused_with_hand_explosion():
+    """
+    Given Jaccard=0.1 (only 1 card visible) but hand reached 11 (strong behavioral signal)
+    When behavioral boost = 0.35
+    Then combined confidence = 0.1 + 0.35 = 0.45 >= threshold
+    """
+    _reset_battle_state()
+    _battle_state["hand_counts"] = [5, 8, 11]
+    _battle_state["peak_hand"] = 11
+    _battle_state["min_hand"] = 5
+    _, _, boost = _behavioral_confidence_boost()
+    combined = 0.10 + boost
+    assert combined >= _CONFIDENCE_THRESHOLD, (
+        f"combined {combined:.2f} should exceed threshold {_CONFIDENCE_THRESHOLD}"
+    )
+
+
+def test_behavioral_reset_on_new_battle():
+    """
+    Given battle_state has data from previous battle
+    When _reset_battle_state() called
+    Then all counters reset to initial values
+    """
+    _battle_state["hand_counts"] = [10, 12, 15]
+    _battle_state["peak_hand"] = 15
+    _reset_battle_state()
+    assert _battle_state["hand_counts"] == []
+    assert _battle_state["peak_hand"] == 0
+
 
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]

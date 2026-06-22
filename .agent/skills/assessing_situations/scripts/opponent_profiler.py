@@ -25,6 +25,120 @@ _TACTIC_PATH = _SKILL_ROOT / "references" / "card_tactic_weights.json"
 _sigs: dict[str, Any] | None = None
 _tactic_cfg: dict[str, Any] | None = None
 
+# ---------------------------------------------------------------------------
+# Cross-turn behavioral state  (resets when game turn number drops → new battle)
+# ---------------------------------------------------------------------------
+
+_battle_state: dict[str, Any] = {
+    "last_turn": -1,          # detect new battle
+    "hand_counts": [],         # [(turn, count), ...]
+    "active_ids": set(),       # all active card IDs seen so far
+    "bench_ids": set(),        # all bench card IDs seen
+    "peak_hand": 0,            # max hand count in this battle
+    "min_hand": 999,           # min hand count in this battle
+    "energy_t1": 0,            # opponent energy count at turn 1
+}
+
+
+def _reset_battle_state() -> None:
+    """Reset cross-turn state in-place (preserves the dict reference for importers)."""
+    _battle_state["last_turn"] = -1
+    _battle_state["hand_counts"] = []
+    _battle_state["active_ids"] = set()
+    _battle_state["bench_ids"] = set()
+    _battle_state["peak_hand"] = 0
+    _battle_state["min_hand"] = 999
+    _battle_state["energy_t1"] = 0
+
+
+def _update_battle_state(obs_dict: dict[str, Any]) -> None:
+    """Accumulate per-turn observable signals into _battle_state."""
+    global _battle_state
+    try:
+        from cg.api import to_observation_class
+        obs = to_observation_class(obs_dict)
+        current = obs.current
+        if current is None:
+            return
+
+        turn = int(getattr(current, "turn", 0) or 0)
+
+        # Detect new battle: turn reset
+        if turn < _battle_state["last_turn"]:
+            _reset_battle_state()
+        _battle_state["last_turn"] = turn
+
+        opp_index = 1 - int(current.yourIndex)
+        opp = current.players[opp_index]
+
+        # Hand count
+        hand_count = int(getattr(opp, "handCount", 5) or 5)
+        _battle_state["hand_counts"].append(hand_count)
+        _battle_state["peak_hand"] = max(_battle_state["peak_hand"], hand_count)
+        _battle_state["min_hand"] = min(_battle_state["min_hand"], hand_count)
+
+        # Active + bench IDs
+        for p in (getattr(opp, "active", None) or []):
+            if p is not None:
+                cid = _safe_int(getattr(p, "id", None))
+                if cid:
+                    _battle_state["active_ids"].add(cid)
+
+        for p in (getattr(opp, "bench", None) or []):
+            if p is not None:
+                cid = _safe_int(getattr(p, "id", None))
+                if cid:
+                    _battle_state["bench_ids"].add(cid)
+
+        # Energy at turn 1 (fast energy = Burst deck signal)
+        if turn <= 2 and _battle_state["energy_t1"] == 0:
+            for p in (getattr(opp, "active", None) or []):
+                if p is not None:
+                    energies = getattr(p, "energies", None) or []
+                    _battle_state["energy_t1"] = len(energies)
+
+    except Exception:
+        pass
+
+
+def _behavioral_confidence_boost() -> tuple[str, str, float]:
+    """Infer style/speed hint and confidence boost from behavioral patterns.
+
+    Returns (style_hint, speed_hint, confidence_boost).
+    All inputs come from _battle_state (no card IDs needed).
+    """
+    state = _battle_state
+    counts = state["hand_counts"]
+
+    if len(counts) < 1:
+        return "Unknown", "Unknown", 0.0
+
+    peak   = state["peak_hand"]
+    low    = state["min_hand"]
+    latest = counts[-1]
+
+    # ── Signal A: Hand explosion (≥10 cards) → Tempo/draw-heavy deck ───────
+    # Alakazam deck: Dudunsparce draws 2+ per turn, routinely reaches 10-19 cards
+    if peak >= 10:
+        return "Tempo", "Medium", 0.35
+
+    # ── Signal B: Hand drop then refill → Control discard-draw pattern ──────
+    # Tea Party: Carmine drops to 1-2, Lillie's refills to 6+
+    # Characteristic: min ≤ 2 AND max ≥ 5 in same battle
+    if low <= 2 and peak >= 5 and len(counts) >= 2:
+        return "Control", "Slow", 0.28
+
+    # ── Signal C: Consistent mid-range hand + moderate peak ─────────────────
+    # Hops Aggro / Tempo decks: hand stays 4-8, no extreme swings
+    if 4 <= latest <= 8 and peak < 10:
+        return "Tempo", "Medium", 0.15
+
+    # ── Signal D: Early energy attachment (Burst deck) ───────────────────────
+    if state["energy_t1"] >= 2:
+        return "Burst", "Fast", 0.20
+
+    return "Unknown", "Unknown", 0.05
+
 
 def _load_sigs() -> dict[str, Any]:
     global _sigs
@@ -135,33 +249,60 @@ def _jaccard(observed: set[int], fingerprint: list[int]) -> float:
 # ---------------------------------------------------------------------------
 
 def profile_opponent(obs_dict: dict[str, Any]) -> OpponentProfile:
-    """Identify opponent deck archetype from visible card IDs.
+    """Identify opponent deck archetype using card ID fingerprints + behavioral signals.
 
-    Returns OpponentProfile with style/speed/signature/confidence.
-    confidence < 0.3 → Unknown (prevents over-triggering state changes).
+    Two-signal fusion:
+      1. Jaccard similarity against meta_signatures.json fingerprints (card IDs)
+      2. Behavioral patterns: hand count history, energy speed, draw rhythm
+
+    confidence >= 0.3 → return profile; < 0.3 → Unknown
     """
-    visible = _extract_visible_card_ids(obs_dict)
+    # Update cross-turn behavioral state first (always, even if no visible cards)
+    _update_battle_state(obs_dict)
 
-    if not visible:
-        return _UNKNOWN
+    # ── Signal 1: Jaccard card-ID fingerprint ────────────────────────────────
+    visible = _extract_visible_card_ids(obs_dict)
 
     sigs_data = _load_sigs()
     signatures: dict[str, Any] = sigs_data.get("signatures", {})
 
     best_key = ""
-    best_score = 0.0
+    best_jaccard = 0.0
     best_sig: dict[str, Any] = {}
 
     for key, sig in signatures.items():
         fp = sig.get("fingerprint_ids", [])
         score = _jaccard(visible, fp)
-        if score > best_score:
-            best_score = score
+        if score > best_jaccard:
+            best_jaccard = score
             best_key = key
             best_sig = sig
 
-    if best_score < _CONFIDENCE_THRESHOLD:
-        # Fall back to heuristic flags before giving up
+    # ── Signal 2: Behavioral confidence boost ────────────────────────────────
+    beh_style, beh_speed, beh_boost = _behavioral_confidence_boost()
+
+    # ── Fusion: combine both signals ─────────────────────────────────────────
+    combined_confidence = min(1.0, best_jaccard + beh_boost)
+
+    if combined_confidence >= _CONFIDENCE_THRESHOLD:
+        # Prefer card-ID style when Jaccard is strong; fallback to behavioral
+        if best_jaccard >= _CONFIDENCE_THRESHOLD:
+            style = best_sig.get("style", beh_style)
+            speed = best_sig.get("speed", beh_speed)
+        else:
+            style = beh_style
+            speed = beh_speed
+            best_key = f"behavioral_{beh_style.lower()}"
+
+        return OpponentProfile(
+            style=style,
+            speed=speed,
+            signature=best_key,
+            confidence=round(combined_confidence, 4),
+        )
+
+    # ── Last resort: card-level heuristic flags ───────────────────────────────
+    if visible:
         flags = _heuristic_flags(visible)
         if flags["has_control_flag"]:
             return OpponentProfile(
@@ -173,14 +314,8 @@ def profile_opponent(obs_dict: dict[str, Any]) -> OpponentProfile:
                 style="Tempo", speed="Unknown",
                 signature="heuristic_tempo", confidence=0.2,
             )
-        return _UNKNOWN
 
-    return OpponentProfile(
-        style=best_sig.get("style", "Unknown"),
-        speed=best_sig.get("speed", "Unknown"),
-        signature=best_key,
-        confidence=round(best_score, 4),
-    )
+    return _UNKNOWN
 
 
 def profile_from_known_ids(card_ids: list[int]) -> OpponentProfile:
