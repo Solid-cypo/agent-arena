@@ -84,14 +84,21 @@ _STYLE_COUNTER_BIAS: dict[str, str] = {
 }
 
 # Root → weight correction mapping
-# 理论: 攻击对手的战术根 (ptcg_dimension_theory.md §2)
+# 理论: 攻击对手的战术根 (ptcg_dimension_theory.md §2 + nine-square image)
 _ROOT_WEIGHT_CORRECTIONS: dict[str, dict[str, float]] = {
-    # 対手根: 場面 (Burst) → 攻击其场面 → 提高 w_board (消耗能量/打手)
-    "場面": {"w_board": 0.15, "w_turn": 0.10, "w_hand": 0.0},
-    # 対手根: 手牌 (Tempo) → 攻击其手牌引擎 → 提高 w_hand (Xerosic/Iono)
-    "手牌": {"w_hand": 0.20, "w_board": 0.05, "w_turn": 0.0},
-    # 対手根: 規則 (Control) → 破坏其特殊能量 → 提高 w_board (1081/Ruffian)
-    "規則": {"w_board": 0.20, "w_turn": -0.05, "w_hand": 0.0},
+    # 対手根: 場面 (Burst) → disrupt board early (KO setup attacker)
+    # → raise w_board to prioritise targeting the active/bench attacker
+    "場面":     {"w_board": 0.15, "w_turn": 0.10, "w_hand": 0.0},
+
+    # 対手根: 手牌→場面 (Tempo) → interrupt BEFORE hand-to-board conversion
+    # → raise w_hand to trigger Boss's Orders / Iono to break the evolution chain
+    "手牌→場面": {"w_hand": 0.20, "w_board": 0.05, "w_turn": 0.0},
+
+    # 対手根: 多維 (Control) = 規則 + 手牌 + 場面 + 剩余轮次
+    # Control resists any single-dimension attack — must pressure ALL dimensions.
+    # → balanced boost across board (1081/Ruffian) AND hand (Xerosic) simultaneously
+    # → do NOT suppress w_turn completely (still need tempo pressure)
+    "多維":     {"w_board": 0.12, "w_hand": 0.10, "w_turn": 0.02},
 }
 
 # Thresholds

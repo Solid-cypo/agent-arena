@@ -199,28 +199,44 @@ def _dimensional_scores() -> dict[str, float]:
 def _infer_tactical_root(dim: dict[str, float]) -> str:
     """Identify the deck's 战术根 (tactical root) from dimensional scores.
 
-    Theory (ptcg_dimension_theory.md §2):
-      Burst   → root: 场面 (board/energy)  — win by prize-clock speed
-      Tempo   → root: 手牌 (hand)          — win by resource accumulation
-      Control → root: 規則 (rules)         — win by disrupting opponent resources
+    Nine-square theory (ptcg_dimension_theory.md §2 + image):
 
-    Returns one of: "场面", "手牌", "規則", "Unknown"
+      Burst   → root: 場面 (board/energy)
+                Win by prize-clock speed; attacker charges fast.
+                Counter: disrupt board early (KO setup attacker).
+
+      Tempo   → root: 手牌 → 場面 (hand converts to board)
+                Win by resource accumulation via draw engine.
+                Counter: Boss's Orders to drag mid-evolution Pokemon;
+                         disrupt before hand-to-board conversion completes.
+
+      Control → root: 規則 + 手牌 + 場面 + 剩余轮次 (ALL four dimensions)
+                Win by degrading opponent's resources across every dimension.
+                Counter: MUST attack ALL roots simultaneously —
+                  Enhanced Hammer (1081) for special energy (規則),
+                  Xerosic (1197) for hand (手牌),
+                  Boss's Orders for board (場面).
+
+    Returns one of: "場面", "手牌→場面", "多維", "Unknown"
     """
-    s_hand        = dim["s_hand"]
-    s_board       = dim["s_board"]
-    hand_vol      = dim["hand_volatility"]
-    peak_hand     = dim["peak_hand"]
-    energy_t1     = dim["energy_t1"]
+    s_hand     = dim["s_hand"]
+    s_board    = dim["s_board"]
+    hand_vol   = dim["hand_volatility"]
+    peak_hand  = dim["peak_hand"]
+    energy_t1  = dim["energy_t1"]
+    min_hand   = dim["min_hand"]
 
-    # Control root: high hand volatility (discard-draw cycles are distinctive)
-    if hand_vol >= 0.5 and dim["min_hand"] <= 2:
-        return "規則"
+    # Control root (多維): high hand volatility + low floor = discard-draw cycles
+    # 四维根: 破坏任一维度都有韧性，需多维同时施压
+    if hand_vol >= 0.5 and min_hand <= 2:
+        return "多維"
 
-    # Tempo root: hand dimension clearly dominant (draw engine)
+    # Tempo root (手牌→場面): hand engine feeds board conversion
+    # 手牌先行，再转场面；反制窗口在进化链完成之前
     if peak_hand >= 8 and s_hand >= 0.5 and hand_vol < 0.5:
-        return "手牌"
+        return "手牌→場面"
 
-    # Burst root: board/energy setup is fast
+    # Burst root (場面): fast energy + early attack pressure
     if energy_t1 >= 2 or s_board >= 0.4:
         return "場面"
 
@@ -249,25 +265,38 @@ def _behavioral_confidence_boost() -> tuple[str, str, float]:
     s_turn    = dim["s_turn"]
 
     # ── Style classification (九宫格 Style axis) ──────────────────────────
-    # Control (控手): root = 規則, high hand volatility
-    if root == "規則":
-        style, boost = "Control", 0.30
-        speed = "Slow" if s_turn < 0.4 else "Medium"
-        return style, speed, boost
+    #
+    # Speed thresholds (from image, based on first_attack_turn and setup turns):
+    #   Fast:   no setup turn,  attacks T2-T3  → first_attack_turn ≤ 3
+    #   Medium: 1 setup turn,   closes T3-4T   → first_attack_turn 4-5
+    #   Slow:   2+ setup turns, extends >4T    → first_attack_turn ≥ 6
 
-    # Tempo (運營): root = 手牌, draw engine dominant
-    if root == "手牌":
-        style, boost = "Tempo", 0.35
-        speed = "Fast" if s_turn >= 0.6 else "Medium"
-        return style, speed, boost
+    def _speed_from_signals(e_t1: int, s_turn_score: float) -> str:
+        first_atk = _battle_state["first_attack_turn"]
+        if e_t1 >= 2 or first_atk <= 3:
+            return "Fast"
+        if first_atk >= 6 or s_turn_score < 0.3:
+            return "Slow"
+        return "Medium"
 
-    # Burst (爆発): root = 場面, energy fast
+    # Control (控手): root = 多維, high hand volatility
+    # 慢速 as default; only Medium if fast discard-draw detected
+    if root == "多維":
+        spd = "Slow" if len(counts) < 3 or s_turn < 0.4 else "Medium"
+        return "Control", spd, 0.30
+
+    # Tempo (運營): root = 手牌→場面
+    # Must complete setup: Medium speed is the canonical tempo zone
+    if root == "手牌→場面":
+        spd = _speed_from_signals(energy_t1, s_turn)
+        return "Tempo", spd, 0.35
+
+    # Burst (爆発): root = 場面
     if root == "場面":
-        style, boost = "Burst", 0.28
-        speed = "Fast" if energy_t1 >= 2 else "Medium"
-        return style, speed, boost
+        spd = _speed_from_signals(energy_t1, s_turn)
+        return "Burst", spd, 0.28
 
-    # Weak signals — use dimensional tiebreakers
+    # Weak signals — dimensional tiebreakers
     if peak >= 10:
         return "Tempo", "Medium", 0.30
     if low <= 2 and peak >= 5 and len(counts) >= 2:
@@ -456,12 +485,12 @@ def profile_opponent(obs_dict: dict[str, Any]) -> OpponentProfile:
         if flags["has_control_flag"]:
             return OpponentProfile(
                 style="Control", speed="Unknown",
-                signature="heuristic_control", confidence=0.2, root="規則",
+                signature="heuristic_control", confidence=0.2, root="多維",
             )
         if flags["has_tempo_flag"]:
             return OpponentProfile(
                 style="Tempo", speed="Unknown",
-                signature="heuristic_tempo", confidence=0.2, root="手牌",
+                signature="heuristic_tempo", confidence=0.2, root="手牌→場面",
             )
 
     return _UNKNOWN
@@ -477,8 +506,8 @@ def profile_from_known_ids(card_ids: list[int]) -> OpponentProfile:
 
 _STYLE_TO_ROOT: dict[str, str] = {
     "Burst":   "場面",
-    "Tempo":   "手牌",
-    "Control": "規則",
+    "Tempo":   "手牌→場面",
+    "Control": "多維",
 }
 
 
