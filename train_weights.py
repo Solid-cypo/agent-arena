@@ -19,19 +19,14 @@ from arena.policy import DEFAULT_WEIGHTS
 from arena.simulator import evaluate_weights
 
 DEFAULT_META_MATCHUPS: tuple[tuple[str, str, str, float], ...] = (
-    ("mirror", "deck.csv", "deck.csv", 0.5),
-    (
-        "vs_tea_party",
-        "deck.csv",
-        "data/meta_decks/decks/02_the-debauchery-tea-party.csv",
-        1.0,
-    ),
-    (
-        "vs_lucario",
-        "deck.csv",
-        "data/meta_decks/decks/08_stagapult.csv",
-        1.0,
-    ),
+    # Mirror: keeps us from collapsing to a narrow win condition
+    ("mirror",   "deck.csv", "deck.csv", 0.5),
+    # Top-1 Alakazam: highest-rated, most likely opponent on ladder
+    ("vs_alak",  "deck.csv", "data/meta_decks/decks/01_trusthub-hiroingk.csv",   1.5),
+    # Top-3 foo_foo: represents Hops Aggro Tempo axis (#3/#6/#7/#10)
+    ("vs_foo",   "deck.csv", "data/meta_decks/decks/03_foo-foo.csv",              1.2),
+    # Top-7 graybackcat: Tempo axis variant, our historical weak matchup
+    ("vs_gray",  "deck.csv", "data/meta_decks/decks/07_graybackcat.csv",          1.2),
 )
 
 
