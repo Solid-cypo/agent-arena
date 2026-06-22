@@ -1,0 +1,15 @@
+# AgentArena — Python dependencies
+# Runtime: Python 3.10 (system)
+# All dependencies are either stdlib or bundled in cg/
+
+# Standard library only — no pip packages needed for core functionality.
+# cg/ runtime is bundled in-repo (libcg.so + Python wrappers).
+
+# Optional: Kaggle CLI (for submitting and downloading replays)
+# Install: pip install kaggle
+# Configure: place API token in ~/.kaggle/kaggle.json or set KAGGLE_KEY env var
+kaggle>=1.6.0
+
+# Optional: pytest (for running BDD tests)
+# Install: pip install pytest
+pytest>=7.0.0

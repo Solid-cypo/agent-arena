@@ -4,6 +4,15 @@ __pycache__/
 .pytest_cache/
 .venv/
 venv/
+# Marathon runtime files
 data/marathon/*/checkpoint.json
 data/marathon/*/results.jsonl
 data/marathon/nohup*.log
+data/marathon/latest_run_id.txt
+# Training logs (not essential)
+data/training/*.log
+# Secrets
+.env
+# Submission staging
+submission/.staging/
+submission/.local_test/
