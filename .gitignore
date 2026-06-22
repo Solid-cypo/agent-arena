@@ -4,15 +4,23 @@ __pycache__/
 .pytest_cache/
 .venv/
 venv/
+# Cursor IDE files
+.cursor/
 # Marathon runtime files
 data/marathon/*/checkpoint.json
 data/marathon/*/results.jsonl
 data/marathon/nohup*.log
 data/marathon/latest_run_id.txt
-# Training logs (not essential)
+data/marathon/mem_smoke/
+data/marathon/smoke_marathon/
+# Training logs & large history files (not essential)
 data/training/*.log
+data/training/*_history.json
+# Large binary/image files
+*.png
 # Secrets
 .env
-# Submission staging
+# Submission staging & compiled package
 submission/.staging/
 submission/.local_test/
+submission.tar.gz
