@@ -1,5 +1,5 @@
 OPENING 批量测试日志
-生成时间: 2026-06-23T23:57:46
+生成时间: 2026-06-24T03:22:25
 回合上限: 5
 测试局数: 10
 Goal 达成: 9/10
@@ -34,35 +34,37 @@ Run #1 (seed=42)
   2. [PLAY_TRAINER] PLAY Poké Pad
   3. [PLAY_TRAINER] Poké Pad → Staryu
   4. [PLAY_POKEMON] Bench ← Staryu
-  5. [ATTACH] Prism Energy → Staryu on bench
+  5. [ATTACH] Water Energy → Staryu on bench
   回合结束手牌:
-    Water Energy, Dudunsparce ex, Boss's Orders, Poké Pad
+    Prism Energy, Dudunsparce ex, Boss's Orders, Poké Pad
   回合结束场面:
   Active: Munkidori [无能量]
-  Bench[0]: Staryu [Prism Energy]
+  Bench[0]: Staryu [Water Energy]
 
 【My-T2】 路线: R5-REC
   回合开始手牌:
-    Water Energy, Dudunsparce ex, Boss's Orders, Poké Pad
+    Prism Energy, Dudunsparce ex, Boss's Orders, Poké Pad
   回合开始场面:
   Active: Munkidori [无能量]
-  Bench[0]: Staryu [Prism Energy]
+  Bench[0]: Staryu [Water Energy]
   本回合操作:
   1. [DRAW] Draw Salvatore
   2. [NOTE] Route=R5-REC T2 gaps=G1:False G2:False G3:True G4:False miss=F-B
-  3. [PLAY_TRAINER] PLAY Poké Pad REC
-  4. [PLAY_TRAINER] Poké Pad → Mega Starmie ex
-  5. [NOTE] Retreat promote Active ← Staryu
-  6. [EVOLVE] Staryu → Mega Starmie ex
+  3. [PLAY_TRAINER] PLAY Salvatore
+  4. [EVOLVE] Salvatore: Staryu → Mega Starmie ex
+  5. [ATTACH] Prism Energy → Munkidori on active
+  6. [NOTE] Switch unavailable — cannot promote Mega to Active (E-SW-1)
+  7. [DISCARD] Retreat cost → discard Prism Energy
+  8. [RETREAT] Retreat → Active ← Mega Starmie ex
   回合结束手牌:
-    Water Energy, Dudunsparce ex, Boss's Orders, Salvatore
+    Dudunsparce ex, Boss's Orders, Poké Pad
   回合结束场面:
-  Active: Mega Starmie ex [Prism Energy]
+  Active: Mega Starmie ex [Water Energy]
   Bench[0]: Munkidori [无能量]
 
 ========================================================================
 Run #2 (seed=43)
-结果: GOAL 达成 (OK) · 结束于 My-T5 · 上限 5 回合
+结果: GOAL 达成 (OK) · 结束于 My-T4 · 上限 5 回合
 
 【起始】
   奖品区 (6): Munkidori, Lillie, Darkness Energy, Poffin, Salvatore, Poké Pad
@@ -79,95 +81,92 @@ Run #2 (seed=43)
   Active: Dunsparce [无能量]
   Bench: （空）
 
-【My-T1】 路线: R2-T1
+【My-T1】 路线: R-Meowth-T1
   回合开始手牌:
     Meowth ex, Lillie, Crispin, Dunsparce, Budew, Poffin
   回合开始场面:
   Active: Dunsparce [无能量]
   Bench: （空）
   本回合操作:
-  1. [NOTE] Route=R2-T1 T1 gaps=G1:True G2:False G3:True G4:False miss=F-E
-  2. [PLAY_TRAINER] PLAY Poffin
-  3. [NOTE] ATTACH skipped: no water in hand
+  1. [NOTE] Route=R-Meowth-T1 T1 gaps=G1:True G2:False G3:True G4:False miss=F-E
+  2. [PLAY_POKEMON] Bench ← Meowth ex
+  3. [ABILITY_LAST_DITCH] Last-Ditch Catch → Hilda
+  4. [PLAY_TRAINER] PLAY Poffin
+  5. [ABILITY_FAN_CALL] Fan Call → ['Dunsparce']
+  6. [PLAY_TRAINER] PLAY Hilda after Meowth
+  7. [PLAY_TRAINER] Hilda → ['Mega Starmie ex', 'Water Energy']
+  8. [ATTACH] Water Energy → Staryu on bench
   回合结束手牌:
-    Meowth ex, Lillie, Crispin, Dunsparce, Budew
+    Lillie, Crispin, Dunsparce, Budew, Dunsparce, Mega Starmie ex
   回合结束场面:
   Active: Dunsparce [无能量]
-  Bench[0]: Staryu [无能量]
-  Bench[1]: Snorunt [无能量]
+  Bench[0]: Meowth ex [无能量]
+  Bench[1]: Staryu [Water Energy]
+  Bench[2]: Fan Rotom [无能量]
 
-【My-T2】 路线: R5-REC
+【My-T2】 路线: R1-REC
   回合开始手牌:
-    Meowth ex, Lillie, Crispin, Dunsparce, Budew
+    Lillie, Crispin, Dunsparce, Budew, Dunsparce, Mega Starmie ex
   回合开始场面:
   Active: Dunsparce [无能量]
-  Bench[0]: Staryu [无能量]
-  Bench[1]: Snorunt [无能量]
+  Bench[0]: Meowth ex [无能量]
+  Bench[1]: Staryu [Water Energy]
+  Bench[2]: Fan Rotom [无能量]
   本回合操作:
-  1. [DRAW] Draw Water Energy
-  2. [NOTE] Route=R5-REC T2 gaps=G1:False G2:True G3:True G4:False miss=F-D
-  3. [ATTACH] Water Energy → Staryu on bench
-  4. [NOTE] Retreat promote Active ← Staryu
+  1. [DRAW] Draw Snorunt
+  2. [NOTE] Route=R1-REC T2 gaps=G1:False G2:False G3:False G4:False miss=F-A
+  3. [EVOLVE] Staryu → Mega Starmie ex
+  4. [NOTE] Switch unavailable — cannot promote Mega to Active (E-SW-1)
   回合结束手牌:
-    Meowth ex, Lillie, Crispin, Dunsparce, Budew
+    Lillie, Crispin, Dunsparce, Budew, Dunsparce, Snorunt
   回合结束场面:
-  Active: Staryu [Water Energy]
-  Bench[0]: Snorunt [无能量]
-  Bench[1]: Dunsparce [无能量]
+  Active: Dunsparce [无能量]
+  Bench[0]: Meowth ex [无能量]
+  Bench[1]: Mega Starmie ex [Water Energy]
+  Bench[2]: Fan Rotom [无能量]
 
-【My-T3】 路线: R5-REC
+【My-T3】 路线: R2-REC
   回合开始手牌:
-    Meowth ex, Lillie, Crispin, Dunsparce, Budew
+    Lillie, Crispin, Dunsparce, Budew, Dunsparce, Snorunt
   回合开始场面:
-  Active: Staryu [Water Energy]
-  Bench[0]: Snorunt [无能量]
-  Bench[1]: Dunsparce [无能量]
+  Active: Dunsparce [无能量]
+  Bench[0]: Meowth ex [无能量]
+  Bench[1]: Mega Starmie ex [Water Energy]
+  Bench[2]: Fan Rotom [无能量]
   本回合操作:
   1. [DRAW] Draw Risky Ruins
-  2. [NOTE] Route=R5-REC T3 gaps=G1:False G2:False G3:True G4:False miss=F-B
+  2. [NOTE] Route=R2-REC T3 gaps=G1:False G2:False G3:False G4:False miss=F-F
+  3. [NOTE] Switch unavailable — cannot promote Mega to Active (E-SW-1)
   回合结束手牌:
-    Meowth ex, Lillie, Crispin, Dunsparce, Budew, Risky Ruins
+    Lillie, Crispin, Dunsparce, Budew, Dunsparce, Snorunt, Risky Ruins
   回合结束场面:
-  Active: Staryu [Water Energy]
-  Bench[0]: Snorunt [无能量]
-  Bench[1]: Dunsparce [无能量]
+  Active: Dunsparce [无能量]
+  Bench[0]: Meowth ex [无能量]
+  Bench[1]: Mega Starmie ex [Water Energy]
+  Bench[2]: Fan Rotom [无能量]
 
-【My-T4】 路线: R5-REC
+【My-T4】 路线: R2-REC
   回合开始手牌:
-    Meowth ex, Lillie, Crispin, Dunsparce, Budew, Risky Ruins
+    Lillie, Crispin, Dunsparce, Budew, Dunsparce, Snorunt, Risky Ruins
   回合开始场面:
-  Active: Staryu [Water Energy]
-  Bench[0]: Snorunt [无能量]
-  Bench[1]: Dunsparce [无能量]
+  Active: Dunsparce [无能量]
+  Bench[0]: Meowth ex [无能量]
+  Bench[1]: Mega Starmie ex [Water Energy]
+  Bench[2]: Fan Rotom [无能量]
   本回合操作:
   1. [DRAW] Draw Ignition Energy
-  2. [NOTE] Route=R5-REC T4 gaps=G1:False G2:False G3:True G4:False miss=F-B
+  2. [NOTE] Route=R2-REC T4 gaps=G1:False G2:False G3:False G4:False miss=F-F
+  3. [ATTACH] Ignition Energy → Dunsparce on active
+  4. [NOTE] Switch unavailable — cannot promote Mega to Active (E-SW-1)
+  5. [DISCARD] Retreat cost → discard Ignition Energy
+  6. [RETREAT] Retreat → Active ← Mega Starmie ex
   回合结束手牌:
-    Meowth ex, Lillie, Crispin, Dunsparce, Budew, Risky Ruins, Ignition Energy
-  回合结束场面:
-  Active: Staryu [Water Energy]
-  Bench[0]: Snorunt [无能量]
-  Bench[1]: Dunsparce [无能量]
-
-【My-T5】 路线: R3b-REC
-  回合开始手牌:
-    Meowth ex, Lillie, Crispin, Dunsparce, Budew, Risky Ruins, Ignition Energy
-  回合开始场面:
-  Active: Staryu [Water Energy]
-  Bench[0]: Snorunt [无能量]
-  Bench[1]: Dunsparce [无能量]
-  本回合操作:
-  1. [DRAW] Draw Hilda
-  2. [NOTE] Route=R3b-REC T5 gaps=G1:False G2:False G3:True G4:False miss=F-B
-  3. [PLAY_TRAINER] PLAY Hilda REC
-  4. [PLAY_TRAINER] Hilda → ['Mega Starmie ex']
-  5. [EVOLVE] Staryu → Mega Starmie ex
-  回合结束手牌:
-    Meowth ex, Lillie, Crispin, Dunsparce, Budew, Risky Ruins, Ignition Energy
+    Lillie, Crispin, Dunsparce, Budew, Dunsparce, Snorunt, Risky Ruins
   回合结束场面:
   Active: Mega Starmie ex [Water Energy]
-  Bench[0]: Snorunt [无能量]
-  Bench[1]: Dunsparce [无能量]
+  Bench[0]: Meowth ex [无能量]
+  Bench[1]: Fan Rotom [无能量]
+  Bench[2]: Dunsparce [无能量]
 
 ========================================================================
 Run #3 (seed=44)
@@ -188,33 +187,33 @@ Run #3 (seed=44)
   Active: Staryu [无能量]
   Bench: （空）
 
-【My-T1】 路线: R7-T1
+【My-T1】 路线: R6-T1
   回合开始手牌:
     Hilda, Salvatore, Ultra Ball, Darkness Energy, Night Stretcher, Budew
   回合开始场面:
   Active: Staryu [无能量]
   Bench: （空）
   本回合操作:
-  1. [NOTE] Route=R7-T1 T1 gaps=G1:False G2:True G3:True G4:True miss=F-D
-  2. [PLAY_TRAINER] PLAY Hilda (energy)
-  3. [PLAY_TRAINER] Hilda → ['Water Energy', 'Mega Starmie ex']
-  4. [ATTACH] Water Energy → Staryu on active
+  1. [NOTE] Route=R6-T1 T1 gaps=G1:False G2:True G3:True G4:True miss=F-D
+  2. [PLAY_TRAINER] PLAY Hilda (1031)
+  3. [PLAY_TRAINER] Hilda → ['Mega Starmie ex', 'Water Energy']
   回合结束手牌:
-    Salvatore, Ultra Ball, Darkness Energy, Night Stretcher, Budew, Mega Starmie ex
+    Salvatore, Ultra Ball, Darkness Energy, Night Stretcher, Budew, Mega Starmie ex, Water Energy
   回合结束场面:
-  Active: Staryu [Water Energy]
+  Active: Staryu [无能量]
   Bench: （空）
 
-【My-T2】 路线: R1-REC
+【My-T2】 路线: R4-REC
   回合开始手牌:
-    Salvatore, Ultra Ball, Darkness Energy, Night Stretcher, Budew, Mega Starmie ex
+    Salvatore, Ultra Ball, Darkness Energy, Night Stretcher, Budew, Mega Starmie ex, Water Energy
   回合开始场面:
-  Active: Staryu [Water Energy]
+  Active: Staryu [无能量]
   Bench: （空）
   本回合操作:
   1. [DRAW] Draw Dunsparce
-  2. [NOTE] Route=R1-REC T2 gaps=G1:False G2:False G3:False G4:False miss=F-A
-  3. [EVOLVE] Staryu → Mega Starmie ex
+  2. [NOTE] Route=R4-REC T2 gaps=G1:False G2:True G3:False G4:False miss=F-C
+  3. [ATTACH] Water Energy → Staryu on active
+  4. [EVOLVE] Staryu → Mega Starmie ex
   回合结束手牌:
     Salvatore, Ultra Ball, Darkness Energy, Night Stretcher, Budew, Dunsparce
   回合结束场面:
@@ -223,7 +222,7 @@ Run #3 (seed=44)
 
 ========================================================================
 Run #4 (seed=45)
-结果: GOAL 达成 (OK) · 结束于 My-T3 · 上限 5 回合
+结果: GOAL 达成 (OK) · 结束于 My-T5 · 上限 5 回合
 
 【起始】
   奖品区 (6): Staryu, Switch, Boss's Orders, Dunsparce, Water Energy, Lillie
@@ -240,57 +239,101 @@ Run #4 (seed=45)
   Active: Meowth ex [无能量]
   Bench: （空）
 
-【My-T1】 路线: R3b-T1
+【My-T1】 路线: R2-T1
   回合开始手牌:
     Dudunsparce (Run Away Draw), Water Energy, Poffin, Ultra Ball, Risky Ruins, Crispin
   回合开始场面:
   Active: Meowth ex [无能量]
   Bench: （空）
   本回合操作:
-  1. [NOTE] Route=R3b-T1 T1 gaps=G1:True G2:False G3:True G4:False miss=F-E
-  2. [PLAY_TRAINER] PLAY Ultra Ball (1030)
-  3. [PLAY_TRAINER] Ultra Ball → Staryu, disc ['Poffin', 'Dudunsparce (Run Away Draw)']
-  4. [PLAY_POKEMON] Bench ← Staryu
-  5. [NOTE] Retreat promote Active ← Staryu
-  6. [ATTACH] Water Energy → Staryu on active
+  1. [NOTE] Route=R2-T1 T1 gaps=G1:True G2:False G3:True G4:False miss=F-E
+  2. [PLAY_TRAINER] PLAY Poffin
+  3. [ABILITY_FAN_CALL] Fan Call → ['Dunsparce']
+  4. [ATTACH] Water Energy → Staryu on bench
   回合结束手牌:
-    Risky Ruins, Crispin
+    Dudunsparce (Run Away Draw), Ultra Ball, Risky Ruins, Crispin, Dunsparce
   回合结束场面:
-  Active: Staryu [Water Energy]
-  Bench[0]: Meowth ex [无能量]
+  Active: Meowth ex [无能量]
+  Bench[0]: Staryu [Water Energy]
+  Bench[1]: Fan Rotom [无能量]
 
-【My-T2】 路线: R5-REC
+【My-T2】 路线: R3-REC
   回合开始手牌:
-    Risky Ruins, Crispin
+    Dudunsparce (Run Away Draw), Ultra Ball, Risky Ruins, Crispin, Dunsparce
   回合开始场面:
-  Active: Staryu [Water Energy]
-  Bench[0]: Meowth ex [无能量]
+  Active: Meowth ex [无能量]
+  Bench[0]: Staryu [Water Energy]
+  Bench[1]: Fan Rotom [无能量]
   本回合操作:
   1. [DRAW] Draw Judge
-  2. [NOTE] Route=R5-REC T2 gaps=G1:False G2:False G3:True G4:False miss=F-B
+  2. [NOTE] Route=R3-REC T2 gaps=G1:False G2:False G3:True G4:False miss=F-B
+  3. [PLAY_TRAINER] PLAY Ultra Ball (Mega Starmie ex)
+  4. [PLAY_TRAINER] Ultra Ball → Mega Starmie ex, disc ['Risky Ruins', 'Dudunsparce (Run Away Draw)']
+  5. [EVOLVE] Staryu → Mega Starmie ex
+  6. [NOTE] Switch unavailable — cannot promote Mega to Active (E-SW-1)
   回合结束手牌:
-    Risky Ruins, Crispin, Judge
+    Crispin, Dunsparce, Judge
   回合结束场面:
-  Active: Staryu [Water Energy]
-  Bench[0]: Meowth ex [无能量]
+  Active: Meowth ex [无能量]
+  Bench[0]: Mega Starmie ex [Water Energy]
+  Bench[1]: Fan Rotom [无能量]
 
-【My-T3】 路线: R5-REC
+【My-T3】 路线: R2-REC
   回合开始手牌:
-    Risky Ruins, Crispin, Judge
+    Crispin, Dunsparce, Judge
   回合开始场面:
-  Active: Staryu [Water Energy]
-  Bench[0]: Meowth ex [无能量]
+  Active: Meowth ex [无能量]
+  Bench[0]: Mega Starmie ex [Water Energy]
+  Bench[1]: Fan Rotom [无能量]
   本回合操作:
   1. [DRAW] Draw Poké Pad
-  2. [NOTE] Route=R5-REC T3 gaps=G1:False G2:False G3:True G4:False miss=F-B
-  3. [PLAY_TRAINER] PLAY Poké Pad REC
-  4. [PLAY_TRAINER] Poké Pad → Mega Starmie ex
-  5. [EVOLVE] Staryu → Mega Starmie ex
+  2. [NOTE] Route=R2-REC T3 gaps=G1:False G2:False G3:False G4:False miss=F-F
+  3. [NOTE] Switch unavailable — cannot promote Mega to Active (E-SW-1)
   回合结束手牌:
-    Risky Ruins, Crispin, Judge
+    Crispin, Dunsparce, Judge, Poké Pad
+  回合结束场面:
+  Active: Meowth ex [无能量]
+  Bench[0]: Mega Starmie ex [Water Energy]
+  Bench[1]: Fan Rotom [无能量]
+
+【My-T4】 路线: R2-REC
+  回合开始手牌:
+    Crispin, Dunsparce, Judge, Poké Pad
+  回合开始场面:
+  Active: Meowth ex [无能量]
+  Bench[0]: Mega Starmie ex [Water Energy]
+  Bench[1]: Fan Rotom [无能量]
+  本回合操作:
+  1. [DRAW] Draw Night Stretcher
+  2. [NOTE] Route=R2-REC T4 gaps=G1:False G2:False G3:False G4:False miss=F-F
+  3. [NOTE] Switch unavailable — cannot promote Mega to Active (E-SW-1)
+  回合结束手牌:
+    Crispin, Dunsparce, Judge, Poké Pad, Night Stretcher
+  回合结束场面:
+  Active: Meowth ex [无能量]
+  Bench[0]: Mega Starmie ex [Water Energy]
+  Bench[1]: Fan Rotom [无能量]
+
+【My-T5】 路线: R2-REC
+  回合开始手牌:
+    Crispin, Dunsparce, Judge, Poké Pad, Night Stretcher
+  回合开始场面:
+  Active: Meowth ex [无能量]
+  Bench[0]: Mega Starmie ex [Water Energy]
+  Bench[1]: Fan Rotom [无能量]
+  本回合操作:
+  1. [DRAW] Draw Darkness Energy
+  2. [NOTE] Route=R2-REC T5 gaps=G1:False G2:False G3:False G4:False miss=F-F
+  3. [ATTACH] Darkness Energy → Meowth ex on active
+  4. [NOTE] Switch unavailable — cannot promote Mega to Active (E-SW-1)
+  5. [DISCARD] Retreat cost → discard Darkness Energy
+  6. [RETREAT] Retreat → Active ← Mega Starmie ex
+  回合结束手牌:
+    Crispin, Dunsparce, Judge, Poké Pad, Night Stretcher
   回合结束场面:
   Active: Mega Starmie ex [Water Energy]
-  Bench[0]: Meowth ex [无能量]
+  Bench[0]: Fan Rotom [无能量]
+  Bench[1]: Meowth ex [无能量]
 
 ========================================================================
 Run #5 (seed=46)
@@ -312,42 +355,44 @@ Run #5 (seed=46)
   Active: Staryu [无能量]
   Bench[0]: Fan Rotom [无能量]
 
-【My-T1】 路线: R7-T1
+【My-T1】 路线: R6-T1
   回合开始手牌:
     Poffin, Froslass, Lillie, Hilda, Poké Pad
   回合开始场面:
   Active: Staryu [无能量]
   Bench[0]: Fan Rotom [无能量]
   本回合操作:
-  1. [NOTE] Route=R7-T1 T1 gaps=G1:False G2:True G3:True G4:True miss=F-D
-  2. [PLAY_TRAINER] PLAY Hilda (energy)
-  3. [PLAY_TRAINER] Hilda → ['Water Energy', 'Mega Starmie ex']
-  4. [ATTACH] Water Energy → Staryu on active
+  1. [NOTE] Route=R6-T1 T1 gaps=G1:False G2:True G3:True G4:True miss=F-D
+  2. [PLAY_TRAINER] PLAY Hilda (1031)
+  3. [PLAY_TRAINER] Hilda → ['Mega Starmie ex', 'Water Energy']
   回合结束手牌:
-    Poffin, Froslass, Lillie, Poké Pad, Mega Starmie ex
+    Poffin, Froslass, Lillie, Poké Pad, Mega Starmie ex, Water Energy
   回合结束场面:
-  Active: Staryu [Water Energy]
+  Active: Staryu [无能量]
   Bench[0]: Fan Rotom [无能量]
 
-【My-T2】 路线: R1-REC
+【My-T2】 路线: R5-REC
   回合开始手牌:
-    Poffin, Froslass, Lillie, Poké Pad, Mega Starmie ex
+    Poffin, Froslass, Lillie, Poké Pad, Mega Starmie ex, Water Energy
   回合开始场面:
-  Active: Staryu [Water Energy]
+  Active: Staryu [无能量]
   Bench[0]: Fan Rotom [无能量]
   本回合操作:
   1. [DRAW] Draw Lillie
-  2. [NOTE] Route=R1-REC T2 gaps=G1:False G2:False G3:False G4:False miss=F-A
-  3. [EVOLVE] Staryu → Mega Starmie ex
+  2. [NOTE] Route=R5-REC T2 gaps=G1:False G2:True G3:False G4:False miss=F-C
+  3. [PLAY_TRAINER] PLAY Poké Pad REC
+  4. [NOTE] Poké Pad blocked: Water Energy is not a legal Pad target (E-PAD-1)
+  5. [ATTACH] Water Energy → Staryu on active
+  6. [EVOLVE] Staryu → Mega Starmie ex
   回合结束手牌:
-    Poffin, Froslass, Lillie, Poké Pad, Lillie
+    Poffin, Froslass, Lillie, Lillie
   回合结束场面:
   Active: Mega Starmie ex [Water Energy]
   Bench[0]: Fan Rotom [无能量]
 
 ========================================================================
 Run #6 (seed=47)
-结果: GOAL 达成 (OK) · 结束于 My-T2 · 上限 5 回合
+结果: GOAL 达成 (OK) · 结束于 My-T5 · 上限 5 回合
 
 【起始】
   奖品区 (6): Mega Froslass ex, Boss's Orders, Water Energy, Judge, Budew, Fan Rotom
@@ -364,44 +409,112 @@ Run #6 (seed=47)
   Active: Munkidori [无能量]
   Bench: （空）
 
-【My-T1】 路线: R1-T1
+【My-T1】 路线: R2-T1
   回合开始手牌:
     Hilda, Poké Pad, Poffin, Mega Starmie ex, Risky Ruins, Hilda
   回合开始场面:
   Active: Munkidori [无能量]
   Bench: （空）
   本回合操作:
-  1. [NOTE] Route=R1-T1 T1 gaps=G1:True G2:False G3:False G4:False miss=F-E
-  2. [PLAY_TRAINER] PLAY Hilda
-  3. [PLAY_TRAINER] Hilda → ['Staryu', 'Water Energy']
-  4. [PLAY_POKEMON] Bench ← Staryu
-  5. [ATTACH] Water Energy → Staryu on bench
+  1. [NOTE] Route=R2-T1 T1 gaps=G1:True G2:False G3:False G4:False miss=F-E
+  2. [PLAY_TRAINER] PLAY Poffin
+  3. [NOTE] ATTACH skipped: no water in hand
   回合结束手牌:
-    Poké Pad, Poffin, Mega Starmie ex, Risky Ruins, Hilda
+    Hilda, Poké Pad, Mega Starmie ex, Risky Ruins, Hilda
   回合结束场面:
   Active: Munkidori [无能量]
-  Bench[0]: Staryu [Water Energy]
+  Bench[0]: Staryu [无能量]
+  Bench[1]: Dunsparce [无能量]
 
-【My-T2】 路线: R1-REC
+【My-T2】 路线: R5-REC
   回合开始手牌:
-    Poké Pad, Poffin, Mega Starmie ex, Risky Ruins, Hilda
+    Hilda, Poké Pad, Mega Starmie ex, Risky Ruins, Hilda
   回合开始场面:
   Active: Munkidori [无能量]
-  Bench[0]: Staryu [Water Energy]
+  Bench[0]: Staryu [无能量]
+  Bench[1]: Dunsparce [无能量]
   本回合操作:
   1. [DRAW] Draw Lillie
-  2. [NOTE] Route=R1-REC T2 gaps=G1:False G2:False G3:False G4:False miss=F-A
-  3. [NOTE] Retreat promote Active ← Staryu
-  4. [EVOLVE] Staryu → Mega Starmie ex
+  2. [NOTE] Route=R5-REC T2 gaps=G1:False G2:True G3:False G4:False miss=F-C
+  3. [PLAY_TRAINER] PLAY Poké Pad REC
+  4. [NOTE] Poké Pad blocked: Water Energy is not a legal Pad target (E-PAD-1)
+  5. [NOTE] ATTACH skipped: no water in hand
+  6. [NOTE] ATTACH skipped: no water in hand
+  7. [EVOLVE] Staryu → Mega Starmie ex
+  8. [NOTE] Switch unavailable — cannot promote Mega to Active (E-SW-1)
+  9. [NOTE] ATTACH skipped: no water in hand
   回合结束手牌:
-    Poké Pad, Poffin, Risky Ruins, Hilda, Lillie
+    Hilda, Risky Ruins, Hilda, Lillie
+  回合结束场面:
+  Active: Munkidori [无能量]
+  Bench[0]: Mega Starmie ex [无能量]
+  Bench[1]: Dunsparce [无能量]
+
+【My-T3】 路线: R4b-REC
+  回合开始手牌:
+    Hilda, Risky Ruins, Hilda, Lillie
+  回合开始场面:
+  Active: Munkidori [无能量]
+  Bench[0]: Mega Starmie ex [无能量]
+  Bench[1]: Dunsparce [无能量]
+  本回合操作:
+  1. [DRAW] Draw Prism Energy
+  2. [NOTE] Route=R4b-REC T3 gaps=G1:False G2:True G3:False G4:False miss=F-C
+  3. [PLAY_TRAINER] PLAY Hilda energy REC
+  4. [PLAY_TRAINER] Hilda → ['Water Energy']
+  5. [ATTACH] Prism Energy → Munkidori on active
+  6. [NOTE] Switch unavailable — cannot promote Mega to Active (E-SW-1)
+  回合结束手牌:
+    Risky Ruins, Hilda, Lillie, Water Energy
+  回合结束场面:
+  Active: Munkidori [Prism Energy]
+  Bench[0]: Mega Starmie ex [无能量]
+  Bench[1]: Dunsparce [无能量]
+
+【My-T4】 路线: R4b-REC
+  回合开始手牌:
+    Risky Ruins, Hilda, Lillie, Water Energy
+  回合开始场面:
+  Active: Munkidori [Prism Energy]
+  Bench[0]: Mega Starmie ex [无能量]
+  Bench[1]: Dunsparce [无能量]
+  本回合操作:
+  1. [DRAW] Draw Night Stretcher
+  2. [NOTE] Route=R4b-REC T4 gaps=G1:False G2:True G3:False G4:False miss=F-C
+  3. [PLAY_TRAINER] PLAY Hilda energy REC
+  4. [PLAY_TRAINER] Hilda → ['Water Energy']
+  5. [NOTE] Switch unavailable — cannot promote Mega to Active (E-SW-1)
+  6. [ATTACH] Water Energy → Mega Starmie ex on bench
+  回合结束手牌:
+    Risky Ruins, Lillie, Night Stretcher, Water Energy
+  回合结束场面:
+  Active: Munkidori [Prism Energy]
+  Bench[0]: Mega Starmie ex [Water Energy]
+  Bench[1]: Dunsparce [无能量]
+
+【My-T5】 路线: R2-REC
+  回合开始手牌:
+    Risky Ruins, Lillie, Night Stretcher, Water Energy
+  回合开始场面:
+  Active: Munkidori [Prism Energy]
+  Bench[0]: Mega Starmie ex [Water Energy]
+  Bench[1]: Dunsparce [无能量]
+  本回合操作:
+  1. [DRAW] Draw Lillie
+  2. [NOTE] Route=R2-REC T5 gaps=G1:False G2:False G3:False G4:False miss=F-F
+  3. [NOTE] Switch unavailable — cannot promote Mega to Active (E-SW-1)
+  4. [DISCARD] Retreat cost → discard Prism Energy
+  5. [RETREAT] Retreat → Active ← Mega Starmie ex
+  回合结束手牌:
+    Risky Ruins, Lillie, Night Stretcher, Water Energy, Lillie
   回合结束场面:
   Active: Mega Starmie ex [Water Energy]
-  Bench[0]: Munkidori [无能量]
+  Bench[0]: Dunsparce [无能量]
+  Bench[1]: Munkidori [无能量]
 
 ========================================================================
 Run #7 (seed=48)
-结果: GOAL 达成 (OK) · 结束于 My-T2 · 上限 5 回合
+结果: GOAL 达成 (OK) · 结束于 My-T5 · 上限 5 回合
 
 【起始】
   奖品区 (6): Water Energy, Judge, Water Energy, Froslass, Ultra Ball, Dudunsparce (Run Away Draw)
@@ -418,42 +531,107 @@ Run #7 (seed=48)
   Active: Snorunt [无能量]
   Bench: （空）
 
-【My-T1】 路线: R3b-T1
+【My-T1】 路线: R2-T1
   回合开始手牌:
     Poffin, Lillie, Ultra Ball, Night Stretcher, Hilda, Prism Energy
   回合开始场面:
   Active: Snorunt [无能量]
   Bench: （空）
   本回合操作:
-  1. [NOTE] Route=R3b-T1 T1 gaps=G1:True G2:False G3:True G4:False miss=F-E
-  2. [PLAY_TRAINER] PLAY Ultra Ball (1030)
-  3. [PLAY_TRAINER] Ultra Ball → Staryu, disc ['Lillie', 'Poffin']
-  4. [PLAY_POKEMON] Bench ← Staryu
-  5. [ATTACH] Prism Energy → Staryu on bench
+  1. [NOTE] Route=R2-T1 T1 gaps=G1:True G2:False G3:True G4:False miss=F-E
+  2. [PLAY_TRAINER] PLAY Poffin
+  3. [ABILITY_FAN_CALL] Fan Call → ['Dunsparce', 'Dunsparce']
+  4. [ATTACH] Prism Energy → Staryu on bench
   回合结束手牌:
-    Night Stretcher, Hilda
+    Lillie, Ultra Ball, Night Stretcher, Hilda, Dunsparce, Dunsparce
   回合结束场面:
   Active: Snorunt [无能量]
   Bench[0]: Staryu [Prism Energy]
+  Bench[1]: Fan Rotom [无能量]
 
 【My-T2】 路线: R3b-REC
   回合开始手牌:
-    Night Stretcher, Hilda
+    Lillie, Ultra Ball, Night Stretcher, Hilda, Dunsparce, Dunsparce
   回合开始场面:
   Active: Snorunt [无能量]
   Bench[0]: Staryu [Prism Energy]
+  Bench[1]: Fan Rotom [无能量]
   本回合操作:
-  1. [DRAW] Draw Dunsparce
+  1. [DRAW] Draw Poffin
   2. [NOTE] Route=R3b-REC T2 gaps=G1:False G2:False G3:True G4:False miss=F-B
   3. [PLAY_TRAINER] PLAY Hilda REC
   4. [PLAY_TRAINER] Hilda → ['Mega Starmie ex']
-  5. [NOTE] Retreat promote Active ← Staryu
+  5. [DISCARD] Prism discarded from Mega Starmie ex (non-Basic)
   6. [EVOLVE] Staryu → Mega Starmie ex
+  7. [NOTE] Switch unavailable — cannot promote Mega to Active (E-SW-1)
+  8. [NOTE] ATTACH skipped: no water in hand
   回合结束手牌:
-    Night Stretcher, Dunsparce
+    Lillie, Ultra Ball, Night Stretcher, Dunsparce, Dunsparce, Poffin
   回合结束场面:
-  Active: Mega Starmie ex [Prism Energy]
-  Bench[0]: Snorunt [无能量]
+  Active: Snorunt [无能量]
+  Bench[0]: Mega Starmie ex [无能量]
+  Bench[1]: Fan Rotom [无能量]
+
+【My-T3】 路线: R4-REC
+  回合开始手牌:
+    Lillie, Ultra Ball, Night Stretcher, Dunsparce, Dunsparce, Poffin
+  回合开始场面:
+  Active: Snorunt [无能量]
+  Bench[0]: Mega Starmie ex [无能量]
+  Bench[1]: Fan Rotom [无能量]
+  本回合操作:
+  1. [DRAW] Draw Darkness Energy
+  2. [NOTE] Route=R4-REC T3 gaps=G1:False G2:True G3:False G4:False miss=F-C
+  3. [NOTE] ATTACH skipped: no water in hand
+  4. [ATTACH] Darkness Energy → Snorunt on active
+  5. [NOTE] Switch unavailable — cannot promote Mega to Active (E-SW-1)
+  回合结束手牌:
+    Lillie, Ultra Ball, Night Stretcher, Dunsparce, Dunsparce, Poffin
+  回合结束场面:
+  Active: Snorunt [Darkness Energy]
+  Bench[0]: Mega Starmie ex [无能量]
+  Bench[1]: Fan Rotom [无能量]
+
+【My-T4】 路线: R4-REC
+  回合开始手牌:
+    Lillie, Ultra Ball, Night Stretcher, Dunsparce, Dunsparce, Poffin
+  回合开始场面:
+  Active: Snorunt [Darkness Energy]
+  Bench[0]: Mega Starmie ex [无能量]
+  Bench[1]: Fan Rotom [无能量]
+  本回合操作:
+  1. [DRAW] Draw Mega Froslass ex
+  2. [NOTE] Route=R4-REC T4 gaps=G1:False G2:True G3:False G4:False miss=F-C
+  3. [NOTE] ATTACH skipped: no water in hand
+  4. [NOTE] Switch unavailable — cannot promote Mega to Active (E-SW-1)
+  5. [NOTE] ATTACH skipped: no water in hand
+  回合结束手牌:
+    Lillie, Ultra Ball, Night Stretcher, Dunsparce, Dunsparce, Poffin, Mega Froslass ex
+  回合结束场面:
+  Active: Snorunt [Darkness Energy]
+  Bench[0]: Mega Starmie ex [无能量]
+  Bench[1]: Fan Rotom [无能量]
+
+【My-T5】 路线: R4-REC
+  回合开始手牌:
+    Lillie, Ultra Ball, Night Stretcher, Dunsparce, Dunsparce, Poffin, Mega Froslass ex
+  回合开始场面:
+  Active: Snorunt [Darkness Energy]
+  Bench[0]: Mega Starmie ex [无能量]
+  Bench[1]: Fan Rotom [无能量]
+  本回合操作:
+  1. [DRAW] Draw Water Energy
+  2. [NOTE] Route=R4-REC T5 gaps=G1:False G2:True G3:False G4:False miss=F-C
+  3. [ATTACH] Water Energy → Mega Starmie ex on bench
+  4. [NOTE] Switch unavailable — cannot promote Mega to Active (E-SW-1)
+  5. [DISCARD] Retreat cost → discard Darkness Energy
+  6. [RETREAT] Retreat → Active ← Mega Starmie ex
+  回合结束手牌:
+    Lillie, Ultra Ball, Night Stretcher, Dunsparce, Dunsparce, Poffin, Mega Froslass ex
+  回合结束场面:
+  Active: Mega Starmie ex [Water Energy]
+  Bench[0]: Fan Rotom [无能量]
+  Bench[1]: Snorunt [无能量]
 
 ========================================================================
 Run #8 (seed=49)
@@ -474,33 +652,33 @@ Run #8 (seed=49)
   Active: Staryu [无能量]
   Bench: （空）
 
-【My-T1】 路线: R7-T1
+【My-T1】 路线: R6-T1
   回合开始手牌:
     Boss's Orders, Darkness Energy, Lillie, Poffin, Hilda, Night Stretcher
   回合开始场面:
   Active: Staryu [无能量]
   Bench: （空）
   本回合操作:
-  1. [NOTE] Route=R7-T1 T1 gaps=G1:False G2:True G3:True G4:True miss=F-D
-  2. [PLAY_TRAINER] PLAY Hilda (energy)
-  3. [PLAY_TRAINER] Hilda → ['Water Energy', 'Mega Starmie ex']
-  4. [ATTACH] Water Energy → Staryu on active
+  1. [NOTE] Route=R6-T1 T1 gaps=G1:False G2:True G3:True G4:True miss=F-D
+  2. [PLAY_TRAINER] PLAY Hilda (1031)
+  3. [PLAY_TRAINER] Hilda → ['Mega Starmie ex', 'Water Energy']
   回合结束手牌:
-    Boss's Orders, Darkness Energy, Lillie, Poffin, Night Stretcher, Mega Starmie ex
+    Boss's Orders, Darkness Energy, Lillie, Poffin, Night Stretcher, Mega Starmie ex, Water Energy
   回合结束场面:
-  Active: Staryu [Water Energy]
+  Active: Staryu [无能量]
   Bench: （空）
 
-【My-T2】 路线: R1-REC
+【My-T2】 路线: R4-REC
   回合开始手牌:
-    Boss's Orders, Darkness Energy, Lillie, Poffin, Night Stretcher, Mega Starmie ex
+    Boss's Orders, Darkness Energy, Lillie, Poffin, Night Stretcher, Mega Starmie ex, Water Energy
   回合开始场面:
-  Active: Staryu [Water Energy]
+  Active: Staryu [无能量]
   Bench: （空）
   本回合操作:
   1. [DRAW] Draw Ignition Energy
-  2. [NOTE] Route=R1-REC T2 gaps=G1:False G2:False G3:False G4:False miss=F-A
-  3. [EVOLVE] Staryu → Mega Starmie ex
+  2. [NOTE] Route=R4-REC T2 gaps=G1:False G2:True G3:False G4:False miss=F-C
+  3. [ATTACH] Water Energy → Staryu on active
+  4. [EVOLVE] Staryu → Mega Starmie ex
   回合结束手牌:
     Boss's Orders, Darkness Energy, Lillie, Poffin, Night Stretcher, Ignition Energy
   回合结束场面:
@@ -602,7 +780,7 @@ Run #9 (seed=50)
 
 ========================================================================
 Run #10 (seed=51)
-结果: GOAL 达成 (OK) · 结束于 My-T2 · 上限 5 回合
+结果: GOAL 达成 (OK) · 结束于 My-T4 · 上限 5 回合
 
 【起始】
   奖品区 (6): Mega Starmie ex, Water Energy, Judge, Mega Froslass ex, Mega Froslass ex, Lillie
@@ -619,39 +797,76 @@ Run #10 (seed=51)
   Active: Fan Rotom [无能量]
   Bench: （空）
 
-【My-T1】 路线: R1-T1
+【My-T1】 路线: R4-T1
   回合开始手牌:
     Budew, Unfair Stamp, Poké Pad, Hilda, Hilda, Lillie
   回合开始场面:
   Active: Fan Rotom [无能量]
   Bench: （空）
   本回合操作:
-  1. [NOTE] Route=R1-T1 T1 gaps=G1:True G2:False G3:True G4:False miss=F-E
-  2. [PLAY_TRAINER] PLAY Hilda
-  3. [PLAY_TRAINER] Hilda → ['Staryu', 'Water Energy']
-  4. [PLAY_POKEMON] Bench ← Staryu
-  5. [ATTACH] Water Energy → Staryu on bench
+  1. [NOTE] Route=R4-T1 T1 gaps=G1:True G2:False G3:True G4:False miss=F-E
+  2. [ABILITY_FAN_CALL] Fan Call → ['Dunsparce', 'Dunsparce']
   回合结束手牌:
-    Budew, Unfair Stamp, Poké Pad, Hilda, Lillie
+    Budew, Unfair Stamp, Poké Pad, Hilda, Hilda, Lillie, Dunsparce, Dunsparce
   回合结束场面:
   Active: Fan Rotom [无能量]
-  Bench[0]: Staryu [Water Energy]
+  Bench: （空）
 
-【My-T2】 路线: R3b-REC
+【My-T2】 路线: R5-REC
   回合开始手牌:
-    Budew, Unfair Stamp, Poké Pad, Hilda, Lillie
+    Budew, Unfair Stamp, Poké Pad, Hilda, Hilda, Lillie, Dunsparce, Dunsparce
   回合开始场面:
   Active: Fan Rotom [无能量]
-  Bench[0]: Staryu [Water Energy]
+  Bench: （空）
   本回合操作:
   1. [DRAW] Draw Darkness Energy
-  2. [NOTE] Route=R3b-REC T2 gaps=G1:False G2:False G3:True G4:False miss=F-B
-  3. [PLAY_TRAINER] PLAY Hilda REC
-  4. [PLAY_TRAINER] Hilda → ['Mega Starmie ex']
-  5. [NOTE] Retreat promote Active ← Staryu
-  6. [EVOLVE] Staryu → Mega Starmie ex
+  2. [NOTE] Route=R5-REC T2 gaps=G1:True G2:False G3:True G4:False miss=F-E
+  3. [PLAY_TRAINER] PLAY Poké Pad REC
+  4. [PLAY_TRAINER] Poké Pad → Staryu
+  5. [PLAY_POKEMON] Bench ← Staryu
+  6. [NOTE] ATTACH skipped: no water in hand
+  7. [NOTE] ATTACH skipped: no water in hand
   回合结束手牌:
-    Budew, Unfair Stamp, Poké Pad, Lillie, Darkness Energy
+    Budew, Unfair Stamp, Hilda, Hilda, Lillie, Dunsparce, Dunsparce, Darkness Energy
+  回合结束场面:
+  Active: Fan Rotom [无能量]
+  Bench[0]: Staryu [无能量]
+
+【My-T3】 路线: R3b-REC
+  回合开始手牌:
+    Budew, Unfair Stamp, Hilda, Hilda, Lillie, Dunsparce, Dunsparce, Darkness Energy
+  回合开始场面:
+  Active: Fan Rotom [无能量]
+  Bench[0]: Staryu [无能量]
+  本回合操作:
+  1. [DRAW] Draw Boss's Orders
+  2. [NOTE] Route=R3b-REC T3 gaps=G1:False G2:True G3:True G4:False miss=F-D
+  3. [PLAY_TRAINER] PLAY Hilda REC
+  4. [PLAY_TRAINER] Hilda → ['Mega Starmie ex', 'Water Energy']
+  5. [ATTACH] Water Energy → Staryu on bench
+  6. [EVOLVE] Staryu → Mega Starmie ex
+  7. [NOTE] Switch unavailable — cannot promote Mega to Active (E-SW-1)
+  回合结束手牌:
+    Budew, Unfair Stamp, Hilda, Lillie, Dunsparce, Dunsparce, Darkness Energy, Boss's Orders
+  回合结束场面:
+  Active: Fan Rotom [无能量]
+  Bench[0]: Mega Starmie ex [Water Energy]
+
+【My-T4】 路线: R2-REC
+  回合开始手牌:
+    Budew, Unfair Stamp, Hilda, Lillie, Dunsparce, Dunsparce, Darkness Energy, Boss's Orders
+  回合开始场面:
+  Active: Fan Rotom [无能量]
+  Bench[0]: Mega Starmie ex [Water Energy]
+  本回合操作:
+  1. [DRAW] Draw Poké Pad
+  2. [NOTE] Route=R2-REC T4 gaps=G1:False G2:False G3:False G4:False miss=F-F
+  3. [ATTACH] Darkness Energy → Fan Rotom on active
+  4. [NOTE] Switch unavailable — cannot promote Mega to Active (E-SW-1)
+  5. [DISCARD] Retreat cost → discard Darkness Energy
+  6. [RETREAT] Retreat → Active ← Mega Starmie ex
+  回合结束手牌:
+    Budew, Unfair Stamp, Hilda, Lillie, Dunsparce, Dunsparce, Boss's Orders, Poké Pad
   回合结束场面:
   Active: Mega Starmie ex [Water Energy]
   Bench[0]: Fan Rotom [无能量]

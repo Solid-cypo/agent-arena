@@ -2,9 +2,9 @@
 
 > 分阶段详细设计目录：
 > - [01_opening.md](./01_opening.md) — **OPENING v2**（Setup 分型 + 两回合路线 + 缺口 G1–G7）
-> - 02_aggression.md — AGGRESSION（待设计）
-> - 03_harvest.md — HARVEST（待设计）
-> - 04_control.md — CONTROL（待设计）
+> - [02_draw_axis.md](./02_draw_axis.md) — **过牌轴 & 支援者**（轴 B/C · DR/DD 规则 · P-1~P-3）
+> - [03_harvest.md](./03_harvest.md) — **HARVEST**（861 收割 · HR-H* 硬规则清单）
+> - [04_control.md](./04_control.md) — **CONTROL modifier**（领先控场 · HR-C*）
 
 ---
 
@@ -159,8 +159,8 @@ class BoardSnapshot:
 ## 5. 实现顺序（与 opening_book §9 对齐）
 
 1. **Phase 1 文档 + OPENING 脚本** ← 当前
-2. Phase 2 AGGRESSION 详细设计 → `02_aggression.md` + 硬规则
-3. Phase 3 HARVEST
+2. **Phase 2 过牌轴 & 支援者** → [02_draw_axis.md](./02_draw_axis.md) + `deck_resources.py` / `supporter_planner.py` / `draw_axis.py`（**场面+手牌+牌库资源**，不用对手分型）
+3. Phase 3 HARVEST 详细设计 → `03_harvest.md` + 硬规则
 4. Phase 4 CONTROL
 5. 过牌轴 DR-1~7 嵌入 AGGRESSION / HARVEST
 

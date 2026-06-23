@@ -1,0 +1,212 @@
+# 能力释放 & 雪妖女+愿增猿联动 — 对局审计
+# generated: 2026-06-23 18:21:35 UTC
+
+## 审计标准（My-T2 .. My-T8）
+- Froslass `[104]` 在备战区（Snorunt 进化，非过早 Mega 861）
+- Munkidori `[112]` 在备战区且附有暗能量
+- 每回合优先 `ABILITY` Adrena-Brain（HR-2）
+- Freezing Shroud 为引擎被动 Checkup，以 Froslass 104 在场为必要条件
+
+## 批量结果
+
+| seed | 结果 | 步数 | Froslass104 | Munk能力 | 联动回合 | PASS |
+|---:|---|---:|---|---:|---|:---:|
+| 42 | 胜 | 224 | — | 0 | 0 | ✗ |
+| 43 | 负 | 141 | — | 0 | 0 | ✗ |
+| 44 | 胜 | 160 | T2 | 0 | 0 | ✗ |
+| 45 | 胜 | 254 | T2 | 0 | 0 | ✗ |
+| 46 | 负 | 204 | — | 3 | 0 | ✗ |
+| 47 | 负 | 169 | — | 2 | 0 | ✗ |
+| 48 | 胜 | 291 | — | 1 | 0 | ✗ |
+| 49 | 负 | 183 | — | 0 | 0 | ✗ |
+| 50 | 负 | 222 | — | 0 | 0 | ✗ |
+| 51 | 胜 | 176 | — | 2 | 0 | ✗ |
+
+**通过率: 0/10**
+
+### seed=42 FAIL
+- T2-T8 内未进化 Froslass (104)
+- T2-T8 内 Munkidori 未上场
+- T2-T8 内未释放 Adrena-Brain
+- Froslass(104)+Munkidori(暗能) 未同时就绪
+
+#### 回合快照 (My-T2..T8)
+- My-T2 `OPENING` active=Meowth ex bench=[Snorunt] fro104=False munk_dark=False synergy=False
+- My-T3 `OPENING` active=Meowth ex bench=[Snorunt] fro104=False munk_dark=False synergy=False
+- My-T4 `OPENING` active=Meowth ex bench=[Snorunt] fro104=False munk_dark=False synergy=False
+- My-T5 `OPENING` active=Meowth ex bench=[Snorunt, Dunsparce] fro104=False munk_dark=False synergy=False
+- My-T6 `OPENING` active=Meowth ex bench=[Snorunt] fro104=False munk_dark=False synergy=False
+- My-T7 `OPENING` active=Meowth ex bench=[Snorunt, Dunsparce] fro104=False munk_dark=False synergy=False
+- My-T8 `OPENING` active=Meowth ex bench=[Snorunt] fro104=False munk_dark=False synergy=False
+
+#### 关键动作
+- My-T8 PLAY Snorunt
+
+### seed=43 FAIL
+- T2-T8 内未进化 Froslass (104)
+- T2-T8 内未释放 Adrena-Brain
+- Froslass(104)+Munkidori(暗能) 未同时就绪
+
+#### 回合快照 (My-T2..T8)
+- My-T2 `OPENING` active=Snorunt bench=[Dunsparce, Staryu] fro104=False munk_dark=False synergy=False
+- My-T3 `OPENING` active=Snorunt bench=[Dunsparce, Mega Starmie ex] fro104=False munk_dark=False synergy=False
+- My-T4 `OPENING` active=Snorunt bench=[Dunsparce, Mega Starmie ex, Meowth ex] fro104=False munk_dark=False synergy=False
+- My-T5 `OPENING` active=Mega Froslass ex bench=[Mega Starmie ex, Meowth ex, Staryu] fro104=False munk_dark=False synergy=False
+- My-T6 `OPENING` active=Mega Froslass ex bench=[Mega Starmie ex, Meowth ex, Staryu, Munkidori] fro104=False munk_dark=False synergy=False
+- My-T7 `OPENING` active=Mega Froslass ex bench=[Mega Starmie ex, Meowth ex, Staryu, Munkidori, Dunsparce] fro104=False munk_dark=False synergy=False
+- My-T8 `OPENING` active=Mega Froslass ex bench=[Mega Starmie ex, Meowth ex, Staryu, Munkidori, Dunsparce] fro104=False munk_dark=False synergy=False
+
+#### 关键动作
+- My-T5 PLAY Munkidori
+
+### seed=44 FAIL
+- T2-T8 内未释放 Adrena-Brain
+- Froslass(104)+Munkidori(暗能) 未同时就绪
+
+#### 回合快照 (My-T2..T8)
+- My-T2 `OPENING` active=Snorunt bench=[Dunsparce, Fan Rotom, Dunsparce, Snorunt] fro104=False munk_dark=False synergy=False
+- My-T3 `OPENING` active=Froslass bench=[Fan Rotom, Dunsparce, Snorunt] fro104=True munk_dark=False synergy=False
+- My-T4 `OPENING` active=Froslass bench=[Fan Rotom, Dunsparce, Snorunt] fro104=True munk_dark=False synergy=False
+- My-T5 `OPENING` active=Froslass bench=[Fan Rotom, Dunsparce, Snorunt, Dunsparce] fro104=True munk_dark=False synergy=False
+- My-T6 `OPENING` active=Froslass bench=[Dunsparce, Snorunt, Dunsparce] fro104=True munk_dark=False synergy=False
+- My-T7 `OPENING` active=Froslass bench=[Dunsparce, Snorunt, Dunsparce] fro104=True munk_dark=False synergy=False
+- My-T8 `OPENING` active=Froslass bench=[Dunsparce, Snorunt, Dunsparce] fro104=True munk_dark=False synergy=False
+
+#### 关键动作
+- My-T2 EVOLVE Snorunt→Froslass (104)
+- My-T8 PLAY Munkidori
+
+### seed=45 FAIL
+- T2-T8 内 Munkidori 未上场
+- T2-T8 内未释放 Adrena-Brain
+- Froslass(104)+Munkidori(暗能) 未同时就绪
+
+#### 回合快照 (My-T2..T8)
+- My-T2 `OPENING` active=Snorunt bench=[Snorunt] fro104=False munk_dark=False synergy=False
+- My-T3 `OPENING` active=Froslass bench=[Snorunt, Dunsparce] fro104=True munk_dark=False synergy=False
+- My-T4 `OPENING` active=Froslass bench=[Snorunt] fro104=True munk_dark=False synergy=False
+- My-T5 `OPENING` active=Froslass bench=[Snorunt] fro104=True munk_dark=False synergy=False
+- My-T6 `OPENING` active=Snorunt bench=[(空)] fro104=False munk_dark=False synergy=False
+- My-T7 `OPENING` active=Snorunt bench=[Dunsparce] fro104=False munk_dark=False synergy=False
+- My-T8 `OPENING` active=Snorunt bench=[(空)] fro104=False munk_dark=False synergy=False
+
+#### 关键动作
+- My-T2 EVOLVE Snorunt→Froslass (104)
+
+### seed=46 FAIL
+- T2-T8 内未进化 Froslass (104)
+- Froslass(104)+Munkidori(暗能) 未同时就绪
+- Adrena-Brain 释放 3 次 @ My-T[6, 7, 8]
+
+#### 回合快照 (My-T2..T8)
+- My-T2 `OPENING` active=Dunsparce bench=[Fan Rotom, Munkidori, Dunsparce, Staryu, Snorunt] fro104=False munk_dark=False synergy=False
+- My-T3 `OPENING` active=Fan Rotom bench=[Munkidori, Dudunsparce ex, Staryu, Snorunt] fro104=False munk_dark=False synergy=False
+- My-T4 `OPENING` active=Fan Rotom bench=[Munkidori, Dudunsparce ex, Staryu, Snorunt, Dunsparce] fro104=False munk_dark=False synergy=False
+- My-T5 `OPENING` active=Staryu bench=[Munkidori, Dudunsparce ex, Snorunt, Dunsparce] fro104=False munk_dark=False synergy=False
+- My-T6 `OPENING` active=Staryu bench=[Munkidori, Dudunsparce ex, Snorunt, Dunsparce, Munkidori] fro104=False munk_dark=False synergy=False
+- My-T7 `OPENING` active=Mega Starmie ex bench=[Munkidori, Dudunsparce ex, Snorunt, Munkidori, Snorunt] fro104=False munk_dark=True synergy=False
+- My-T8 `OPENING` active=Mega Starmie ex bench=[Munkidori, Dudunsparce ex, Snorunt, Munkidori, Snorunt] fro104=False munk_dark=True synergy=False
+
+#### 关键动作
+- My-T2 ATTACH →Munkidori
+- My-T5 PLAY Munkidori
+- My-T6 ABILITY Adrena-Brain (Munkidori)
+- My-T6 PLAY Snorunt
+- My-T7 ABILITY Adrena-Brain (Munkidori)
+- My-T8 ABILITY Adrena-Brain (Munkidori)
+
+### seed=47 FAIL
+- T2-T8 内未进化 Froslass (104)
+- Froslass(104)+Munkidori(暗能) 未同时就绪
+- Adrena-Brain 释放 2 次 @ My-T[6, 8]
+
+#### 回合快照 (My-T2..T8)
+- My-T2 `OPENING` active=Staryu bench=[Dunsparce, Meowth ex] fro104=False munk_dark=False synergy=False
+- My-T3 `OPENING` active=Staryu bench=[Dudunsparce ex, Meowth ex] fro104=False munk_dark=False synergy=False
+- My-T4 `OPENING` active=Staryu bench=[Dudunsparce ex, Meowth ex] fro104=False munk_dark=False synergy=False
+- My-T5 `OPENING` active=Staryu bench=[Dudunsparce ex, Meowth ex] fro104=False munk_dark=False synergy=False
+- My-T6 `OPENING` active=Staryu bench=[Dudunsparce ex, Meowth ex] fro104=False munk_dark=False synergy=False
+- My-T7 `OPENING` active=Munkidori bench=[Dudunsparce ex, Meowth ex] fro104=False munk_dark=True synergy=False
+- My-T8 `OPENING` active=Munkidori bench=[Dudunsparce ex, Meowth ex, Budew, Staryu] fro104=False munk_dark=True synergy=False
+
+#### 关键动作
+- My-T6 PLAY Munkidori
+- My-T6 ATTACH →Munkidori
+- My-T6 ABILITY Adrena-Brain (Munkidori)
+- My-T8 ABILITY Adrena-Brain (Munkidori)
+
+### seed=48 FAIL
+- T2-T8 内未进化 Froslass (104)
+- Froslass(104)+Munkidori(暗能) 未同时就绪
+- Adrena-Brain 释放 1 次 @ My-T[5]
+
+#### 回合快照 (My-T2..T8)
+- My-T2 `OPENING` active=Fan Rotom bench=[Meowth ex, Dunsparce, Munkidori] fro104=False munk_dark=False synergy=False
+- My-T3 `OPENING` active=Fan Rotom bench=[Meowth ex, Dunsparce, Munkidori, Munkidori] fro104=False munk_dark=False synergy=False
+- My-T4 `OPENING` active=Fan Rotom bench=[Meowth ex, Dunsparce, Munkidori, Munkidori] fro104=False munk_dark=True synergy=False
+- My-T5 `OPENING` active=Fan Rotom bench=[Meowth ex, Dunsparce, Munkidori, Munkidori] fro104=False munk_dark=True synergy=False
+- My-T6 `OPENING` active=Budew bench=[Meowth ex, Dunsparce, Munkidori, Munkidori] fro104=False munk_dark=True synergy=False
+- My-T7 `OPENING` active=Munkidori bench=[Meowth ex, Dunsparce, Munkidori] fro104=False munk_dark=False synergy=False
+- My-T8 `OPENING` active=Meowth ex bench=[Dunsparce, Munkidori, Staryu] fro104=False munk_dark=True synergy=False
+
+#### 关键动作
+- My-T2 ATTACH →Munkidori
+- My-T2 PLAY Munkidori
+- My-T5 ABILITY Adrena-Brain (Munkidori)
+- My-T8 PLAY Snorunt
+
+### seed=49 FAIL
+- T2-T8 内未进化 Froslass (104)
+- T2-T8 内 Munkidori 未上场
+- T2-T8 内未释放 Adrena-Brain
+- Froslass(104)+Munkidori(暗能) 未同时就绪
+
+#### 回合快照 (My-T2..T8)
+- My-T2 `OPENING` active=Fan Rotom bench=[Dunsparce, Dunsparce, Meowth ex, Snorunt] fro104=False munk_dark=False synergy=False
+- My-T3 `OPENING` active=Fan Rotom bench=[Dunsparce, Dunsparce, Meowth ex, Snorunt] fro104=False munk_dark=False synergy=False
+- My-T4 `OPENING` active=Fan Rotom bench=[Dunsparce, Dunsparce, Meowth ex, Snorunt] fro104=False munk_dark=False synergy=False
+- My-T5 `OPENING` active=Fan Rotom bench=[Dunsparce, Meowth ex, Snorunt, Snorunt] fro104=False munk_dark=False synergy=False
+- My-T6 `OPENING` active=Fan Rotom bench=[Dunsparce, Meowth ex, Snorunt, Snorunt] fro104=False munk_dark=False synergy=False
+- My-T7 `OPENING` active=Fan Rotom bench=[Dunsparce, Meowth ex, Snorunt, Snorunt] fro104=False munk_dark=False synergy=False
+- My-T8 `OPENING` active=Fan Rotom bench=[Dunsparce, Meowth ex, Snorunt, Snorunt] fro104=False munk_dark=False synergy=False
+
+#### 关键动作
+- My-T4 PLAY Snorunt
+
+### seed=50 FAIL
+- T2-T8 内未进化 Froslass (104)
+- T2-T8 内 Munkidori 未上场
+- T2-T8 内未释放 Adrena-Brain
+- Froslass(104)+Munkidori(暗能) 未同时就绪
+
+#### 回合快照 (My-T2..T8)
+- My-T2 `OPENING` active=Dunsparce bench=[Meowth ex, Budew, Dunsparce] fro104=False munk_dark=False synergy=False
+- My-T3 `OPENING` active=Dunsparce bench=[Meowth ex, Budew, Dunsparce, Snorunt] fro104=False munk_dark=False synergy=False
+- My-T4 `OPENING` active=Dunsparce bench=[Meowth ex, Budew, Dunsparce, Snorunt, Snorunt] fro104=False munk_dark=False synergy=False
+- My-T5 `OPENING` active=Dunsparce bench=[Meowth ex, Budew, Dunsparce, Snorunt, Snorunt] fro104=False munk_dark=False synergy=False
+- My-T6 `OPENING` active=Dunsparce bench=[Meowth ex, Budew, Dunsparce, Snorunt, Snorunt] fro104=False munk_dark=False synergy=False
+- My-T7 `OPENING` active=Dunsparce bench=[Meowth ex, Budew, Dunsparce, Snorunt, Snorunt] fro104=False munk_dark=False synergy=False
+- My-T8 `OPENING` active=Snorunt bench=[Meowth ex, Budew, Dunsparce, Snorunt] fro104=False munk_dark=False synergy=False
+
+#### 关键动作
+- My-T2 PLAY Snorunt
+
+### seed=51 FAIL
+- T2-T8 内未进化 Froslass (104)
+- Froslass(104)+Munkidori(暗能) 未同时就绪
+- Adrena-Brain 释放 2 次 @ My-T[7, 8]
+
+#### 回合快照 (My-T2..T8)
+- My-T2 `OPENING` active=Staryu bench=[Meowth ex, Dunsparce] fro104=False munk_dark=False synergy=False
+- My-T3 `OPENING` active=Staryu bench=[Meowth ex, Dunsparce] fro104=False munk_dark=False synergy=False
+- My-T4 `OPENING` active=Mega Starmie ex bench=[Meowth ex, Budew, Dunsparce] fro104=False munk_dark=False synergy=False
+- My-T5 `OPENING` active=Mega Starmie ex bench=[Meowth ex, Budew, Dunsparce] fro104=False munk_dark=False synergy=False
+- My-T6 `OPENING` active=Mega Starmie ex bench=[Meowth ex, Budew, Munkidori, Dunsparce] fro104=False munk_dark=False synergy=False
+- My-T7 `OPENING` active=Mega Starmie ex bench=[Meowth ex, Budew, Munkidori, Dunsparce, Munkidori] fro104=False munk_dark=False synergy=False
+- My-T8 `OPENING` active=Mega Starmie ex bench=[Meowth ex, Budew, Munkidori, Dunsparce, Munkidori] fro104=False munk_dark=True synergy=False
+
+#### 关键动作
+- My-T5 PLAY Munkidori
+- My-T7 ATTACH →Munkidori
+- My-T7 ABILITY Adrena-Brain (Munkidori)
+- My-T8 ABILITY Adrena-Brain (Munkidori)

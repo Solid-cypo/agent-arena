@@ -1,0 +1,35 @@
+# CONTROL modifier 审计 — 领先控场
+# generated: 2026-06-23 19:43:32 UTC
+
+## KPI 汇总
+
+| 指标 | 结果 | 目标 | 状态 |
+|---|---:|---:|:---:|
+| CONTROL PASS 率 | 1/5 (20.0%) | — | — |
+| Meowth 机会命中率 | 0/1 (0.0%) | ≥50% | ✗ |
+| HARVEST Judge 先于 Resentful | 0/5 | 0 | ✓ |
+
+### `walrein` seed=42 FAIL
+- 全程未进入 CONTROL（领先）窗口
+- 无 Meowth PLAY 机会（或无 Meowth/满 bench/必攻窗口）
+
+### `walrein` seed=43 FAIL
+- 全程未进入 CONTROL（领先）窗口
+- 无 Meowth PLAY 机会（或无 Meowth/满 bench/必攻窗口）
+
+### `walrein` seed=44 FAIL
+- CONTROL 回合 My-T12..24 (13 回合)
+- Meowth 机会 1 回合，PLAY 0 (0%)
+
+#### 关键动作
+- My-T13 ABILITY Last-Ditch (CONTROL)
+
+### `walrein` seed=45 FAIL
+- 全程未进入 CONTROL（领先）窗口
+- 无 Meowth PLAY 机会（或无 Meowth/满 bench/必攻窗口）
+
+### `walrein` seed=46 PASS
+- CONTROL 回合 My-T7..9 (3 回合)
+- 无 Meowth PLAY 机会（或无 Meowth/满 bench/必攻窗口）
+
+**总 CONTROL PASS: 1/5**

@@ -32,11 +32,25 @@ from starmie_pilot import DEFAULT_WEIGHTS as STARMIE_DEFAULTS, make_starmie_agen
 # Soft dims that are trainable (hard-rule thresholds are fixed)
 _SOFT_KEYS = ["froslass_harvest", "jetting_blow_pref", "nebula_finish", "boss_gust_path"]
 
+# (name, challenger_deck, opponent_deck, weight, opponent_weights_file)
+# opponent_weights_file = None → generic baseline weights;
+# a path → load our own trained 28-dim weights for a stronger opponent.
+#
+# Design rationale:
+# - Walrein (weight 2.0): primary KO target, must master this matchup
+# - mirror  (weight 0.8): learn Starmie-vs-Starmie tempo decisions
+# - vs_foo  (weight 1.2): fast aggro, forces Starmie to set up quickly
+# - vs_gray (weight 1.0): tempo variant, tests bench spreading
+# - vs_alak (weight 1.0): top-1 ladder, general-purpose benchmark
+# Tea Party 28-dim REMOVED: control archetype caused Starmie to learn defensive
+# habits opposite to its win condition (fast Mega evolution + spread damage).
+_SF = "data/decks/starmie_froslass.csv"
 MATCHUPS_DEFAULT = (
-    ("mirror",      "data/decks/starmie_froslass.csv", "data/decks/starmie_froslass.csv", 0.5),
-    ("vs_walrein",  "data/decks/starmie_froslass.csv", "data/decks/walrein_control.csv",  2.0),
-    ("vs_alak",     "data/decks/starmie_froslass.csv", "data/meta_decks/decks/01_trusthub-hiroingk.csv", 1.2),
-    ("vs_gray",     "data/decks/starmie_froslass.csv", "data/meta_decks/decks/07_graybackcat.csv", 1.0),
+    ("mirror",     _SF, _SF,                                                    0.8, None),
+    ("vs_walrein", _SF, "data/decks/walrein_control.csv",                       2.0, None),
+    ("vs_foo",     _SF, "data/meta_decks/decks/03_foo-foo.csv",                 1.2, None),
+    ("vs_gray",    _SF, "data/meta_decks/decks/07_graybackcat.csv",             1.0, None),
+    ("vs_alak",    _SF, "data/meta_decks/decks/01_trusthub-hiroingk.csv",       1.0, None),
 )
 
 
@@ -62,16 +76,29 @@ def _load_deck(path: str) -> list[int]:
     return load_deck_csv(_resolve(path))
 
 
+def _load_opp_weights(path: str | None) -> dict[str, float]:
+    """Opponent weights: generic defaults, optionally overlaid with a trained file."""
+    w = dict(GENERIC_WEIGHTS)
+    if path:
+        p = _resolve(path)
+        if p.exists():
+            with open(p) as f:
+                for k, v in json.load(f).items():
+                    w[str(k)] = float(v)
+    return w
+
+
 def _eval_candidate(weights: dict[str, float],
                     matchups: list[tuple],
                     games: int) -> tuple[int, list[MatchupResult]]:
     results = []
     total_weighted = 0
-    for name, path_a, path_b, w in matchups:
+    for name, path_a, path_b, w, opp_w_path in matchups:
         deck_a = _load_deck(path_a)
         deck_b = _load_deck(path_b)
+        opp_weights = _load_opp_weights(opp_w_path)
         challenger = make_starmie_agent(deck_a, weights)
-        baseline   = make_generic_agent(deck_b, GENERIC_WEIGHTS)
+        baseline   = make_generic_agent(deck_b, opp_weights)
         wins = losses = draws = 0
         for g in range(games):
             if g % 2 == 0:

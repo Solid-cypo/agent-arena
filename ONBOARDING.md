@@ -3,22 +3,109 @@
 > **VPS**：Ubuntu 20.04 | Los Angeles | 1 GB RAM, 2 vCPU  
 > **比赛**：[Kaggle PTCG AI Battle Challenge](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle)  
 > **当前最高分**：761.4（Tea Party + tea_v4 + 28维 policy）  
-> **更新**：2026-06-22
+> **更新**：2026-06-23（Starmie Phase 1–4 合并）
+
+---
+
+## ⚡ 同事交接 — 2026-06-23（Starmie 全 Phase 合并）
+
+### 今日合并内容（一条 PR）
+
+| 模块 | 状态 | 说明 |
+|---|---|---|
+| **Part 1 OPENING** | ✅ | `opening_planner` + `simulate_opening.py`；Goal **9/10**（batch 10 seed 42） |
+| **Step A 桥接** | ✅ | `opening_bridge.py` → `starmie_pilot` HR-O Main（1150 分，仅 OPENING） |
+| **Part 2 AGGRESSION** | ✅ | HR-2~11、联动 ~15%、大海星 Jetting ≥85%；`audit_aggression_abilities.py` |
+| **Phase 2 过牌轴** | ✅ | `deck_resources` / `supporter_planner` / `draw_axis` + `02_draw_axis.md` |
+| **Phase 3 HARVEST** | ✅ | HR-H1~H8（861 进化/贴水/Resentful/Judge 顺序）；`audit_harvest.py` |
+| **Phase 4 CONTROL** | ✅ | modifier（领先 ≥1 奖）；HR-C1~C4 Meowth/Boss/Judge；`04_control.md` |
+| **Submission** | ✅ | `submission_starmie/` 薄封装 + `scripts/sync_starmie_submission.py` |
+| **单元测试** | ✅ | `tests/test_starmie_pilot.py` **54/54 PASS** |
+
+**架构解耦（勿混）**
+
+| 模块 | 职责 |
+|---|---|
+| `opening_planner` + `simulate_opening` | Part 1 独立模拟器，**不 import** `starmie_pilot` |
+| `opening_bridge` + HR-O* | 全对局 OPENING 决策 |
+| `starmie_pilot` AGGRESSION 规则 | 愿增猿联动、Jetting、HR-8b 封锁 861 |
+| `_harvest_hard_rules` | 仅 HARVEST primary |
+| `_control_hard_rules` | 仅 `control_active` modifier |
+
+**Phase 文档链**（`.agent/skills/piloting_starmie_froslass/references/phases/`）
+
+```
+00_fsm_overview.md → 01_opening.md → 02_draw_axis.md → 03_harvest.md → 04_control.md
+```
+
+### 快速验证
+
+```bash
+cd /root/agent-arena
+
+# 单元测试（毫秒级）
+python3 tests/test_starmie_pilot.py          # 期望 54/54
+python3 tests/test_opening_simulator.py      # Opening 模拟器
+python3 tests/test_draw_axis_framework.py    # 过牌轴框架
+
+# Opening 模拟（Part 1，独立于 pilot）
+python3 .agent/skills/piloting_starmie_froslass/scripts/simulate_opening.py \
+  --batch 10 --seed 42
+
+# Layer 1 审计
+python3 .agent/skills/piloting_starmie_froslass/scripts/audit_aggression_abilities.py \
+  --seeds 42 43 44 45 46 --opponent walrein
+python3 .agent/skills/piloting_starmie_froslass/scripts/audit_harvest.py \
+  --seeds 42 43 44 45 46 47 48 49 50 51 --opponent walrein
+python3 .agent/skills/piloting_starmie_froslass/scripts/audit_control.py \
+  --seeds 42 43 44 45 46 --opponent walrein
+
+# 同步 submission 源码（改 skill/scripts 后必跑）
+python3 scripts/sync_starmie_submission.py
+python3 scripts/package_starmie.py --weights data/training/best_weights_starmie_v1.json
+```
+
+### 审计 KPI（最近一次 walrein 10 seeds）
+
+| 审计 | 指标 | 结果 |
+|---|---|---|
+| AGGRESSION | 愿增猿联动 | ~15%（10–25% 可接受） |
+| AGGRESSION | 大海星 Jetting 出招 | ≥85% |
+| HARVEST | Resentful 战斗出招 | 6/6 (100%) |
+| HARVEST | Judge 先于 Resentful | 0 违规 |
+| CONTROL | Judge 先于 Resentful | 0 违规 |
+
+日志目录：`.agent/skills/piloting_starmie_froslass/logs/`
+
+### 打包 & Kaggle 提交（海星）
+
+```bash
+python3 scripts/sync_starmie_submission.py
+python3 scripts/package_starmie.py --weights data/training/best_weights_starmie_v1.json
+
+kaggle competitions submit -c cabt -f submission_starmie.tar.gz \
+  -m "Starmie+Froslass Phase1-4 pilot: opening bridge, harvest, control modifier"
+```
+
+Kaggle 认证：`~/.kaggle/kaggle.json`（勿提交到 git；见 `.env.example`）。
+
+### 海星卡组两层架构
+
+**卡组**：`data/decks/starmie_froslass.csv`  
+**Skill**：`.agent/skills/piloting_starmie_froslass/`
+
+- **Layer 1 硬规则**：OPENING 路径 / AGGRESSION Jetting+Adrena / HARVEST 861+Resentful / CONTROL Meowth+Judge
+- **Layer 2 软维**（4 个可训练）：`froslass_harvest`, `jetting_blow_pref`, `nebula_finish`, `boss_gust_path`
+
+入口：`make_starmie_agent(deck, weights)` → `submission_starmie/main.py`
 
 ---
 
 ## 1. 快速连接环境
 
 ```bash
-# Remote-SSH 连接 VPS（IP 在共享文档中）
-# 工作区目录
 cd /root/agent-arena
-
-# 验证 cabt 环境可用
 python3 -c "from cg.api import all_card_data; print(len(list(all_card_data())), 'cards OK')"
-# 期望输出: 1267 cards OK
-
-# 快速冒烟测试（4局，约10秒）
 python3 run_arena.py play --games 4
 ```
 
@@ -26,245 +113,138 @@ python3 run_arena.py play --games 4
 
 ## 2. 项目背景
 
-这是一个 **Kaggle PTCG（宝可梦集换式卡牌）AI对战** 项目。
-
-- **任务**：提交一个 `submission.tar.gz` 到 Kaggle，内含 `main.py` + `deck.csv` + `weights.json` + `cg/` 运行时
-- **对战方式**：每次提交后，Kaggle 会自动让你的 Agent 与其他人的 Agent 打天梯，按 TrueSkill 评分
-- **核心不是 LLM**：是一个确定性启发式 Agent（29 维加权打分函数）
+Kaggle PTCG AI 对战：提交 `submission.tar.gz`（`main.py` + `deck.csv` + `weights.json` + `cg/`）。
 
 ---
 
-## 3. 目录结构
+## 3. 目录结构（增补 Starmie）
 
 ```
 agent-arena/
-├── arena/                         # 核心对战引擎
-│   ├── policy.py                  # ★ 29维 option_score 决策函数（主攻方向）
-│   ├── simulator.py               # 本地自博弈循环
-│   ├── marathon.py                # Top10 矩阵对战
-│   ├── fsm_agent.py               # FSM-Math 三 Skill 接入层
-│   └── deck.py                    # deck.csv 加载
-│
-├── .agent/
-│   ├── docs/agent_design_spec.md  # FSM-Math v1.0 完整设计规格
-│   └── skills/
-│       ├── assessing_situations/  # Skill 1：三维局势评分 + 对手九宫格识别
-│       ├── routing_states/        # Skill 2：FSM状态机 + 克制链 + 战术根
-│       ├── evaluating_actions/    # Skill 3：ko_math + survival_math + tempo_planner
-│       └── parsing_cards/         # 卡库工具（card_db.json）
-│
-├── cg/                            # cabt 引擎运行时（勿改）
-│   ├── api.py                     # Observation 类 + Search API
-│   ├── game.py                    # battle_start/select/finish
-│   └── libcg.so                   # 游戏逻辑二进制
-│
-├── data/
-│   ├── decks/                     # 实验卡组（future_lightning.csv, hops_control.csv）
-│   ├── meta_decks/                # Top10 天梯卡组 CSV + index.json
-│   ├── training/                  # 权重文件（best_weights_*.json）
-│   └── marathon/                  # 矩阵对战结果
-│
-├── deck.csv                       # 当前提交使用的卡组（Tea Party #2）
-├── run_arena.py                   # 本地单局/批量 eval
-├── run_marathon.py                # Top10 矩阵对战
-├── train_weights.py               # 进化搜索权重（主训练脚本）
-├── export_meta_decks.py           # 从 Kaggle replay 提取 Top10 卡组
-└── scripts/
-    ├── package_submission.py      # 打包 submission.tar.gz
-    └── auto_submit.py             # 训练完自动提交 Kaggle
+├── .agent/skills/piloting_starmie_froslass/
+│   ├── SKILL.md
+│   ├── scripts/
+│   │   ├── starmie_pilot.py       # Layer 1/2 主 pilot
+│   │   ├── opening_planner.py     # Part 1 OPENING 模拟（独立）
+│   │   ├── opening_bridge.py      # Step A → 全对局 OPENING
+│   │   ├── phase_fsm.py           # OPENING/AGGRESSION/HARVEST + CONTROL modifier
+│   │   ├── deck_resources.py      # 牌库资源推断
+│   │   ├── supporter_planner.py   # DR-* 支援者
+│   │   ├── draw_axis.py           # DD-* 66 循环
+│   │   ├── simulate_opening.py    # Opening 批测
+│   │   ├── audit_*.py             # Layer 1 KPI 审计
+│   │   └── train_starmie.py       # Layer 2 进化搜索
+│   └── references/
+│       ├── deck_knowledge.md
+│       ├── opening_book.md
+│       └── phases/                # 00–04 Phase 设计
+├── submission_starmie/            # Kaggle 海星提交包源码
+│   ├── main.py                    # 薄封装 → make_starmie_agent
+│   └── pilot/                     # sync_starmie_submission 同步
+├── scripts/
+│   ├── sync_starmie_submission.py
+│   └── package_starmie.py
+└── tests/
+    ├── test_starmie_pilot.py      # 54 BDD
+    ├── test_opening_simulator.py
+    └── test_draw_axis_framework.py
 ```
 
 ---
 
 ## 4. 核心架构
 
-### 决策层：29 维 Policy
+### Tea Party（主天梯提交）
 
-```python
-# arena/policy.py
+29 维 `arena/policy.py` + `submission/main.py` — 详见下文 §5–§7。
 
-# 17 维基础（动作形状，进化搜索学出）
-attack=3.0, attach=2.0, evolve=1.7, play=1.2, ...
-
-# 12 维局势感知（初始0，训练后偏离）
-attach_urgency      # 能量缺口越大附能越紧迫
-stagger_retreat     # ★ 错开送奖：ex被威胁时撤退（防止送2奖）
-shield_bench        # 落后时主动放单奖宝可梦作盾牌
-sprint_prize_2      # 最后2奖冲刺
-boss_prize_path     # Boss's Orders 命中最优集火目标
-cramorant_gate      # 古月鸟只在对手3-4奖窗口有效
-attack_prize_path   # 攻击命中最短获胜路径的目标
-...
-```
-
-每回合流程：
-```
-obs_dict
- → compute_situation(obs)   # 提取局势信号（1次/回合）
- → option_score × 29维      # 所有合法动作打分
- → 排序 → 返回最高分动作
-```
-
-### FSM-Math 三 Skill 层（辅助）
+### Starmie+Froslass（实验提交）
 
 ```
-Skill 1 assessing_situations → SituationScores + OpponentProfile(Style/Speed/Root)
-Skill 2 routing_states       → FSM 态(BURST/TEMPO/CONTROL) + PolicyWeights
-Skill 3 evaluating_actions   → policy.py baseline + 数学加成
+obs → compute_situation → option_score
+         │                    ├─ Layer 1 hard rules (DOMINATE 1000+)
+         │                    └─ baseline + Layer 2 soft dims
+         phase_fsm: primary ∈ {OPENING, AGGRESSION, HARVEST}
+                    control_active = prize_self < prize_opp
 ```
-
-当前 FSM 通过 `arena/fsm_agent.py` 接入，`run_arena.py fsm` 子命令可测试。
 
 ---
 
 ## 5. 当前使用的卡组
 
-### 主提交：Tea Party（#2 天梯）
-
-```
-deck.csv = The Debauchery Tea Party
-核心: 878 Hop's Phantump × 4 + 879 Hop's Trevenant × 3
-关键能力: Corner (90dmg + 锁退) + Horrifying Revenge (130dmg 反杀)
-三重加成: Choice Band(+30) + Snorlax Extra Helpings(+30) + Postwick(+30) = 最高 220dmg
-```
-
-### 实验卡组：Hops Control Premium
-
-```
-data/decks/hops_control.csv
-在 Tea Party 基础上加入:
-  310 Hop's Dubwool   — 进化时等效 Boss's Orders
-  272 Lillie's Clefairy ex — 暗属宝可梦弱点变 ×2
-  343 Shaymin         — 后排无规则框宝可梦免疫攻击伤害
-  1209 Ruffian        — 移除对手道具 + 特殊能量
-```
+| 卡组 | 路径 | 提交包 |
+|---|---|---|
+| Tea Party #2 | `deck.csv` | `submission/submission.tar.gz` |
+| Starmie+Froslass | `data/decks/starmie_froslass.csv` | `submission_starmie.tar.gz` |
+| Walrein Control | `data/decks/walrein_control.csv` | 训练对手 |
 
 ---
 
-## 6. 权重文件说明
+## 6. 权重文件
 
-| 文件 | 说明 | 状态 |
-|------|------|------|
-| `best_weights_tea_v2.json` | Tea Party 基线（mirror + 多对手）| 稳定 |
-| `best_weights_tea_v4.json` | ★ Tea Party 当前最佳（+Alakazam +foo +gray）| **推荐** |
-| `best_weights_hops_v1.json` | Hops Control 专项（从 v4 初始化）| 可用 |
-| `best_weights_28dim_tea.json` | Tea Party × 29维（训练中）| 进行中 |
-| `best_weights_28dim_hops.json` | Hops Control × 29维（训练中）| 进行中 |
+| 文件 | 说明 |
+|---|---|
+| `best_weights_tea_v4.json` | Tea Party 当前最佳 |
+| `best_weights_starmie_v1.json` | 海星 Layer 2 默认权重 |
+| `best_weights_starmie_v2.json` | 海星 v2 训练输出（如有） |
 
 ---
 
 ## 7. 常用命令
 
 ```bash
-# 单局测试（4局，约5秒）
-python3 run_arena.py play --games 4
-
-# 对比 A 卡组 vs B 卡组（40局，约30秒）
+# Tea Party eval
 python3 run_arena.py eval --games 40 \
   --deck-a deck.csv \
-  --deck-b data/meta_decks/decks/01_trusthub-hiroingk.csv \
+  --deck-b data/decks/walrein_control.csv \
   --weights data/training/best_weights_tea_v4.json
 
-# FSM agent 测试（10局）
-python3 run_arena.py fsm --games 10 \
-  --weights data/training/best_weights_tea_v4.json
+# 海星本地对战
+python3 run_arena.py eval --games 20 \
+  --deck-a data/decks/starmie_froslass.csv \
+  --deck-b data/decks/walrein_control.csv \
+  --agent-a submission_starmie/main.py
 
-# 全 BDD 测试（约1秒）
-python3 .agent/skills/assessing_situations/scripts/test_assessing_situations.py
-python3 .agent/skills/routing_states/scripts/test_routing_states.py
-python3 .agent/skills/evaluating_actions/scripts/test_evaluating_actions.py
-
-# 训练权重（示例：Tea Party 对阵 Alakazam）
-python3 train_weights.py \
-  --matchup "mirror:deck.csv:deck.csv:0.5" \
-  --matchup "vs_alak:deck.csv:data/meta_decks/decks/01_trusthub-hiroingk.csv:1.5" \
-  --init-weights data/training/best_weights_tea_v4.json \
-  --games 40 --generations 15 --population 10 \
-  --weights-out data/training/my_weights.json
-
-# 打包并提交 Kaggle
-python3 scripts/package_submission.py \
-  --weights data/training/best_weights_tea_v4.json \
-  --deck deck.csv
-kaggle competitions submit pokemon-tcg-ai-battle -f submission/submission.tar.gz -m "描述"
-
-# 查 Kaggle 提交状态
-kaggle competitions submissions pokemon-tcg-ai-battle
+# Tea Party 打包
+python3 scripts/package_submission.py --weights data/training/best_weights_tea_v4.json
 ```
 
 ---
 
-## 8. 后台任务（当前正在运行）
+## 8. BDD 测试
 
-```bash
-# 查看训练进度
-tail -8 data/training/train_28dim_v1.log     # Tea Party 29维训练
-tail -8 data/training/train_28dim_hops.log   # Hops Control 29维训练
-
-# 两个进程各占一个 CPU 核，预计 3-4 小时完成
-ps aux | grep train_weights | grep python3
-```
+| 套件 | 用例数 |
+|---|---|
+| assessing_situations | 17 |
+| routing_states | 16 |
+| evaluating_actions | 30 |
+| test_starmie_pilot | 54 |
+| test_opening_simulator | 见脚本输出 |
+| test_draw_axis_framework | 见脚本输出 |
 
 ---
 
-## 9. 关键理论参考
+## 9. 注意事项
 
-| 文件 | 内容 |
-|------|------|
-| `references/ptcg_dimension_theory.md` | 三维理论（S_hand/S_board/S_turn）+ 九宫格风格矩阵 |
-| `.agent/docs/agent_design_spec.md` | FSM-Math v1.0 完整设计规格（含数学公式）|
-| `data/meta_decks/meta_decks_top10.md` | Top10 天梯卡组完整卡表 |
-
-**九宫格核心：**
-- **爆发**（Burst）：根=场面，快速充能攻击  
-- **运营**（Tempo）：根=手牌，过牌引擎转化场面（如胡地/嘟嘟利）
-- **控手**（Control）：根=多维，四维综合优势（如 Tea Party / Hops Control）
-
-**克制链**：爆发克控手 → 控手克运营 → 运营克爆发
+1. **`deck.csv` 注释行**以 `#` 开头，加载时跳过  
+2. **ACE SPEC** 每套牌最多 1 张  
+3. **`cg/` 勿改** — 官方引擎  
+4. **改 skill/scripts 后** 跑 `sync_starmie_submission.py` 再 `package_starmie.py`  
+5. **Opening 模拟器与 pilot 解耦** — Part 1 不 import `starmie_pilot`  
+6. **HARVEST 禁 Judge**（Resentful 前）；**CONTROL Judge** 仅在非必攻窗口或 Resentful 后  
 
 ---
 
 ## 10. Kaggle 提交历史
 
-| 分数 | 卡组 | 权重 | 备注 |
-|------|------|------|------|
-| **761.4** | Tea Party | tea_v4 + 28维 | 当前最高 |
-| 712.6 | Hops Control | hops_v1 | 新卡组首次成功 |
-| 659.2 | Tea Party | tea_v4 | 旧版 17维 |
-| 612.7 | Tea Party | v1（早期）| — |
+| 分数 | 卡组 | 备注 |
+|---|---|---|
+| **761.4** | Tea Party | 当前最高 |
+| — | Starmie+Froslass | Phase 1–4 pilot 待交 |
 
 ---
 
-## 11. BDD 测试覆盖
+## 11. Git 分支
 
-目前共 63 个 BDD 测试，全部通过：
-- Skill 1（assessing）：17 个用例
-- Skill 2（routing）：16 个用例  
-- Skill 3（evaluating）：30 个用例
-
----
-
-## 12. 注意事项
-
-1. **`deck.csv` 注释行**：以 `#` 开头的行都会被跳过，放心写注释
-2. **ACE SPEC 规则**：每套牌最多 1 张 ACE SPEC 卡，违规会导致 Kaggle ERROR
-3. **`cg/` 目录勿改**：这是官方游戏引擎二进制，改了会崩
-4. **VPS 内存紧张**：1GB 总内存，不要同时跑 3 个以上训练进程
-5. **`submission.tar.gz` 需含 `cg/`**：否则 Kaggle 报 `No module named 'cg'`
-6. **Kaggle 分数波动正常**：TrueSkill 天梯，同一提交分数会随对战更新浮动 ±100
-
----
-
-## 13. Git 提交历史摘要
-
-```
-83a21f0  Fix: read_deck_csv 跳过注释行
-8b1d570  Policy 扩展到 29 维（+12 局势感知特征）
-b89eebf  对手识别与九宫格理论对齐（控手根=多維）
-117cd0d  三维理论 + 九宫格应用于对手模式识别
-5df00c6  对手 profiler 加入 3 回合行为信号融合
-fd284d8  tempo_planner + Cramorant 拦截 + deck-out 保护
-9bd9cf6  FSM-Math v1.0 架构 + Hops Control 新卡组
-4471528  换 Tea Party 卡组 + Top10 矩阵 + 提交脚手架
-e348a3b  初始化工作区 + 权重搜索训练
-```
+当前功能分支：`feat/opening-simulator-rules` → PR 合并 `master`  
+包含：Opening 模拟器 + Phase 2–4 pilot + submission_starmie + 测试/审计脚本。

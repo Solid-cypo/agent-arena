@@ -1,13 +1,11 @@
 ---
 name: piloting-starmie-froslass
 description: |
-  Pilot the dual Mega ex deck (Mega Starmie ex + Mega Froslass ex) with a two-layer
-  agent: deterministic hard-rule interception plus trainable harvest dimensions.
-  Use this skill when running, training, or submitting the starmie_froslass.csv deck,
-  or when scoring legal options for that specific archetype.
-  Do NOT use for Tea Party / Walrein control / generic 28-dim policy decks, and do
-  NOT fold these card-id rules back into the shared arena/policy.py.
-version: 1.0.0
+  Pilot dual Mega ex deck (Starmie+Froslass) with Layer1 hard rules and trainable soft dims.
+  Use when running, training, auditing, or submitting starmie_froslass.csv — opening sim,
+  aggression synergy, harvest Resentful, or control modifier (Meowth/Judge).
+  Do NOT use for Tea Party / generic 28-dim policy or card-id rules in arena/policy.py.
+version: 1.1.0
 license: MIT
 allowed-tools: [Read, Write, Bash]
 metadata:
@@ -16,51 +14,47 @@ metadata:
 
 # Piloting Starmie + Froslass
 
-A deck-specific agent for the dual Mega ex aggro deck
-(`data/decks/starmie_froslass.csv`). It layers two concerns on top of the
-generic weighted scorer and never pollutes `arena/policy.py`.
+Deck-specific agent for `data/decks/starmie_froslass.csv`. Two layers on a generic baseline scorer.
 
 ## When to use
-- Running / training / submitting the `starmie_froslass` deck.
-- Scoring legal options for the Mega Starmie ex + Mega Froslass ex archetype.
+- Running / training / submitting the Starmie+Froslass deck.
+- Opening simulation (`simulate_opening.py`), Layer 1 audits, or Phase FSM work.
 
 ## When NOT to use
-- Tea Party, Walrein control, or any deck driven by the generic 28-dim policy.
-- Adding new card-id branches into the shared `arena/policy.py` (keep them here).
+- Tea Party, Walrein control, or generic 28-dim `arena/policy.py` decks.
 
-## Architecture (two layers)
+## Architecture
 
-### Layer 1 — deterministic hard rules (`scripts/starmie_pilot.py`)
-Fires only on exact, certain deck conditions and returns a dominating score so the
-option is always chosen. No trainable weights — these are "always do X when Y":
+### Phase FSM (`phase_fsm.py`)
+- **Primary**: OPENING → AGGRESSION → HARVEST
+- **Modifier**: `control_active` when `prize_self < prize_opp` (+CONTROL)
 
-| Rule | Trigger |
-| --- | --- |
-| Fan Rotom `Fan Call` | First turn (`state.turn in {1,2}`) and ability available |
-| Munkidori `Adrena-Brain` | Munkidori has DARKNESS energy and the ability is offered |
-| Budew `Itchy Pollen` | Turn 2 fallback when no Mega Starmie/Froslass attack is ready |
+### Layer 1 — hard rules (`starmie_pilot.py`)
+| Phase | Module | Key rules |
+|---|---|---|
+| OPENING | `opening_bridge` + HR-O* | opening_planner route (1150) |
+| AGGRESSION | HR-2~11 | Adrena, Jetting, HR-8b block 861, synergy T2–T8 |
+| HARVEST | `_harvest_hard_rules` | 861 evolve/attach/Resentful; HR-H6 Judge ban |
+| CONTROL | `_control_hard_rules` | Meowth Last-Ditch, Boss, Judge (post-Resentful) |
+| AGGRESSION+ | `supporter_planner` / `draw_axis` | DR-* / DD-* via Layer1 planner scores |
 
-### Layer 2 — trainable harvest dimensions
-Small situational nudges, bounded to the baseline score range (~0-5) so they nudge
-rather than override:
-
-| Dim | Meaning |
-| --- | --- |
-| `froslass_harvest` | Evolve Snorunt → Mega Froslass ex when opponent hand is large / just took a prize |
-| `jetting_blow_pref` | Prefer Jetting Blow (bench spread) for damage accumulation |
-| `nebula_finish` | Prefer Nebula Beam when it secures an immediate KO (ignores effects) |
-| `boss_gust_path` | Boss's Orders onto a prize-path bench target |
+### Layer 2 — trainable dims
+`froslass_harvest`, `jetting_blow_pref`, `nebula_finish`, `boss_gust_path`
 
 ## Workflow
-1. Build the agent with `make_starmie_agent(deck, weights)`.
-2. Per option-select: Layer 1 hard rules are scanned first; if one fires it wins.
-3. Otherwise the generic baseline score + Layer 2 nudges rank the options.
-4. Train weights with `scripts/train_starmie.py` (challenger = this pilot,
-   opponents = Walrein control + meta decks on the generic policy).
-5. See `references/deck_knowledge.md` for full card roster, synergies, and constraints;
-   `references/opening_book.md` for path table and phase mapping.
+1. `make_starmie_agent(deck, weights)` — entry for battles and Kaggle.
+2. Part 1 Opening: `simulate_opening.py` (independent of pilot).
+3. After editing scripts: `python3 scripts/sync_starmie_submission.py`.
+4. Package: `python3 scripts/package_starmie.py`.
+5. Audits: `audit_aggression_abilities.py`, `audit_harvest.py`, `audit_control.py`.
+6. Tests: `python3 tests/test_starmie_pilot.py` (54 cases).
+
+## References
+- `references/deck_knowledge.md` — card roster & chains
+- `references/phases/00_fsm_overview.md` — FSM map
+- `references/phases/01_opening.md` … `04_control.md` — Phase specs
 
 ## Caveats
-- Lesson from the prior FSM regression: keep Layer 2 bonuses inside the baseline
-  range; only Layer 1 may dominate, and only on certain conditions.
-- All card ids live in `scripts/starmie_pilot.py` (`_CARDS`), never in shared code.
+- Layer 2 nudges stay ~0–5; only Layer 1 may DOMINATE.
+- Opening simulator must not import `starmie_pilot`.
+- Judge before Resentful in HARVEST is forbidden (HR-H6).

@@ -527,7 +527,7 @@ prize_self < prize_opp（领先）
 | 手牌/场面快照 | `hand_snapshot.py` | obs.hand + board + setup_archetype |
 | Setup→My-T1→My-T2 路线 | `path_planner.py` | my_turn + gaps + setup_archetype |
 | Fan Rotom 废牌 FR-1~4 | `hand_snapshot.py` + `starmie_pilot.py` | fan_rotom_dead + Ball 弃牌 |
-| 过牌轴 DR-1~7 | `path_planner.py` + `phase_fsm.py` | phase + hand_size + prize |
+| 过牌轴 DR-1~7 | `supporter_planner.py` + `draw_axis.py` + **`deck_resources.py`** | board + hand + 弃牌/场面反推 deck 剩余 |
 | 阶段 FSM | `phase_fsm.py` | prizes + active id + setup 完成标志 |
 | 硬规则栈 | `starmie_pilot.py` | phase + path + option |
 | ML 软维 | `train_starmie.py` | 仅 4 维 |

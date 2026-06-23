@@ -1,0 +1,196 @@
+# Layer1 集成测试 — 人工审查日志
+# generated: 2026-06-23 18:11:59 UTC
+
+## 1. 测试方法说明
+
+### A. 单元测试（无完整对局引擎）
+- tests/test_starmie_pilot.py — mock obs，断言 _hard_rule_bonus / _soft_bonus
+- tests/test_draw_axis_framework.py — supporter_planner + draw_axis + deck_resources
+- tests/test_opening_simulator.py — OPENING 模拟器 + opening_validate（20 pytest + 批量10局）
+
+### B. 本日志 §2 — 场景推演
+- 用与单元测试相同的 mock obs，打印 planner 决策 + Layer1 分数
+- 未跑真实 cabt 引擎 / 未跑 vs Walrein 完整对局
+
+## 2. 场景推演（Layer1 决策轨迹）
+
+========================================================================
+SCENARIO: P-1 My-T2 首 AGGRESSION — 禁 Lillie
+========================================================================
+  turn=4  my_turn=2  phase=AGGRESSION
+  prize=6/6  hand_size=1
+  deck_count=32  discard_seen=0
+  resources: Lillie_left=3 Boss_left=2 66_left=2 basics_left=3
+  supporter_dec: SupporterDecision(action='HOLD', card_id=None, rule_id='DR-5c', priority=0.0, reason='First AGGRESSION turn — pits + attack; deck=32, boss unseen=2')
+  draw_axis_dec: DrawAxisDecision(action='FORBID', rule_id='DD-1', priority=0.0, reason='66 cycle forbidden (DD-1)')
+  option scores (Layer1):
+      1000.0  ATTACK Jetting
+     -1000.0  PLAY 1227
+
+========================================================================
+SCENARIO: Boss gust 目标在 bench — PLAY Boss 优先
+========================================================================
+  turn=7  my_turn=4  phase=AGGRESSION
+  prize=5/6  hand_size=2
+  deck_count=30  discard_seen=0
+  resources: Lillie_left=3 Boss_left=1 66_left=2 basics_left=3
+  supporter_dec: SupporterDecision(action='PLAY', card_id=1182, rule_id='SP-BOSS-1', priority=950.0, reason='Boss gust — boss unseen left=1')
+  draw_axis_dec: DrawAxisDecision(action='FORBID', rule_id='DD-8', priority=0.0, reason='66 cycle forbidden (DD-8)')
+  option scores (Layer1):
+      1000.0  ATTACK Jetting
+       950.0  PLAY 1182
+     -1000.0  PLAY 1227
+
+========================================================================
+SCENARIO: DR-2 手牌≤2 — PLAY Lillie
+========================================================================
+  turn=7  my_turn=4  phase=AGGRESSION
+  prize=5/6  hand_size=2
+  deck_count=30  discard_seen=0
+  resources: Lillie_left=2 Boss_left=2 66_left=2 basics_left=3
+  supporter_dec: SupporterDecision(action='PLAY', card_id=1227, rule_id='DR-2', priority=850.0, reason='hand_size=2, Lillie unseen left=2')
+  draw_axis_dec: DrawAxisDecision(action='FORBID', rule_id='DD-8', priority=0.0, reason='66 cycle forbidden (DD-8)')
+  option scores (Layer1):
+      1000.0  ATTACK Jetting
+       850.0  PLAY 1227
+       850.0  PLAY 1227
+
+========================================================================
+SCENARIO: DR-4 bench 有 66 — Run Away Draw
+========================================================================
+  turn=7  my_turn=4  phase=AGGRESSION
+  prize=4/6  hand_size=1
+  deck_count=30  discard_seen=0
+  resources: Lillie_left=4 Boss_left=2 66_left=1 basics_left=3
+  supporter_dec: SupporterDecision(action='HOLD', card_id=None, rule_id='SP-HOLD', priority=0.0, reason='deck=30, Lillie left=4, 66 left=1')
+  draw_axis_dec: DrawAxisDecision(action='ABILITY_DRAW', rule_id='DR-4', priority=900.0, reason='Run Away Draw +3 (4 Lillie likely in deck)')
+  option scores (Layer1):
+      1000.0  ATTACK Jetting
+         0.0  PLAY 3
+
+========================================================================
+SCENARIO: 牌库资源 — 弃牌区含 2×Hilda + 1×66
+========================================================================
+  turn=7  my_turn=4  phase=AGGRESSION
+  prize=5/6  hand_size=1
+  deck_count=28  discard_seen=3
+  resources: Lillie_left=4 Boss_left=1 66_left=1 basics_left=3
+  supporter_dec: SupporterDecision(action='HOLD', card_id=None, rule_id='SP-HOLD', priority=0.0, reason='deck=28, Lillie left=4, 66 left=1')
+  draw_axis_dec: DrawAxisDecision(action='FORBID', rule_id='DD-8', priority=0.0, reason='66 cycle forbidden (DD-8)')
+  option scores (Layer1):
+      1000.0  ATTACK Jetting
+         0.0  PLAY 1182
+
+## 3. test_starmie_pilot.py 用例清单（21）
+
+| # | 用例 | 断言内容 |
+|---|------|----------|
+| 1 | test_fan_call_fires_turn_one | My-T1 Fan Call → DOMINATE |
+| 2 | test_fan_call_silent_late_game | turn5 不触发 Fan Call |
+| 3 | test_munkidori_fires_with_dark_energy | AGGRESSION + 暗能 → Adrena-Brain |
+| 4 | test_munkidori_silent_without_dark_energy | 无暗能 → 0 |
+| 5 | test_munkidori_silent_during_opening | OPENING → 0 |
+| 6 | test_budew_fallback_when_no_mega | OPENING Budew Itchy Pollen |
+| 7 | test_budew_silent_when_mega_ready | 有 Mega → 0 |
+| 8 | test_froslass_harvest_big_hand | 软维 froslass_harvest |
+| 9 | test_froslass_no_harvest_small_hand | 小手牌无 harvest |
+| 10 | test_jetting_blow_preferred | 软维 jetting_blow_pref |
+| 11 | test_aggression_jetting_blow_hard_rule | Jetting DOMINATE |
+| 12 | test_aggression_nebula_ko_beats_jetting | Nebula > Jetting |
+| 13 | test_aggression_play_snorunt_when_missing | PLAY Snorunt MID |
+| 14 | test_aggression_attach_dark_to_munkidori | ATTACH dark MID |
+| 15 | test_risky_ruins_after_bench_core | Risky Ruins LOW |
+| 16 | test_fan_rotom_play_blocked_when_dead | PLAY 174 → -DOMINATE |
+| 17 | test_phase_fsm_opening_vs_aggression | phase_fsm 转移 |
+| 18 | test_layer1_boss_play_beats_lillie_when_gust | Boss≥950, Lillie≤-1000 |
+| 19 | test_layer1_forbid_lillie_my_t2_aggression | My-T2 Lillie -DOMINATE |
+| 20 | test_layer1_lillie_play_low_hand_my_t4 | DR-2 Lillie≥850 |
+| 21 | test_layer1_run_away_draw_ability | 66 Ability≥900 |
+
+## 4. test_draw_axis_framework.py 用例清单（9）
+
+| # | 用例 | 断言内容 |
+|---|------|----------|
+| 1 | test_p1_forbid_lillie_my_t2 | DR-5c |
+| 2 | test_p1_forbid_66_cycle_my_t2 | DD-1 |
+| 3 | test_dr2_lillie_low_hand | pick_supporter PLAY Lillie |
+| 4 | test_dr5_forbid_lillie_when_boss_gust | DR-5 |
+| 5 | test_sp_boss_priority | Boss 优先 |
+| 6 | test_dr4_run_away_draw_when_ready | ABILITY_DRAW |
+| 7 | test_dd7_forbid_when_no_66_left | 66 耗尽 DD-7 |
+| 8 | test_build_deck_resources_from_obs | seen/remaining 计数 |
+| 9 | test_prefer_cycle_preserves_lillie | 有 Boss 时倾向循环 |
+
+## 5. test_opening_simulator.py
+
+- pytest 20 项：opening_cards/state/planner/validate 回归
+- 批量 simulate_opening seeds 42–51，MAX_TURNS=5
+- 详细过程日志见：logs/test_batch_max5.log（OPENING 专用，不含 Layer1 pilot）
+
+## 6. 未覆盖（人工审查时注意）
+
+- 未跑真实 cabt 对局验证 Layer1 与引擎选项列表一致性
+- 未跑 vs Walrein 完整 marathon
+- OPENING 模拟器与 starmie_pilot Layer1 是两套独立路径
+- submission/main.py 是否已切换 make_starmie_agent 需单独确认
+
+
+## 7. 实际运行结果 2026-06-23T18:12:09Z
+
+### test_starmie_pilot.py
+PASS test_aggression_attach_dark_to_munkidori
+PASS test_aggression_jetting_blow_hard_rule
+PASS test_aggression_nebula_ko_beats_jetting
+PASS test_aggression_play_snorunt_when_missing
+PASS test_budew_fallback_when_no_mega
+PASS test_budew_silent_when_mega_ready
+PASS test_fan_call_fires_turn_one
+PASS test_fan_call_silent_late_game
+PASS test_fan_rotom_play_blocked_when_dead
+PASS test_froslass_harvest_big_hand
+PASS test_froslass_no_harvest_small_hand
+PASS test_jetting_blow_preferred
+PASS test_layer1_boss_play_beats_lillie_when_gust
+PASS test_layer1_forbid_lillie_my_t2_aggression
+PASS test_layer1_lillie_play_low_hand_my_t4
+PASS test_layer1_run_away_draw_ability
+PASS test_munkidori_fires_with_dark_energy
+PASS test_munkidori_silent_during_opening
+PASS test_munkidori_silent_without_dark_energy
+PASS test_phase_fsm_opening_vs_aggression
+PASS test_risky_ruins_after_bench_core
+
+21/21 passed
+
+### test_draw_axis_framework.py
+PASS test_build_deck_resources_from_obs
+PASS test_dd7_forbid_when_no_66_left
+PASS test_dr2_lillie_low_hand
+PASS test_dr4_run_away_draw_when_ready
+PASS test_dr5_forbid_lillie_when_boss_gust
+PASS test_p1_forbid_66_cycle_my_t2
+PASS test_p1_forbid_lillie_my_t2
+PASS test_prefer_cycle_preserves_lillie
+PASS test_sp_boss_priority
+
+9/9 passed
+
+### test_opening_simulator.py
+....................
+----------------------------------------------------------------------
+Ran 20 tests in 0.035s
+
+OK
+  run 1/10 seed=42: PASS in My-T2
+  run 2/10 seed=43: PASS in My-T4
+  run 3/10 seed=44: PASS in My-T2
+  run 4/10 seed=45: PASS in My-T5
+  run 5/10 seed=46: PASS in My-T2
+  run 6/10 seed=47: PASS in My-T5
+  run 7/10 seed=48: PASS in My-T5
+  run 8/10 seed=49: PASS in My-T2
+  run 9/10 seed=50: FAIL (F-E) after My-T5 active=Snorunt
+  run 10/10 seed=51: PASS in My-T4
+
+日志已导出: /root/agent-arena/.agent/skills/piloting_starmie_froslass/logs/test_batch_max5.log
+Goal 达成: 9/10 (上限 5 回合)
