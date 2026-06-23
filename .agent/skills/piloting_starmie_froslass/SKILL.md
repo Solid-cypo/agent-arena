@@ -57,7 +57,8 @@ rather than override:
 3. Otherwise the generic baseline score + Layer 2 nudges rank the options.
 4. Train weights with `scripts/train_starmie.py` (challenger = this pilot,
    opponents = Walrein control + meta decks on the generic policy).
-5. See `references/tactics.md` for the full opening book and combo timings.
+5. See `references/deck_knowledge.md` for full card roster, synergies, and constraints;
+   `references/opening_book.md` for path table and phase mapping.
 
 ## Caveats
 - Lesson from the prior FSM regression: keep Layer 2 bonuses inside the baseline
