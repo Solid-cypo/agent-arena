@@ -23,6 +23,7 @@ from opening_cards import (
     SALVATOR,
     STARYU,
     SUPPORTER_IDS,
+    DARK_BASIC,
     WATER_BASIC,
     WATER_ENERGY_IDS,
     name,
@@ -169,10 +170,13 @@ class OpeningGameState:
         return True
 
     def attach_water_to(self, target: Pokemon) -> None:
-        for e in (WATER_BASIC, PRISM):
-            if e in self.hand:
-                self.attach_energy_from_hand(target, e)
-                return
+        """E-ATT-1: real Water before Prism for Jetting Blow."""
+        if WATER_BASIC in self.hand:
+            self.attach_energy_from_hand(target, WATER_BASIC)
+            return
+        if PRISM in self.hand:
+            self.attach_energy_from_hand(target, PRISM)
+            return
         self._log("NOTE", "ATTACH skipped: no water in hand")
 
     def search_deck_to_hand(self, card_ids: list[int], reason: str) -> None:
@@ -257,21 +261,42 @@ class OpeningGameState:
 
     def crispin_search(self, attach_target: Pokemon | None = None) -> None:
         """Crispin: 2 different Basic Energy — 1 to hand, 1 direct attach (E-CRIS-1)."""
-        found: list[int] = []
-        for e in (WATER_BASIC, PRISM, 7, 17):
-            if e in self.deck and e not in found:
-                found.append(e)
-            if len(found) >= 2:
-                break
-        if not found:
+        from opening_cards import CRISPIN_BASIC_ENERGY
+
+        in_deck = [e for e in CRISPIN_BASIC_ENERGY if e in self.deck]
+        if not in_deck:
             self._log("NOTE", "Crispin: no Basic Energy in deck")
             return
-        to_hand = found[0]
-        self.deck.remove(to_hand)
-        self.hand.append(to_hand)
+
+        attach_id: int | None = None
+        to_hand_id = in_deck[0]
+        water_ok = WATER_BASIC in in_deck
+        dark_ok = DARK_BASIC in in_deck
+
+        if attach_target is not None and len(in_deck) >= 2:
+            needs_water = attach_target.card_id in (STARYU, MEGA_STARMIE) and not attach_target.has_water()
+            if needs_water and water_ok:
+                attach_id = WATER_BASIC
+                to_hand_id = DARK_BASIC if dark_ok else WATER_BASIC
+            elif dark_ok:
+                attach_id = DARK_BASIC
+                to_hand_id = WATER_BASIC if water_ok else DARK_BASIC
+            else:
+                attach_id = in_deck[1]
+                to_hand_id = in_deck[0]
+        elif len(in_deck) >= 2:
+            to_hand_id = in_deck[0]
+            attach_id = in_deck[1]
+
+        self.deck.remove(to_hand_id)
+        self.hand.append(to_hand_id)
         attached = None
-        if len(found) >= 2 and attach_target is not None:
-            attach_id = found[1]
+        if (
+            attach_id is not None
+            and attach_target is not None
+            and attach_id != to_hand_id
+            and attach_id in self.deck
+        ):
             self.deck.remove(attach_id)
             attach_target.energies.append(attach_id)
             self.energy_attached = True
@@ -282,15 +307,14 @@ class OpeningGameState:
                 f"{'active' if attach_target is self.active else 'bench'}",
                 attach_id,
             )
-        elif len(found) >= 2:
-            extra = found[1]
-            self.deck.remove(extra)
-            self.hand.append(extra)
-        detail = [name(to_hand)]
+        elif attach_id is not None and attach_target is None and attach_id in self.deck and attach_id != to_hand_id:
+            self.deck.remove(attach_id)
+            self.hand.append(attach_id)
+        detail = [name(to_hand_id)]
         if attached is not None:
             detail.append(f"attach {name(attached)}")
-        elif len(found) >= 2:
-            detail.append(name(found[1]))
+        elif attach_id is not None and attach_target is None and attach_id != to_hand_id:
+            detail.append(name(attach_id))
         self._log("PLAY_TRAINER", f"Crispin → {detail}", CRISPIN)
 
     def salvatore_evolve_staryu(self, staryu: Pokemon) -> bool:

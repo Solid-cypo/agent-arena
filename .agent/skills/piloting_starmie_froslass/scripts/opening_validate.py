@@ -6,6 +6,7 @@ import re
 
 from opening_cards import (
     BASIC_IDS,
+    CRISPIN_BASIC_ENERGY,
     FAN_CALL_IDS,
     HILDA,
     MEGA_STARMIE,
@@ -188,6 +189,13 @@ def _check_action(action: Action, board: _BoardSnapshot, *, index: int) -> list[
         and "Mega Starmie" not in action.detail
     ):
         violations.append(f"{prefix}: Hilda retrieved Basic Staryu (E-HILDA-1)")
+
+    if action.kind == "ATTACH" and "Crispin attach" in action.detail:
+        eid = action.card_id
+        if eid is not None and eid not in CRISPIN_BASIC_ENERGY:
+            violations.append(
+                f"{prefix}: Crispin attached non-Basic Energy {name(eid)} (E-CRIS-1)"
+            )
 
     return violations
 

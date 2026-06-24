@@ -41,6 +41,8 @@ BASIC_IDS = frozenset({
 
 WATER_ENERGY_IDS = frozenset({WATER_BASIC, PRISM})
 ENERGY_IDS = frozenset({WATER_BASIC, DARK_BASIC, PRISM, IGNITION})
+# Crispin (E-CRIS-1): Basic Energy only — not Prism / Ignition
+CRISPIN_BASIC_ENERGY = (WATER_BASIC, DARK_BASIC)
 
 SUPPORTER_IDS = frozenset({
     HILDA, LILLIE, CRISPIN, SALVATOR, 1182, 1213, 1229,

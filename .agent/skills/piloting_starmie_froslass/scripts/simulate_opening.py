@@ -20,6 +20,7 @@ from arena.deck import load_deck_csv  # noqa: E402
 from opening_cards import BASIC_IDS, name, names  # noqa: E402
 from opening_planner import classify_miss, plan_and_execute_turn  # noqa: E402
 from opening_state import Action, OpeningGameState  # noqa: E402
+from opening_log_formatter import card_names_zh, format_actions  # noqa: E402
 from setup_planner import run_setup  # noqa: E402
 
 MAX_TURNS = 5
@@ -83,10 +84,7 @@ def mulligan_until_basic(st: OpeningGameState, max_mulligans: int = 10) -> int:
 
 
 def _format_actions(actions: list[Action]) -> list[str]:
-    out: list[str] = []
-    for i, a in enumerate(actions, 1):
-        out.append(f"  {i}. [{a.kind}] {a.detail}")
-    return out
+    return format_actions(actions)
 
 
 def simulate_opening(
@@ -194,6 +192,9 @@ def _decision_tree(st: OpeningGameState, routes: list[str]) -> str:
 
 
 def export_sim_record(rec: SimRecord, *, run_index: int | None = None) -> str:
+    def _cards(cards: list[str]) -> str:
+        return ", ".join(card_names_zh(c) for c in cards) if cards else "（空）"
+
     header = f"Run #{run_index}" if run_index is not None else "Run"
     seed_line = f"seed={rec.seed}" if rec.seed is not None else "ordered deck"
     lines = [
@@ -203,8 +204,8 @@ def export_sim_record(rec: SimRecord, *, run_index: int | None = None) -> str:
         f"({rec.miss_class}) · 结束于 My-T{rec.final_turn} · 上限 {MAX_TURNS} 回合",
         "",
         "【起始】",
-        f"  奖品区 (6): {', '.join(rec.prizes)}",
-        f"  起手手牌 (7): {', '.join(rec.opening_hand)}",
+        f"  奖品区 (6): {_cards(rec.prizes)}",
+        f"  起手手牌 (7): {_cards(rec.opening_hand)}",
         f"  Mulligan 次数: {rec.mulligans}",
         "",
         "【Setup】",
@@ -213,9 +214,9 @@ def export_sim_record(rec: SimRecord, *, run_index: int | None = None) -> str:
     ]
     lines.extend(rec.setup.actions or ["  （无）"])
     lines.extend([
-        f"  Setup 后手牌: {', '.join(rec.setup.hand_after) or '（空）'}",
+        f"  Setup 后手牌: {_cards(rec.setup.hand_after)}",
         "  Setup 后场面:",
-        rec.setup.board_after,
+        card_names_zh(rec.setup.board_after),
         "",
     ])
 
@@ -223,17 +224,17 @@ def export_sim_record(rec: SimRecord, *, run_index: int | None = None) -> str:
         lines.extend([
             f"【My-T{tr.my_turn}】 路线: {tr.route}",
             "  回合开始手牌:",
-            f"    {', '.join(tr.hand_start) or '（空）'}",
+            f"    {_cards(tr.hand_start)}",
             "  回合开始场面:",
-            tr.board_start,
+            card_names_zh(tr.board_start),
             "  本回合操作:",
         ])
         lines.extend(tr.actions or ["  （无）"])
         lines.extend([
             "  回合结束手牌:",
-            f"    {', '.join(tr.hand_end) or '（空）'}",
+            f"    {_cards(tr.hand_end)}",
             "  回合结束场面:",
-            tr.board_end,
+            card_names_zh(tr.board_end),
             "",
         ])
 

@@ -33,12 +33,18 @@ _SKILL_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _default_deck_csv() -> Path:
+    """Resolve deck template: Kaggle bundle deck.csv or repo data/decks/."""
     here = Path(__file__).resolve()
     for anc in here.parents:
-        candidate = anc / "data" / "decks" / "starmie_froslass.csv"
-        if candidate.exists():
-            return candidate
-    return here.parents[4] / "data" / "decks" / "starmie_froslass.csv"
+        kaggle_deck = anc / "deck.csv"
+        if kaggle_deck.is_file():
+            return kaggle_deck
+        repo_deck = anc / "data" / "decks" / "starmie_froslass.csv"
+        if repo_deck.is_file():
+            return repo_deck
+    raise FileNotFoundError(
+        "starmie deck template not found (expected deck.csv or data/decks/starmie_froslass.csv)"
+    )
 
 
 def _si(v: Any, default: int = 0) -> int:
@@ -59,7 +65,10 @@ def load_deck_template(csv_path: Path | None = None) -> list[int]:
     return ids
 
 
-DEFAULT_DECK: list[int] = load_deck_template()
+try:
+    DEFAULT_DECK: list[int] = load_deck_template()
+except FileNotFoundError:
+    DEFAULT_DECK = []
 
 
 @dataclass(frozen=True)
