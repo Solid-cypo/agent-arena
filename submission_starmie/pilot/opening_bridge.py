@@ -275,6 +275,23 @@ def _route_play_card(route: str) -> int | None:
     return None
 
 
+# Per-step memo: the same obs object is passed to every option in a decision, so
+# the board-derived adapter/gaps/miss/route are computed once and reused.
+_OPEN_CTX: dict[str, object] = {"obs": None}
+
+
+def _opening_context(obs, board, hand, resources, my_index):
+    if _OPEN_CTX.get("obs") is not obs:
+        adapter = BattleOpeningAdapter(obs, board, hand, resources, my_index)
+        gaps = diagnose_gaps(adapter)
+        _OPEN_CTX.update(
+            obs=obs, adapter=adapter, gaps=gaps,
+            miss=classify_miss(adapter), route=pick_route(adapter, gaps),
+        )
+    return (_OPEN_CTX["adapter"], _OPEN_CTX["gaps"],
+            _OPEN_CTX["miss"], _OPEN_CTX["route"])
+
+
 def score_opening_option(
     obs,
     option,
@@ -290,12 +307,16 @@ def score_opening_option(
     if phase.primary != "OPENING" or board.my_turn_number < 1:
         return 0.0
 
-    adapter = BattleOpeningAdapter(obs, board, hand, resources, my_index)
+    # score_opening_option runs once PER LEGAL OPTION, but the adapter / gaps /
+    # miss / route depend only on the board, not the option. Building the adapter
+    # rebuilds _LivePokemon objects from obs on every property access, so doing it
+    # per option (10-20x/step) is the main OPENING-path latency cost. Memoise the
+    # board-derived context for the lifetime of this obs (same obs object is
+    # passed to every option in a step).
+    adapter, gaps, miss, cached_route = _opening_context(
+        obs, board, hand, resources, my_index)
     if route is None:
-        gaps = diagnose_gaps(adapter)
-        route = pick_route(adapter, gaps)
-    gaps = diagnose_gaps(adapter)
-    miss = classify_miss(adapter)
+        route = cached_route
 
     # Fan Call — R4-T1 / post-Poffin
     if option.type == OptionType.ABILITY and route == "R4-T1":

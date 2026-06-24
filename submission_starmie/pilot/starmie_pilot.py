@@ -87,7 +87,16 @@ _FAN_ROTOM_ID   = _CARDS["fan_rotom"]
 _BUDEW_ID       = _CARDS["budew"]
 _BOSS_ID        = _CARDS["boss_orders"]
 
-# Dominating score — hard-rule options always sort first
+# Dominating score — hard-rule options always sort first.
+#
+# IMPORTANT: these constants and the supporter_planner / draw_axis `priority`
+# values (mapped through _planner_score, ~800–950) live on ONE shared priority
+# ladder, ordered by importance — NOT two separate bands. So e.g. a Boss planner
+# (priority 950) intentionally sits just under _DOMINATE_SUPPORT (960), and
+# _DOMINATE_LOW (880) intentionally sits *inside* the draw-priority range so a
+# strong draw (900) outranks a risky-ruins play. When adding a rule, place its
+# score on this ladder by importance. test_score_ladder asserts the band order
+# so an accidental collision/inversion fails loudly.
 _DOMINATE = 1_000.0
 _DOMINATE_PLUS = 1_100.0   # Nebula KO / Adrena-Brain (有伤可转) / retreat attach
 _DOMINATE_RESCUE = 1_120.0 # Switch / Pad when stuck off Starmie (HR-9)
@@ -253,6 +262,10 @@ def _refresh_harvest_ko(state: dict[str, Any], board) -> None:
             state["harvest_ko_last_turn"] = True
         elif mt > state.get("last_my_turn", 0):
             state["harvest_ko_last_turn"] = False
+        # Resentful gating is per-turn: reset at each new My-turn so the flag
+        # means "fired THIS turn" (was previously set once and never reset,
+        # permanently un-gating Judge after the first Resentful of the game).
+        state["harvest_resentful_fired"] = False
         state["last_my_turn"] = mt
     state["prev_active_was_mega_starmie"] = board.active_is_mega_starmie
 
@@ -702,7 +715,7 @@ def _synergy_search_bonus(obs, option, board, phase, my_index: int) -> float:
     if (
         cid == _OC_FROSLASS
         and not board.froslass_104_on_field
-        and (board.snorunt_line_on_bench or cid)
+        and board.snorunt_line_on_bench  # need a Snorunt line to evolve Froslass onto
     ):
         return _DOMINATE
     if cid == _OC_MUNKIDORI and not board.munkidori_on_field:
@@ -1417,7 +1430,13 @@ def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None)
         except Exception:
             try:
                 obs = to_observation_class(obs_dict)
-                pick = max(1, min(len(obs.select.option), int(obs.select.maxCount)))
+                n = len(obs.select.option)
+                # Respect minCount too — a fallback of 1 index when minCount>1
+                # (e.g. "discard exactly 2") is illegal and the harness then
+                # randomises the move.
+                min_c = max(0, int(obs.select.minCount))
+                max_c = min(n, int(obs.select.maxCount))
+                pick = max(1, min(max_c, max(min_c, 1)))
                 return list(range(pick))
             except Exception:
                 return [0]

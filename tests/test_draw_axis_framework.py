@@ -27,6 +27,7 @@ def _board(**kw) -> BoardSnapshot:
         active_has_water=True, active_is_mega_starmie=True,
         active_is_mega_froslass=False, staryu_on_field=False,
         mega_starmie_on_field=True, snorunt_line_on_bench=True,
+        froslass_104_on_field=False, munkidori_on_field=True,
         munkidori_on_bench=True, munkidori_has_dark=True,
         bench_three_core_ready=True, fan_rotom_on_field=False,
         fan_rotom_dead=True,

@@ -253,6 +253,8 @@ def _refresh_harvest_ko(state: dict[str, Any], board) -> None:
             state["harvest_ko_last_turn"] = True
         elif mt > state.get("last_my_turn", 0):
             state["harvest_ko_last_turn"] = False
+        # Reset Resentful gate each My-turn (was set once, never reset).
+        state["harvest_resentful_fired"] = False
         state["last_my_turn"] = mt
     state["prev_active_was_mega_starmie"] = board.active_is_mega_starmie
 
@@ -702,7 +704,7 @@ def _synergy_search_bonus(obs, option, board, phase, my_index: int) -> float:
     if (
         cid == _OC_FROSLASS
         and not board.froslass_104_on_field
-        and (board.snorunt_line_on_bench or cid)
+        and board.snorunt_line_on_bench  # need a Snorunt line to evolve Froslass onto
     ):
         return _DOMINATE
     if cid == _OC_MUNKIDORI and not board.munkidori_on_field:
@@ -1417,7 +1419,10 @@ def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None)
         except Exception:
             try:
                 obs = to_observation_class(obs_dict)
-                pick = max(1, min(len(obs.select.option), int(obs.select.maxCount)))
+                n = len(obs.select.option)
+                min_c = max(0, int(obs.select.minCount))
+                max_c = min(n, int(obs.select.maxCount))
+                pick = max(1, min(max_c, max(min_c, 1)))
                 return list(range(pick))
             except Exception:
                 return [0]
