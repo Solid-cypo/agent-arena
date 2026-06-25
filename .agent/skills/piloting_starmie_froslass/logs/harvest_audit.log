@@ -1,5 +1,5 @@
 # HARVEST 阶段审计 — Mega Froslass ex 收割
-# generated: 2026-06-23 19:39:07 UTC
+# generated: 2026-06-23 19:59:44 UTC
 
 ## 审计标准
 - 进入 HARVEST 后，Active 861+水 时应 Resentful (1240)
@@ -10,91 +10,84 @@
 
 | 指标 | 结果 | 目标 | 状态 |
 |---|---:|---:|:---:|
-| HARVEST PASS 率 | 8/10 (80.0%) | — | — |
+| HARVEST PASS 率 | 6/10 (60.0%) | — | — |
 | Resentful 战斗出招率 | 6/6 (100.0%) | ≥70% | ✓ |
 | Judge 先于 Resentful | 0/10 局违规 | 0 | ✓ |
 
-## 对手 `walrein` — 8/10 PASS
+## 对手 `walrein` — 6/10 PASS
 
 | seed | 结果 | HARVEST回合 | 861进化 | Resentful | PASS |
 |---:|---|---:|---|---:|:---:|
-| 42 | 负 | 26 | — | 0 | ✓ |
-| 43 | 胜 | 7 | — | 6 | ✓ |
-| 44 | 胜 | 0 | — | 0 | ✗ |
-| 45 | 负 | 4 | — | 0 | ✓ |
-| 46 | 负 | 15 | T29 | 0 | ✓ |
-| 47 | 负 | 2 | — | 0 | ✓ |
-| 48 | 负 | 31 | — | 0 | ✓ |
-| 49 | 负 | 2 | — | 0 | ✓ |
-| 50 | 负 | 14 | T19 | 0 | ✓ |
-| 51 | 胜 | 0 | — | 0 | ✗ |
+| 42 | 胜 | 18 | — | 0 | ✓ |
+| 43 | 胜 | 0 | — | 0 | ✗ |
+| 44 | 负 | 7 | — | 0 | ✓ |
+| 45 | 胜 | 0 | — | 0 | ✗ |
+| 46 | 负 | 9 | — | 0 | ✓ |
+| 47 | 胜 | 0 | — | 0 | ✗ |
+| 48 | 负 | 16 | T17 | 0 | ✓ |
+| 49 | 胜 | 0 | — | 0 | ✗ |
+| 50 | 胜 | 14 | — | 6 | ✓ |
+| 51 | 负 | 19 | T7 | 0 | ✓ |
 
 ### `walrein` seed=42 PASS
-- HARVEST 回合 My-T3..28 (26 回合)
+- HARVEST 回合 My-T3..20 (18 回合)
 - HARVEST 内未进化 Mega Froslass ex (861)
 - 无 Active 861+水 战斗回合
 
-### `walrein` seed=43 PASS
-- HARVEST 回合 My-T3..13 (7 回合)
+### `walrein` seed=43 FAIL
+- 全程未进入 HARVEST 阶段
+- 无 Active 861+水 战斗回合
+
+### `walrein` seed=44 PASS
+- HARVEST 回合 My-T3..9 (7 回合)
+- HARVEST 内未进化 Mega Froslass ex (861)
+- 无 Active 861+水 战斗回合
+
+### `walrein` seed=45 FAIL
+- 全程未进入 HARVEST 阶段
+- 无 Active 861+水 战斗回合
+
+### `walrein` seed=46 PASS
+- HARVEST 回合 My-T3..11 (9 回合)
+- HARVEST 内未进化 Mega Froslass ex (861)
+- 无 Active 861+水 战斗回合
+
+### `walrein` seed=47 FAIL
+- 全程未进入 HARVEST 阶段
+- 无 Active 861+水 战斗回合
+
+### `walrein` seed=48 PASS
+- HARVEST 回合 My-T3..18 (16 回合)
+- 861 进化 @ My-T[17]
+- 无 Active 861+水 战斗回合
+
+#### 关键动作
+- My-T17 EVOLVE →Mega Froslass ex (861)
+
+### `walrein` seed=49 FAIL
+- 全程未进入 HARVEST 阶段
+- 无 Active 861+水 战斗回合
+
+### `walrein` seed=50 PASS
+- HARVEST 回合 My-T3..26 (14 回合)
 - HARVEST 内未进化 Mega Froslass ex (861)
 - 861 战斗回合 6，Resentful 6，漏攻 0 (100%)
 
 #### 关键动作
-- My-T8 ATTACH water →861
-- My-T8 ATTACK Resentful (~100 dmg)
-- My-T9 ATTACK Resentful (~100 dmg)
-- My-T10 ATTACK Resentful (~150 dmg)
-- My-T11 ATTACK Resentful (~200 dmg)
-- My-T12 ATTACK Resentful (~250 dmg)
-- My-T13 ATTACK Resentful (~150 dmg)
+- My-T21 ATTACH water →861
+- My-T21 ATTACK Resentful (~700 dmg)
+- My-T22 ATTACK Resentful (~500 dmg)
+- My-T23 ATTACK Resentful (~600 dmg)
+- My-T24 ATTACK Resentful (~550 dmg)
+- My-T25 ATTACK Resentful (~550 dmg)
+- My-T26 ATTACK Resentful (~550 dmg)
 
-### `walrein` seed=44 FAIL
-- 全程未进入 HARVEST 阶段
-- 无 Active 861+水 战斗回合
-
-### `walrein` seed=45 PASS
-- HARVEST 回合 My-T3..6 (4 回合)
-- HARVEST 内未进化 Mega Froslass ex (861)
-- 无 Active 861+水 战斗回合
-
-### `walrein` seed=46 PASS
-- HARVEST 回合 My-T20..34 (15 回合)
-- 861 进化 @ My-T[29]
+### `walrein` seed=51 PASS
+- HARVEST 回合 My-T3..21 (19 回合)
+- 861 进化 @ My-T[7]
 - 无 Active 861+水 战斗回合
 
 #### 关键动作
-- My-T22 ATTACH water →861
-- My-T29 EVOLVE →Mega Froslass ex (861)
+- My-T7 EVOLVE →Mega Froslass ex (861)
 
-### `walrein` seed=47 PASS
-- HARVEST 回合 My-T5..6 (2 回合)
-- HARVEST 内未进化 Mega Froslass ex (861)
-- 无 Active 861+水 战斗回合
-
-### `walrein` seed=48 PASS
-- HARVEST 回合 My-T3..37 (31 回合)
-- HARVEST 内未进化 Mega Froslass ex (861)
-- 无 Active 861+水 战斗回合
-
-#### 关键动作
-- My-T18 ATTACH water →861
-- My-T20 ATTACH water →861
-
-### `walrein` seed=49 PASS
-- HARVEST 回合 My-T3..4 (2 回合)
-- HARVEST 内未进化 Mega Froslass ex (861)
-- 无 Active 861+水 战斗回合
-
-### `walrein` seed=50 PASS
-- HARVEST 回合 My-T8..21 (14 回合)
-- 861 进化 @ My-T[19]
-- 无 Active 861+水 战斗回合
-
-#### 关键动作
-- My-T19 EVOLVE →Mega Froslass ex (861)
-
-### `walrein` seed=51 FAIL
-- 全程未进入 HARVEST 阶段
-- 无 Active 861+水 战斗回合
-
-**总 HARVEST PASS: 8/10**
+**总 HARVEST PASS: 6/10**

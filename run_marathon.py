@@ -77,7 +77,20 @@ def _build_decks(args: argparse.Namespace) -> list[DeckSpec]:
             resolved = _resolve(deck_path)
             decks.append(load_deck_spec(resolved))
     if not decks:
-        decks.append(load_deck_spec(_resolve(Path("deck.csv")), deck_id="deck", label="deck.csv"))
+        decks.append(
+            load_deck_spec(
+                _resolve(Path("data/decks/starmie_froslass.csv")),
+                deck_id="starmie",
+                label="Starmie+Froslass",
+            )
+        )
+        decks.append(
+            load_deck_spec(
+                _resolve(Path("data/decks/walrein_control.csv")),
+                deck_id="walrein",
+                label="Walrein Control",
+            )
+        )
     return decks
 
 

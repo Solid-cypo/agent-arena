@@ -18,15 +18,12 @@ from arena.deck import load_deck_csv
 from arena.policy import DEFAULT_WEIGHTS
 from arena.simulator import evaluate_weights
 
+_STARMIE = "data/decks/starmie_froslass.csv"
+_WALREIN = "data/decks/walrein_control.csv"
+
 DEFAULT_META_MATCHUPS: tuple[tuple[str, str, str, float], ...] = (
-    # Mirror: keeps us from collapsing to a narrow win condition
-    ("mirror",   "deck.csv", "deck.csv", 0.5),
-    # Top-1 Alakazam: highest-rated, most likely opponent on ladder
-    ("vs_alak",  "deck.csv", "data/meta_decks/decks/01_trusthub-hiroingk.csv",   1.5),
-    # Top-3 foo_foo: represents Hops Aggro Tempo axis (#3/#6/#7/#10)
-    ("vs_foo",   "deck.csv", "data/meta_decks/decks/03_foo-foo.csv",              1.2),
-    # Top-7 graybackcat: Tempo axis variant, our historical weak matchup
-    ("vs_gray",  "deck.csv", "data/meta_decks/decks/07_graybackcat.csv",          1.2),
+    ("mirror", _STARMIE, _STARMIE, 0.8),
+    ("vs_walrein", _STARMIE, _WALREIN, 1.5),
 )
 
 
@@ -328,12 +325,12 @@ def write_outputs(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Search policy weights with a simple evolution loop.")
-    parser.add_argument("--deck-a", type=Path, default=Path("deck.csv"))
-    parser.add_argument("--deck-b", type=Path, default=Path("deck.csv"))
+    parser.add_argument("--deck-a", type=Path, default=Path(_STARMIE))
+    parser.add_argument("--deck-b", type=Path, default=Path(_WALREIN))
     parser.add_argument(
         "--meta-pool",
         action="store_true",
-        help="Train against mirror + #2 Tea Party + #8 Lucario matchups.",
+        help="Train against mirror + Walrein control matchups.",
     )
     parser.add_argument(
         "--matchup",
@@ -360,12 +357,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--weights-out",
         type=Path,
-        default=Path("data/training/best_weights_meta.json"),
+        default=Path("data/training/best_weights_theory.json"),
     )
     parser.add_argument(
         "--history-out",
         type=Path,
-        default=Path("data/training/weight_search_meta_history.json"),
+        default=Path("data/training/weight_search_theory_history.json"),
     )
     return parser
 

@@ -20,7 +20,11 @@ data/training/*_history.json
 *.png
 # Secrets
 .env
-# Submission staging & compiled package
+# Submission staging & compiled packages
 submission/.staging/
 submission/.local_test/
 submission.tar.gz
+submission_starmie.tar.gz
+# Regeneratable opening hard-case logs
+.agent/skills/piloting_starmie_froslass/logs/hard_cases/
+backups/

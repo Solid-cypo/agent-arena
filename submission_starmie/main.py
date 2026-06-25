@@ -10,7 +10,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
-_ROOT = Path(__file__).resolve().parent
+
+def _agent_dir() -> str:
+    return "." if os.path.exists("deck.csv") else "/kaggle_simulations/agent"
+
+
+# Kaggle loads main.py via exec() — __file__ is undefined; use deck.csv location.
+_ROOT = Path(_agent_dir())
 _PILOT = _ROOT / "pilot"
 if str(_PILOT) not in sys.path:
     sys.path.insert(0, str(_PILOT))
@@ -18,10 +24,6 @@ if str(_PILOT) not in sys.path:
 from starmie_pilot import DEFAULT_WEIGHTS, make_starmie_agent  # noqa: E402
 
 _AGENT = None
-
-
-def _agent_dir() -> str:
-    return "." if os.path.exists("deck.csv") else "/kaggle_simulations/agent"
 
 
 def policy_weights() -> dict[str, float]:

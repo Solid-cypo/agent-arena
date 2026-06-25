@@ -41,12 +41,7 @@ NEBULA = 1488
 # Explicit opponent pool — no runtime deck fingerprint / profiler detection.
 OPPONENT_MATCHUPS: dict[str, str] = {
     "walrein": "data/decks/walrein_control.csv",
-    "hops": "data/decks/hops_control.csv",
-    "future_lightning": "data/decks/future_lightning.csv",
     "mirror": "data/decks/starmie_froslass.csv",
-    "foo": "data/meta_decks/decks/03_foo-foo.csv",
-    "gray": "data/meta_decks/decks/07_graybackcat.csv",
-    "alak": "data/meta_decks/decks/01_trusthub-hiroingk.csv",
 }
 
 

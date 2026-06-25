@@ -1,7 +1,7 @@
 """Evolution search for starmie_froslass soft-dim weights.
 
 Challenger = make_starmie_agent (this pilot's Layer 2 dims trainable).
-Opponents  = Walrein control + meta decks using generic baseline policy.
+Opponents  = mirror + Walrein control (generic baseline policy).
 
 Usage:
     python .agent/skills/piloting_starmie_froslass/scripts/train_starmie.py \
@@ -46,11 +46,8 @@ _SOFT_KEYS = ["froslass_harvest", "jetting_blow_pref", "nebula_finish", "boss_gu
 # habits opposite to its win condition (fast Mega evolution + spread damage).
 _SF = "data/decks/starmie_froslass.csv"
 MATCHUPS_DEFAULT = (
-    ("mirror",     _SF, _SF,                                                    0.8, None),
-    ("vs_walrein", _SF, "data/decks/walrein_control.csv",                       2.0, None),
-    ("vs_foo",     _SF, "data/meta_decks/decks/03_foo-foo.csv",                 1.2, None),
-    ("vs_gray",    _SF, "data/meta_decks/decks/07_graybackcat.csv",             1.0, None),
-    ("vs_alak",    _SF, "data/meta_decks/decks/01_trusthub-hiroingk.csv",       1.0, None),
+    ("mirror", _SF, _SF, 0.8, None),
+    ("vs_walrein", _SF, "data/decks/walrein_control.csv", 2.0, None),
 )
 
 

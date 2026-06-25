@@ -33,10 +33,8 @@ def main() -> None:
     baseline = rss_mb()
     card_meta_table()
     after_cards = rss_mb()
-    deck_a = load_deck_csv(PROJECT_ROOT / "deck.csv")
-    deck_b = load_deck_csv(
-        PROJECT_ROOT / "data/meta_decks/decks/02_the-debauchery-tea-party.csv"
-    )
+    deck_a = load_deck_csv(PROJECT_ROOT / "data/decks/starmie_froslass.csv")
+    deck_b = load_deck_csv(PROJECT_ROOT / "data/decks/walrein_control.csv")
     run_self_play_batch(
         deck_a,
         deck_b,
