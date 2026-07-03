@@ -10,6 +10,7 @@ Public API:
 """
 from __future__ import annotations
 
+import os
 import random
 from typing import Any, Callable
 
@@ -1376,6 +1377,55 @@ def option_score(obs, option, weights: dict[str, float], sit: dict[str, Any]) ->
     return _baseline_score(obs, option, weights) + _soft_bonus(obs, option, weights, sit)
 
 
+# ── RL Actor-Expert opening proposer (torch-free numpy) ────────────────────────
+
+_RL_PROPOSER = None
+_RL_TRIED = False
+
+
+def _rl_proposer():
+    """Lazy-load the numpy RL proposer from pilot/rl_opening.{npz,json}."""
+    global _RL_PROPOSER, _RL_TRIED
+    if _RL_TRIED:
+        return _RL_PROPOSER
+    _RL_TRIED = True
+    try:
+        base = os.path.dirname(os.path.abspath(__file__))
+        prefix = os.path.join(base, "rl_opening")
+        if os.path.exists(prefix + ".npz") and os.path.exists(prefix + ".json"):
+            from rl_opening_proposer import RLProposer  # noqa: E402
+            _RL_PROPOSER = RLProposer.load(prefix)
+    except Exception:
+        _RL_PROPOSER = None
+    return _RL_PROPOSER
+
+
+def _build_rl_view(adapter) -> dict[str, Any]:
+    active = adapter.active
+    bench = adapter.bench
+    return {
+        "hand": list(adapter.hand),
+        "active_id": active.card_id if active else None,
+        "active_energies": list(active.energies) if active else [],
+        "bench_ids": [p.card_id for p in bench],
+        "bench_energies": [list(p.energies) for p in bench],
+        "supporter_played": adapter.supporter_played,
+        "energy_attached": adapter.energy_attached,
+        "fan_call_used": adapter.fan_call_used,
+        "my_turn_number": adapter.my_turn_number,
+        "deck_len": len(adapter.deck),
+        "prize_len": len(adapter.prizes),
+        "going_first": adapter.going_first,
+        "active_can_evolve": adapter._can_evolve_now(active) if active else False,
+        "bench_can_evolve": [adapter._can_evolve_now(p) for p in bench],
+    }
+
+
+# Minimum vote share (out of K=4 samples) for the RL policy to override the
+# planner route. 3/4 = strong consensus; otherwise defer to the v1 pilot.
+_RL_MIN_CONF = 0.75
+
+
 # ── Public agent factory ──────────────────────────────────────────────────────
 
 def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None) -> AgentFn:
@@ -1408,6 +1458,40 @@ def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None)
             min_c = max(0, int(obs.select.minCount))
             max_c = min(len(options), int(obs.select.maxCount))
             pick  = max(1, min(max_c, max(min_c, 1)))
+
+            # ── RL Actor-Expert override (OPENING only, single-select) ──────────
+            # The torch-free numpy proposer votes among K policy samples; when it
+            # reaches strong consensus it leads the turn, otherwise the v1
+            # planner route + hard rules (computed above) stay in charge.
+            phase = sit.get("phase")
+            board = sit.get("board")
+            if (
+                pick == 1
+                and phase is not None
+                and phase.primary == "OPENING"
+                and board is not None
+                and board.my_turn_number >= 1
+            ):
+                prop = _rl_proposer()
+                if prop is not None:
+                    try:
+                        from opening_bridge import BattleOpeningAdapter
+                        mi = sit["my_index"]
+                        adapter = BattleOpeningAdapter(
+                            obs, board, sit["hand"], sit["resources"], mi,
+                        )
+                        view = _build_rl_view(adapter)
+                        rl_idx, rl_conf = prop.propose(
+                            obs, options, view, mi, k=4, rng=None,
+                        )
+                        if rl_idx is not None and rl_conf >= _RL_MIN_CONF:
+                            # Respect hard-rule blocks: only lead if the option
+                            # is not actively suppressed by a hard rule.
+                            if option_score(obs, options[rl_idx], w, sit) >= 0.0:
+                                order = [rl_idx] + [i for i in order if i != rl_idx]
+                    except Exception:
+                        pass
+
             chosen = order[:pick]
             for idx in chosen:
                 opt = options[idx]

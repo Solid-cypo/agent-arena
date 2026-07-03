@@ -75,10 +75,23 @@ class BattleOpeningAdapter:
         self.fan_call_used = board.my_turn_number >= 2
         self.setup_active_id = board.active_id
         self.setup_archetype = ""
+        self._my_index = my_index
+        self._going_first = (my_index == 0)
 
     @property
     def my_turn_number(self) -> int:
         return self.board.my_turn_number
+
+    @property
+    def going_first(self) -> bool:
+        return self._going_first
+
+    @property
+    def prizes(self) -> list:
+        try:
+            return list(self.obs.current.players[self._my_index].prize or [])
+        except Exception:
+            return []
 
     @property
     def hand(self) -> list[int]:
