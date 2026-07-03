@@ -1223,6 +1223,37 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
             if atk_id == _ATK_ITCHY_POLLEN:
                 return _DOMINATE * 0.5
 
+    # HR-O6  Promote bench Mega Starmie to Active — when the engine asks us to
+    # pick a bench Pokémon to swap/bring to the Active Spot (Switch trainer or
+    # Retreat follow-up select), choose Mega Starmie (prefer the one already
+    # holding water). Without this v1 picks arbitrarily and Mega stays benched.
+    if option.type == OptionType.CARD:
+        try:
+            ctx = int(obs.select.context)
+        except Exception:
+            ctx = -1
+        if ctx in (int(SelectContext.SWITCH), int(SelectContext.TO_ACTIVE)):
+            pi = _si(getattr(option, "playerIndex", None), mi)
+            if pi == mi:
+                pkm = _pokemon_in_area(
+                    obs, option.area, _si(getattr(option, "index", None)), mi,
+                )
+                if pkm and _si(getattr(pkm, "id", None)) == _CARDS["mega_starmie_ex"]:
+                    return _DOMINATE_PLUS if _has_water_energy(pkm) else _DOMINATE
+
+    # HR-O7  OPENING — retreat the Active to promote bench Mega Starmie (+water)
+    # when no Switch trainer is in hand. The RETREAT option is only offered when
+    # the Active can legally retreat, so retreating here opens the follow-up
+    # TO_ACTIVE select (handled by HR-O6) to bring Mega up.
+    if option.type == OptionType.RETREAT and phase.primary == "OPENING":
+        if _opening_g5_switch_needed(phase, board, obs, mi):
+            try:
+                _hand = obs.current.players[mi].hand or []
+            except Exception:
+                _hand = []
+            if not any(_si(getattr(c, "id", None)) == _OC_SWITCH for c in _hand if c):
+                return _DOMINATE_OPEN
+
     return 0.0
 
 
@@ -1481,6 +1512,17 @@ def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None)
             if sit.get("opening_complete") and not agent_state.get("opening_complete_this_game"):
                 agent_state["opening_complete_this_game"] = True
                 RL_STATS["opening_complete_games"] += 1
+            # Capture the latest board snapshot for post-game failure-mode
+            # diagnostics (used by local harnesses; cheap, no engine calls).
+            _b = sit.get("board")
+            if _b is not None:
+                agent_state["max_my_turn"] = max(
+                    agent_state.get("max_my_turn", 0), _b.my_turn_number)
+                agent_state["final_board"] = (
+                    _b.my_turn_number, _b.active_id, _b.active_is_mega_starmie,
+                    _b.active_has_water, _b.mega_starmie_on_field,
+                    _b.staryu_on_field, _b.prize_self, _b.prize_opp,
+                )
             order = sorted(
                 range(len(options)),
                 key=lambda i: option_score(obs, options[i], w, sit),
@@ -1593,3 +1635,5 @@ def reset_for_new_game() -> None:
     local harnesses so OPENING-completion accounting is per-game."""
     if _LIVE_AGENT_STATE is not None:
         _LIVE_AGENT_STATE["opening_complete_this_game"] = False
+        _LIVE_AGENT_STATE["max_my_turn"] = 0
+        _LIVE_AGENT_STATE["final_board"] = None
