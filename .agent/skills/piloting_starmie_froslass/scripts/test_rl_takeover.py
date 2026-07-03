@@ -65,6 +65,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--games", type=int, default=40, help="games per pass")
     ap.add_argument("--max-steps", type=int, default=400)
+    ap.add_argument("--only-on", action="store_true",
+                    help="skip the RL-OFF baseline pass (quick design sweep)")
     args = ap.parse_args()
 
     deck_a = load_deck_csv(SUB / "deck.csv")
@@ -73,12 +75,14 @@ def main():
     starmie_agent = sub_main.agent
     base_agent = policy_mod.make_agent(deck_b, dict(policy_mod.DEFAULT_WEIGHTS))
 
-    # Pass B first (RL off) so the deployed A numbers aren't affected by prior
-    # proposer state; reset stats between passes.
-    starmie_pilot._RL_ENABLED = False
-    _reset_stats()
-    wb, lb, db, off_open = _run_pass(starmie_agent, base_agent, deck_a, deck_b,
-                                     weights, args.games, args.max_steps)
+    wb = lb = db = off_open = 0
+    if not args.only_on:
+        # Pass B first (RL off) so the deployed A numbers aren't affected by prior
+        # proposer state; reset stats between passes.
+        starmie_pilot._RL_ENABLED = False
+        _reset_stats()
+        wb, lb, db, off_open = _run_pass(starmie_agent, base_agent, deck_a, deck_b,
+                                         weights, args.games, args.max_steps)
 
     starmie_pilot._RL_ENABLED = True
     _reset_stats()
@@ -88,13 +92,21 @@ def main():
     elig = s["opening_eligible"]
 
     n = args.games
+    mv = os.environ.get("RL_MIN_VOTES", "3")
+    rk = os.environ.get("RL_RANKED", "1")
     print("=" * 64)
-    print(f"LOCAL CABT AUDIT  (N={n} per pass, vs walrein control)")
+    print(f"LOCAL CABT AUDIT  (N={n}, vs walrein, RL_MIN_VOTES={mv} RL_RANKED={rk})")
     print("=" * 64)
-    print(f"{'metric':32s} {'RL ON':>12s} {'RL OFF':>12s}")
-    print(f"{'W/L/D':32s} {f'{wa}/{la}/{da}':>12s} {f'{wb}/{lb}/{db}':>12s}")
-    print(f"{'win rate':32s} {wa/n:>12.1%} {wb/n:>12.1%}")
-    print(f"{'OPENING completed':32s} {on_open/n:>12.1%} {off_open/n:>12.1%}")
+    if args.only_on:
+        print(f"{'metric':32s} {'RL ON':>12s}")
+        print(f"{'W/L/D':32s} {f'{wa}/{la}/{da}':>12s}")
+        print(f"{'win rate':32s} {wa/n:>12.1%}")
+        print(f"{'OPENING completed':32s} {on_open/n:>12.1%}")
+    else:
+        print(f"{'metric':32s} {'RL ON':>12s} {'RL OFF':>12s}")
+        print(f"{'W/L/D':32s} {f'{wa}/{la}/{da}':>12s} {f'{wb}/{lb}/{db}':>12s}")
+        print(f"{'win rate':32s} {wa/n:>12.1%} {wb/n:>12.1%}")
+        print(f"{'OPENING completed':32s} {on_open/n:>12.1%} {off_open/n:>12.1%}")
     print("-" * 64)
     print("RL proposer takeover breakdown (pass A):")
     total = elig + s["non_mappable_decision"]

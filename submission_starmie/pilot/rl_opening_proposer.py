@@ -286,12 +286,18 @@ class RLProposer:
 
     def propose(self, obs, options, view: dict[str, Any], my_index: int,
                 k: int = 4, rng: np.random.Generator | None = None,
-                min_votes: int = 3) -> tuple[int | None, float]:
+                min_votes: int = 3, ranked: bool = True) -> tuple[int | None, float]:
         """Return (preferred_option_index, confidence) or (None, 0).
 
         Samples the policy k times (1 deterministic + k-1 stochastic), votes on
-        the (kind, primary) action, and maps the winner to a cabt option index.
-        Defers (None) when no option matches or consensus < min_votes.
+        the (kind, primary) action. When `ranked` is True, maps the HIGHEST-voted
+        action that (a) reaches `min_votes` consensus AND (b) is actually offered
+        as a cabt option this turn — walking down the vote ranking converts "top
+        preference not in hand → no-match" deferrals into leads on the policy's
+        next-best available action. When `ranked` is False, maps only the top-
+        voted action (original behaviour). Defers (None) when no offered action
+        reaches `min_votes` (ranked) or the top action isn't offered / lacks
+        consensus (non-ranked).
         """
         if rng is None:
             rng = np.random.default_rng()
@@ -306,12 +312,24 @@ class RLProposer:
         if not votes:
             self.last_action = None
             return None, 0.0
-        best_action, best_votes = max(votes.items(), key=lambda kv: kv[1])
-        self.last_action = best_action
-        if best_votes < min_votes:
-            return None, float(best_votes) / k
-        idx = self._map_action_to_option(obs, options, best_action, view, my_index)
-        return idx, float(best_votes) / k
+        ranked_list = sorted(votes.items(), key=lambda kv: (-kv[1], kv[0]))
+        # Top preference is recorded for instrumentation even if we defer.
+        self.last_action = ranked_list[0][0]
+        if not ranked:
+            best_action, best_votes = ranked_list[0]
+            if best_votes < min_votes:
+                return None, float(best_votes) / k
+            idx = self._map_action_to_option(obs, options, best_action, view, my_index)
+            self.last_action = best_action
+            return idx, float(best_votes) / k
+        for action, v in ranked_list:
+            if v < min_votes:
+                break  # rest of the ranking has even fewer votes
+            idx = self._map_action_to_option(obs, options, action, view, my_index)
+            if idx is not None:
+                self.last_action = action
+                return idx, float(v) / k
+        return None, float(ranked_list[0][1]) / k
 
     # ── v2 action → cabt option mapping ───────────────────────────────────────
     def _map_action_to_option(self, obs, options, action, view, my_index: int):

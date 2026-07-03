@@ -1528,12 +1528,19 @@ def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None)
                                 view["offered_ability_srcs"] = ability_sources_in_options(obs, options, mi)
                             except Exception:
                                 pass
+                            rl_min_votes = int(os.environ.get("RL_MIN_VOTES", "2"))
+                            rl_ranked = os.environ.get("RL_RANKED", "1") != "0"
+                            rl_k = int(os.environ.get("RL_K", "4"))
                             rl_idx, rl_conf = prop.propose(
-                                obs, options, view, mi, k=4, rng=None,
+                                obs, options, view, mi, k=rl_k, rng=None,
+                                min_votes=rl_min_votes, ranked=rl_ranked,
                             )
                             rl_kind = prop.last_action[0] if prop.last_action else "?"
+                            # Conf gate tracks the propose min_votes so lowering
+                            # RL_MIN_VOTES actually lets the policy lead more.
+                            rl_min_conf = rl_min_votes / float(rl_k)
                             RL_STATS["opening_eligible"] += 1
-                            if rl_idx is not None and rl_conf >= _RL_MIN_CONF:
+                            if rl_idx is not None and rl_conf >= rl_min_conf:
                                 # Lead unless a hard rule actively suppresses the
                                 # option with a strong negative score. Using
                                 # _hard_rule_bonus (not option_score) avoids
