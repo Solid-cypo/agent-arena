@@ -81,10 +81,16 @@ class BCSample:
     is_compound: bool
 
 
-def load_bc_samples(slices, encoder: StateEncoder, h1_to_idx, h2_to_idx):
+def load_bc_samples(slices, encoder: StateEncoder, h1_to_idx, h2_to_idx,
+                    extra_sources: tuple[str, ...] = (),
+                    extra_oversample: int = 1):
+    """Gold (expert_edited) always; extra_sources (e.g. approved_hardcell)
+    included with ``extra_oversample`` copies for curriculum emphasis."""
     out: list[BCSample] = []
     for s in slices:
-        if s["source"] != "expert_edited":
+        src = s["source"]
+        is_extra = src in extra_sources
+        if src != "expert_edited" and not is_extra:
             continue
         a = s["action"]
         kind = a["kind"]
@@ -97,7 +103,9 @@ def load_bc_samples(slices, encoder: StateEncoder, h1_to_idx, h2_to_idx):
         is_c = kind in COMPOUND
         sub = a.get("sub")
         h2 = h2_to_idx.get(sub, h2_to_idx[HEAD2_NONE]) if is_c else None
-        out.append(BCSample(feat, h1_to_idx[key], h2, is_c))
+        copies = extra_oversample if is_extra else 1
+        for _ in range(copies):
+            out.append(BCSample(feat, h1_to_idx[key], h2, is_c))
     return out
 
 
@@ -335,11 +343,20 @@ def main():
     ap.add_argument("--eval-seeds", type=int, default=100)
     ap.add_argument("--eval-every", type=int, default=5)
     ap.add_argument("--out", default=str(DATA / "actor_expert.pt"))
+    ap.add_argument("--init-weights", default=None,
+                    help="load existing weights and skip warmstart (fine-tune)")
+    ap.add_argument("--hardcell-slices", default=None,
+                    help="extra BC slices (e.g. approved_hardcell) for curriculum")
+    ap.add_argument("--hardcell-oversample", type=int, default=2)
     args = ap.parse_args()
 
     random.seed(0); np.random.seed(0); torch.manual_seed(0)
 
     slices = [json.loads(l) for l in open(args.slices, encoding="utf-8") if l.strip()]
+    if args.hardcell_slices:
+        hc = [json.loads(l) for l in open(args.hardcell_slices, encoding="utf-8") if l.strip()]
+        slices = slices + hc
+        print(f"hardcell slices appended: {len(hc)}")
     from arena.deck import load_deck_csv
     cv = sorted(set(load_deck_csv(args.deck)))
     h1_to_idx, idx_to_head1, h2_to_idx, idx_to_head2 = build_vocabs(slices, card_vocab=cv)
@@ -348,15 +365,24 @@ def main():
     print(f"vocab: head1={len(h1_to_idx)} head2={len(h2_to_idx)} feat={encoder.feature_dim}")
 
     net = PolicyNet(encoder.feature_dim, len(h1_to_idx), len(h2_to_idx)).to(DEVICE)
-    bc_samples = load_bc_samples(slices, encoder, h1_to_idx, h2_to_idx)
-    print(f"BC gold samples: {len(bc_samples)}")
+    extra_src = ("approved_hardcell",) if args.hardcell_slices else ()
+    bc_samples = load_bc_samples(slices, encoder, h1_to_idx, h2_to_idx,
+                                 extra_sources=extra_src,
+                                 extra_oversample=args.hardcell_oversample)
+    print(f"BC samples: {len(bc_samples)} (gold + hardcell x{args.hardcell_oversample})")
 
-    # 1. warm-start
-    print("== SFT warm-start ==")
-    sft_warmstart(net, bc_samples, args.warmstart_epochs)
     eval_seeds = list(range(1000, 1000 + args.eval_seeds))
-    g0 = evaluate(net, env, eval_seeds)
-    print(f"goal rate after warmstart: {g0:.1%}")
+    if args.init_weights:
+        ckpt = torch.load(args.init_weights, map_location="cpu", weights_only=False)
+        net.load_state_dict(ckpt["state_dict"])
+        print(f"loaded init weights from {args.init_weights} (skip warmstart)")
+        g0 = evaluate(net, env, eval_seeds)
+        print(f"goal rate at fine-tune start: {g0:.1%}")
+    else:
+        print("== SFT warm-start ==")
+        sft_warmstart(net, bc_samples, args.warmstart_epochs)
+        g0 = evaluate(net, env, eval_seeds)
+        print(f"goal rate after warmstart: {g0:.1%}")
 
     # 2. PPO + BC
     opt = torch.optim.Adam(net.parameters(), lr=args.lr)
