@@ -11,6 +11,12 @@ Public API:
 The proposer only fires on decisions that map to a policy v2 action (PLAY /
 ATTACH / EVOLVE / ABILITY / RETREAT). On CARD-search / NUMBER / END / ATTACK
 decisions it defers (returns None) so the existing planner route stays in charge.
+
+Ability no-match fix: the view may carry `offered_ability_srcs` (the set of
+pokemon ids whose ABILITY option the engine is actually offering this turn).
+When present, the ABILITY_* legal predicates only fire for sources that are
+offered, so the policy never samples an ability that is already used / not
+available (e.g. Meowth ex Last-Ditch Catch after use) and waste a proposal.
 """
 from __future__ import annotations
 
@@ -59,6 +65,32 @@ def _si(v: Any, d: int = 0) -> int:
         return int(v)
     except Exception:
         return d
+
+
+def ability_sources_in_options(obs, options, my_index: int) -> set[int]:
+    """Return the set of pokemon ids whose ABILITY option is currently offered."""
+    srcs: set[int] = set()
+    try:
+        p = obs.current.players[my_index]
+    except Exception:
+        return srcs
+    for opt in options:
+        if getattr(opt, "type", None) != OptionType.ABILITY:
+            continue
+        try:
+            area = opt.area
+            i = _si(getattr(opt, "index", None), -1)
+            if area == AreaType.BENCH:
+                b = p.bench or []
+                if 0 <= i < len(b) and b[i]:
+                    srcs.add(_si(getattr(b[i], "id", None)))
+            elif area == AreaType.ACTIVE:
+                a = (p.active or [None])[0]
+                if a:
+                    srcs.add(_si(getattr(a, "id", None)))
+        except Exception:
+            pass
+    return srcs
 
 
 # ── numpy feature encoder (mirrors action_space_v2.StateEncoder.encode) ────────
@@ -131,6 +163,14 @@ def _is_legal(kind: str, primary: int | None, v: dict[str, Any]) -> bool:
     active_id = v["active_id"]
     sup = v["supporter_played"]
     ea = v["energy_attached"]
+    # `offered_ability_srcs`: when populated (a set), an ABILITY_* action is only
+    # legal if the engine is actually offering that source's ability option this
+    # turn. None = not populated (fall back to state-only legality).
+    offered = v.get("offered_ability_srcs")
+
+    def offered_ok(src: int) -> bool:
+        return offered is None or src in offered
+
     if kind in _NON_POLICY:
         return False
     if kind == "PLAY_POKEMON":
@@ -167,13 +207,16 @@ def _is_legal(kind: str, primary: int | None, v: dict[str, Any]) -> bool:
         return primary in ITEM_IDS and primary in hand
     if kind == "ABILITY_FAN_CALL":
         on_field = active_id == FAN_ROTOM or FAN_ROTOM in bench_ids
-        return on_field and not v["fan_call_used"]
+        return on_field and not v["fan_call_used"] and offered_ok(FAN_ROTOM)
     if kind == "ABILITY_LAST_DITCH":
-        meowth_on_bench = MEOWTH_EX in bench_ids
-        can_place = MEOWTH_EX in hand and len(bench_ids) < 5
-        return (meowth_on_bench or can_place) and not sup
+        # Ability is only usable while Meowth ex is ON FIELD (active or bench);
+        # "in hand only" is not enough on the real engine (must PLAY first). And
+        # only when the engine is actually offering the ability this turn (i.e.
+        # not already used) — `offered_ok` gates that when `offered` is populated.
+        meowth_on_field = active_id == MEOWTH_EX or MEOWTH_EX in bench_ids
+        return meowth_on_field and not sup and offered_ok(MEOWTH_EX)
     if kind == "ABILITY_RUN_AWAY":
-        return active_id == DUDUNSPARCE or DUDUNSPARCE in bench_ids
+        return (active_id == DUDUNSPARCE or DUDUNSPARCE in bench_ids) and offered_ok(DUDUNSPARCE)
     if kind == "RETREAT":
         if not bench_ids:
             return False
@@ -195,6 +238,7 @@ class RLProposer:
         self.n1 = meta["n_head1"]
         self.n2 = meta["n_head2"]
         self.encoder = _Encoder(meta["card_vocab"])
+        self.last_action = None  # last sampled (kind, primary), for instrumentation
 
     @classmethod
     def load(cls, prefix: str) -> "RLProposer":
@@ -260,8 +304,10 @@ class RLProposer:
             if a is not None:
                 votes[a] = votes.get(a, 0) + 1
         if not votes:
+            self.last_action = None
             return None, 0.0
         best_action, best_votes = max(votes.items(), key=lambda kv: kv[1])
+        self.last_action = best_action
         if best_votes < min_votes:
             return None, float(best_votes) / k
         idx = self._map_action_to_option(obs, options, best_action, view, my_index)
@@ -270,7 +316,6 @@ class RLProposer:
     # ── v2 action → cabt option mapping ───────────────────────────────────────
     def _map_action_to_option(self, obs, options, action, view, my_index: int):
         kind, primary = action
-        hand = view["hand"]
 
         def hand_card_id(opt) -> int:
             try:
@@ -349,19 +394,39 @@ class RLProposer:
                     pass
             return None
         if kind == "EVOLVE":
-            want_target_base = {MEGA_STARMIE: STARYU, DUDUNSPARCE: None}.get(primary)
+            # EVOLVE options come in two shapes: area=HAND (select the evolution
+            # card) or area=BENCH/ACTIVE (select the base to evolve). Match both.
+            try:
+                me = obs.current.players[my_index]
+                h = me.hand or []
+                hand_ids = [_si(getattr(c, "id", None)) for c in h if c]
+            except Exception:
+                hand_ids = []
+                me = None
             for i, opt in enumerate(options):
                 if opt.type != OptionType.EVOLVE:
                     continue
-                # evolving card id lives in hand at option.index (area HAND) or
-                # the target base is the in-play pokemon.
                 try:
-                    me = obs.current.players[my_index]
-                    h = me.hand or []
                     oi = _si(getattr(opt, "index", None), -1)
-                    if opt.area == AreaType.HAND and 0 <= oi < len(h) and h[oi]:
-                        if _si(getattr(h[oi], "id", None)) == primary:
+                    if opt.area == AreaType.HAND and me is not None:
+                        if 0 <= oi < len(h) and h[oi] and _si(getattr(h[oi], "id", None)) == primary:
                             return i
+                    if opt.area == AreaType.BENCH and me is not None:
+                        b = me.bench or []
+                        if 0 <= oi < len(b) and b[oi]:
+                            base = _si(getattr(b[oi], "id", None))
+                            if primary == MEGA_STARMIE and base == STARYU and MEGA_STARMIE in hand_ids:
+                                return i
+                            if primary == DUDUNSPARCE and base in (DUNSPARCE_A, DUNSPARCE_B) and DUDUNSPARCE in hand_ids:
+                                return i
+                    if opt.area == AreaType.ACTIVE and me is not None:
+                        a = (me.active or [None])[0]
+                        if a:
+                            base = _si(getattr(a, "id", None))
+                            if primary == MEGA_STARMIE and base == STARYU and MEGA_STARMIE in hand_ids:
+                                return i
+                            if primary == DUDUNSPARCE and base in (DUNSPARCE_A, DUNSPARCE_B) and DUDUNSPARCE in hand_ids:
+                                return i
                 except Exception:
                     pass
             return None

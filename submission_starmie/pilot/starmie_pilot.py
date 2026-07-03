@@ -1382,6 +1382,7 @@ def option_score(obs, option, weights: dict[str, float], sit: dict[str, Any]) ->
 
 _RL_PROPOSER = None
 _RL_TRIED = False
+_RL_ENABLED = True  # toggle for A/B comparison in local audits
 
 
 def _rl_proposer():
@@ -1435,6 +1436,8 @@ RL_STATS: dict[str, int] = {
     "no_option_match": 0,
     "non_mappable_decision": 0,
     "proposer_errors": 0,
+    "games_started": 0,
+    "opening_complete_games": 0,
 }
 RL_KIND_STATS: dict[str, dict[str, int]] = {"blocked": {}, "nomatch": {}}
 
@@ -1461,6 +1464,9 @@ def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None)
 
     def agent(obs_dict: dict[str, Any]) -> list[int]:
         if obs_dict.get("select") is None:
+            # Kaggle setup/deck-submission call. (The local harness submits the
+            # deck via battle_start, so this branch only fires on Kaggle.)
+            agent_state["opening_complete_this_game"] = False
             return deck
         try:
             obs     = to_observation_class(obs_dict)
@@ -1468,6 +1474,13 @@ def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None)
             if not options:
                 return []
             sit   = _compute_situation(obs, deck_template=deck, agent_state=agent_state)
+            # Per-game OPENING-completion flag (set once when the opening is
+            # completed). The local harness resets this before each game via
+            # `reset_for_new_game()` and reads it after, since the harness — not
+            # the agent — knows the game boundary.
+            if sit.get("opening_complete") and not agent_state.get("opening_complete_this_game"):
+                agent_state["opening_complete_this_game"] = True
+                RL_STATS["opening_complete_games"] += 1
             order = sorted(
                 range(len(options)),
                 key=lambda i: option_score(obs, options[i], w, sit),
@@ -1484,7 +1497,8 @@ def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None)
             phase = sit.get("phase")
             board = sit.get("board")
             if (
-                pick == 1
+                _RL_ENABLED
+                and pick == 1
                 and phase is not None
                 and phase.primary == "OPENING"
                 and board is not None
@@ -1505,6 +1519,15 @@ def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None)
                                 obs, board, sit["hand"], sit["resources"], mi,
                             )
                             view = _build_rl_view(adapter)
+                            # Tell the proposer which abilities the engine is
+                            # actually offering this turn, so it never samples an
+                            # already-used ability (e.g. Meowth Last-Ditch) and
+                            # wastes a proposal on a no-match.
+                            try:
+                                from rl_opening_proposer import ability_sources_in_options
+                                view["offered_ability_srcs"] = ability_sources_in_options(obs, options, mi)
+                            except Exception:
+                                pass
                             rl_idx, rl_conf = prop.propose(
                                 obs, options, view, mi, k=4, rng=None,
                             )
@@ -1547,4 +1570,19 @@ def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None)
             except Exception:
                 return [0]
 
+    # Expose the live agent_state so local harnesses can reset per-game flags
+    # (e.g. opening_complete_this_game) at game boundaries — the harness, not the
+    # agent, knows when a new battle starts in the local simulator.
+    global _LIVE_AGENT_STATE
+    _LIVE_AGENT_STATE = agent_state
     return agent
+
+
+_LIVE_AGENT_STATE: dict[str, Any] | None = None
+
+
+def reset_for_new_game() -> None:
+    """Reset per-game flags in the live agent_state. Call before each game in
+    local harnesses so OPENING-completion accounting is per-game."""
+    if _LIVE_AGENT_STATE is not None:
+        _LIVE_AGENT_STATE["opening_complete_this_game"] = False
