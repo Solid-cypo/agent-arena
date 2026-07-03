@@ -46,7 +46,14 @@ def should_forbid_cycle(
     *,
     on_bench_66: bool = False,
 ) -> tuple[bool, str]:
-    if phase.primary == "OPENING" or not phase.opening_complete:
+    # OPENING: expert gold uses Run Away Draw in the opening (e.g. the My-T2
+    # REC retreat-draw line), so the v1 "forbid the 66 cycle in OPENING" rule
+    # (DD-OPENING) is outdated. Let the RL policy lead; the gold-aligned draw
+    # axis boost below may still fire as fallback.
+    if phase.primary == "OPENING":
+        return False, ""
+
+    if not phase.opening_complete:
         return True, "DD-OPENING"
 
     if _first_aggression_turn(phase, board):

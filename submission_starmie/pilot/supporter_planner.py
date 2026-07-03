@@ -50,7 +50,15 @@ def lillie_forbidden(
     hand: HandContext,
     resources: DeckResourceSnapshot,
 ) -> tuple[bool, str]:
-    if phase.primary == "OPENING" or not phase.opening_complete:
+    # OPENING: the gold-trained RL policy leads supporter choices (expert gold
+    # plays Lillie as a core opening draw line, incl. hand_size>=5). The v1
+    # "forbid Lillie in OPENING / hand>=5" heuristics (DR-1 / DR-5b) were
+    # conservative pre-gold rules and conflicted with expert data, so they no
+    # longer fire here. Post-opening forbids below stay (RL is OPENING-only).
+    if phase.primary == "OPENING":
+        return False, ""
+
+    if not phase.opening_complete:
         return True, "DR-1"
 
     if _first_aggression_turn(phase, board):

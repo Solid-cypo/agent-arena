@@ -940,8 +940,9 @@ DEFAULT_WEIGHTS: dict[str, float] = {
     "active_bonus":  0.1,    # reduced: active is not always the priority target
     # Higher attack: aggro deck, attack every turn possible
     "attack":        3.5,
-    # Stronger retreat penalty: Munkidori handles HP transfer, no need to flee
-    "retreat":      -0.5,
+    # Retreat is a core OPENING REC line (expert gold retreats frequently),
+    # and Munkidori handles HP transfer mid-game. Neutral-positive weight.
+    "retreat":      1.0,
     # Standard action dims
     "play":          1.2, "ability": 1.2,
     "yes":           0.1, "no":      0.0,
@@ -1425,6 +1426,23 @@ def _build_rl_view(adapter) -> dict[str, Any]:
 # planner route. 3/4 = strong consensus; otherwise defer to the v1 pilot.
 _RL_MIN_CONF = 0.75
 
+# Instrumentation counters for local takeover-rate auditing (not used on Kaggle).
+RL_STATS: dict[str, int] = {
+    "opening_eligible": 0,
+    "takeover": 0,
+    "blocked_by_hardrule": 0,
+    "low_confidence": 0,
+    "no_option_match": 0,
+    "non_mappable_decision": 0,
+    "proposer_errors": 0,
+}
+RL_KIND_STATS: dict[str, dict[str, int]] = {"blocked": {}, "nomatch": {}}
+
+
+def _rl_kind_tick(bucket: str, kind: str) -> None:
+    d = RL_KIND_STATS.setdefault(bucket, {})
+    d[kind] = d.get(kind, 0) + 1
+
 
 # ── Public agent factory ──────────────────────────────────────────────────────
 
@@ -1477,20 +1495,43 @@ def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None)
                     try:
                         from opening_bridge import BattleOpeningAdapter
                         mi = sit["my_index"]
-                        adapter = BattleOpeningAdapter(
-                            obs, board, sit["hand"], sit["resources"], mi,
-                        )
-                        view = _build_rl_view(adapter)
-                        rl_idx, rl_conf = prop.propose(
-                            obs, options, view, mi, k=4, rng=None,
-                        )
-                        if rl_idx is not None and rl_conf >= _RL_MIN_CONF:
-                            # Respect hard-rule blocks: only lead if the option
-                            # is not actively suppressed by a hard rule.
-                            if option_score(obs, options[rl_idx], w, sit) >= 0.0:
-                                order = [rl_idx] + [i for i in order if i != rl_idx]
+                        # Only invoke the proposer on decisions whose option types
+                        # it can actually map (PLAY/ATTACH/EVOLVE/ABILITY/RETREAT).
+                        _MAPPABLE = (OptionType.PLAY, OptionType.ATTACH,
+                                     OptionType.EVOLVE, OptionType.ABILITY,
+                                     OptionType.RETREAT)
+                        if any(o.type in _MAPPABLE for o in options):
+                            adapter = BattleOpeningAdapter(
+                                obs, board, sit["hand"], sit["resources"], mi,
+                            )
+                            view = _build_rl_view(adapter)
+                            rl_idx, rl_conf = prop.propose(
+                                obs, options, view, mi, k=4, rng=None,
+                            )
+                            rl_kind = prop.last_action[0] if prop.last_action else "?"
+                            RL_STATS["opening_eligible"] += 1
+                            if rl_idx is not None and rl_conf >= _RL_MIN_CONF:
+                                # Lead unless a hard rule actively suppresses the
+                                # option with a strong negative score. Using
+                                # _hard_rule_bonus (not option_score) avoids
+                                # falsely blocking options whose *baseline* score
+                                # is naturally low/negative (e.g. RETREAT weight).
+                                hard = _hard_rule_bonus(obs, options[rl_idx], sit)
+                                if hard > -_DOMINATE / 2:
+                                    order = [rl_idx] + [i for i in order if i != rl_idx]
+                                    RL_STATS["takeover"] += 1
+                                else:
+                                    RL_STATS["blocked_by_hardrule"] += 1
+                                    _rl_kind_tick("blocked", rl_kind)
+                            elif rl_idx is not None:
+                                RL_STATS["low_confidence"] += 1
+                            else:
+                                RL_STATS["no_option_match"] += 1
+                                _rl_kind_tick("nomatch", rl_kind)
+                        else:
+                            RL_STATS["non_mappable_decision"] += 1
                     except Exception:
-                        pass
+                        RL_STATS["proposer_errors"] += 1
 
             chosen = order[:pick]
             for idx in chosen:
