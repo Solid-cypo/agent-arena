@@ -1,0 +1,1420 @@
+{
+  "generated_at": "2026-07-02T21:46:16",
+  "mode": "cell",
+  "seed_base": 2000,
+  "games_scanned": 6000,
+  "scanned_new": 3419,
+  "skipped_dup_in_gold": 0,
+  "positives_seen": 2018,
+  "violations_dropped": 0,
+  "tier_targets": {
+    "T1": 16,
+    "T2": 16,
+    "T3": 32,
+    "T4": 48
+  },
+  "pool_counts": {
+    "T1": 435,
+    "T2": 642,
+    "T3": 455,
+    "T4": 486
+  },
+  "selected_per_tier": {
+    "T1": 16,
+    "T2": 16,
+    "T3": 32,
+    "T4": 48
+  },
+  "cell_coverage": {
+    "T1": {
+      "A1": 2,
+      "A2": 2,
+      "B1": 2,
+      "C1": 2,
+      "E1": 2,
+      "F1": 2,
+      "S1": 2,
+      "X1": 2
+    },
+    "T2": {
+      "A1": 2,
+      "A2": 2,
+      "B1": 2,
+      "C1": 2,
+      "E1": 2,
+      "F1": 2,
+      "S1": 2,
+      "X1": 2
+    },
+    "T3": {
+      "A1": 4,
+      "A2": 4,
+      "B1": 4,
+      "C1": 4,
+      "E1": 4,
+      "F1": 4,
+      "S1": 4,
+      "X1": 4
+    },
+    "T4": {
+      "A1": 6,
+      "A2": 6,
+      "B1": 6,
+      "C1": 6,
+      "E1": 6,
+      "F1": 6,
+      "S1": 6,
+      "X1": 6
+    }
+  },
+  "cell_floor": 1,
+  "s1_cap_per_tier": 8,
+  "total_selected": 112,
+  "export_dir": "/root/agent-arena/.agent/skills/piloting_starmie_froslass/logs/review_manual/expert_gold_v1_approved",
+  "files": [
+    {
+      "file": "pack01_01_seed4648_positive.log",
+      "seed": 4648,
+      "tier": "T1",
+      "archetype": "A1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "R1-T1",
+        "REC-F-C"
+      ]
+    },
+    {
+      "file": "pack01_02_seed2801_positive.log",
+      "seed": 2801,
+      "tier": "T1",
+      "archetype": "A1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_03_seed2220_positive.log",
+      "seed": 2220,
+      "tier": "T1",
+      "archetype": "A2",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "R1-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_04_seed2777_positive.log",
+      "seed": 2777,
+      "tier": "T1",
+      "archetype": "A2",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "R1-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_05_seed4174_positive.log",
+      "seed": 4174,
+      "tier": "T1",
+      "archetype": "B1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_06_seed5349_positive.log",
+      "seed": 5349,
+      "tier": "T1",
+      "archetype": "B1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "R1-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_07_seed2946_positive.log",
+      "seed": 2946,
+      "tier": "T1",
+      "archetype": "C1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_08_seed4313_positive.log",
+      "seed": 4313,
+      "tier": "T1",
+      "archetype": "C1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_09_seed2606_positive.log",
+      "seed": 2606,
+      "tier": "T1",
+      "archetype": "E1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_10_seed2519_positive.log",
+      "seed": 2519,
+      "tier": "T1",
+      "archetype": "E1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_11_seed4286_positive.log",
+      "seed": 4286,
+      "tier": "T1",
+      "archetype": "F1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "R1-T1",
+        "REC-F-C"
+      ]
+    },
+    {
+      "file": "pack01_12_seed2505_positive.log",
+      "seed": 2505,
+      "tier": "T1",
+      "archetype": "F1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_13_seed4258_positive.log",
+      "seed": 4258,
+      "tier": "T1",
+      "archetype": "S1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "R1-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_14_seed3045_positive.log",
+      "seed": 3045,
+      "tier": "T1",
+      "archetype": "S1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "R1-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_15_seed4546_positive.log",
+      "seed": 4546,
+      "tier": "T1",
+      "archetype": "X1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_16_seed5155_positive.log",
+      "seed": 5155,
+      "tier": "T1",
+      "archetype": "X1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "R1-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_17_seed5270_positive.log",
+      "seed": 5270,
+      "tier": "T2",
+      "archetype": "A1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "R1-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_18_seed2785_positive.log",
+      "seed": 2785,
+      "tier": "T2",
+      "archetype": "A1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "R1-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_19_seed5198_positive.log",
+      "seed": 5198,
+      "tier": "T2",
+      "archetype": "A2",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_20_seed4871_positive.log",
+      "seed": 4871,
+      "tier": "T2",
+      "archetype": "A2",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_21_seed2132_positive.log",
+      "seed": 2132,
+      "tier": "T2",
+      "archetype": "B1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "R1-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_22_seed3269_positive.log",
+      "seed": 3269,
+      "tier": "T2",
+      "archetype": "B1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "R1-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_23_seed2416_positive.log",
+      "seed": 2416,
+      "tier": "T2",
+      "archetype": "C1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_24_seed3135_positive.log",
+      "seed": 3135,
+      "tier": "T2",
+      "archetype": "C1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "LILLIE-T2"
+      ]
+    },
+    {
+      "file": "pack01_25_seed4778_positive.log",
+      "seed": 4778,
+      "tier": "T2",
+      "archetype": "E1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "R1-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_26_seed3691_positive.log",
+      "seed": 3691,
+      "tier": "T2",
+      "archetype": "E1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "R1-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_27_seed5256_positive.log",
+      "seed": 5256,
+      "tier": "T2",
+      "archetype": "F1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "R1-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_28_seed4567_positive.log",
+      "seed": 4567,
+      "tier": "T2",
+      "archetype": "F1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "R1-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_29_seed2634_positive.log",
+      "seed": 2634,
+      "tier": "T2",
+      "archetype": "S1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "LILLIE-T2"
+      ]
+    },
+    {
+      "file": "pack01_30_seed3997_positive.log",
+      "seed": 3997,
+      "tier": "T2",
+      "archetype": "S1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_31_seed4680_positive.log",
+      "seed": 4680,
+      "tier": "T2",
+      "archetype": "X1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "R1-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_32_seed4199_positive.log",
+      "seed": 4199,
+      "tier": "T2",
+      "archetype": "X1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_33_seed2570_positive.log",
+      "seed": 2570,
+      "tier": "T3",
+      "archetype": "A1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_34_seed2337_positive.log",
+      "seed": 2337,
+      "tier": "T3",
+      "archetype": "A1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "R1-T1",
+        "REC-F-C"
+      ]
+    },
+    {
+      "file": "pack01_35_seed2444_positive.log",
+      "seed": 2444,
+      "tier": "T3",
+      "archetype": "A1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_36_seed3579_positive.log",
+      "seed": 3579,
+      "tier": "T3",
+      "archetype": "A1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_37_seed4092_positive.log",
+      "seed": 4092,
+      "tier": "T3",
+      "archetype": "A2",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "LILLIE-T2"
+      ]
+    },
+    {
+      "file": "pack01_38_seed4193_positive.log",
+      "seed": 4193,
+      "tier": "T3",
+      "archetype": "A2",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-B"
+      ]
+    },
+    {
+      "file": "pack01_39_seed5218_positive.log",
+      "seed": 5218,
+      "tier": "T3",
+      "archetype": "A2",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_40_seed5315_positive.log",
+      "seed": 5315,
+      "tier": "T3",
+      "archetype": "A2",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "PAD-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_41_seed3118_positive.log",
+      "seed": 3118,
+      "tier": "T3",
+      "archetype": "B1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_42_seed5237_positive.log",
+      "seed": 5237,
+      "tier": "T3",
+      "archetype": "B1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "PAD-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_43_seed3642_positive.log",
+      "seed": 3642,
+      "tier": "T3",
+      "archetype": "B1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_44_seed4449_positive.log",
+      "seed": 4449,
+      "tier": "T3",
+      "archetype": "B1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "R1-T1",
+        "REC-F-C"
+      ]
+    },
+    {
+      "file": "pack01_45_seed4794_positive.log",
+      "seed": 4794,
+      "tier": "T3",
+      "archetype": "C1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_46_seed4231_positive.log",
+      "seed": 4231,
+      "tier": "T3",
+      "archetype": "C1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_47_seed5038_positive.log",
+      "seed": 5038,
+      "tier": "T3",
+      "archetype": "C1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_48_seed5407_positive.log",
+      "seed": 5407,
+      "tier": "T3",
+      "archetype": "C1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_49_seed4612_positive.log",
+      "seed": 4612,
+      "tier": "T3",
+      "archetype": "E1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_50_seed2209_positive.log",
+      "seed": 2209,
+      "tier": "T3",
+      "archetype": "E1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "R1-T1",
+        "REC-F-C"
+      ]
+    },
+    {
+      "file": "pack01_51_seed4594_positive.log",
+      "seed": 4594,
+      "tier": "T3",
+      "archetype": "E1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_52_seed4821_positive.log",
+      "seed": 4821,
+      "tier": "T3",
+      "archetype": "E1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-C"
+      ]
+    },
+    {
+      "file": "pack01_53_seed4822_positive.log",
+      "seed": 4822,
+      "tier": "T3",
+      "archetype": "F1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_54_seed4107_positive.log",
+      "seed": 4107,
+      "tier": "T3",
+      "archetype": "F1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_55_seed3492_positive.log",
+      "seed": 3492,
+      "tier": "T3",
+      "archetype": "F1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_56_seed4923_positive.log",
+      "seed": 4923,
+      "tier": "T3",
+      "archetype": "F1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_57_seed5178_positive.log",
+      "seed": 5178,
+      "tier": "T3",
+      "archetype": "S1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_58_seed2713_positive.log",
+      "seed": 2713,
+      "tier": "T3",
+      "archetype": "S1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_59_seed2908_positive.log",
+      "seed": 2908,
+      "tier": "T3",
+      "archetype": "S1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-D"
+      ]
+    },
+    {
+      "file": "pack01_60_seed5379_positive.log",
+      "seed": 5379,
+      "tier": "T3",
+      "archetype": "S1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "LILLIE-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_61_seed3928_positive.log",
+      "seed": 3928,
+      "tier": "T3",
+      "archetype": "X1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_62_seed5283_positive.log",
+      "seed": 5283,
+      "tier": "T3",
+      "archetype": "X1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "LILLIE-T1",
+        "GREEDY-T2"
+      ]
+    },
+    {
+      "file": "pack01_63_seed3476_positive.log",
+      "seed": 3476,
+      "tier": "T3",
+      "archetype": "X1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_64_seed3567_positive.log",
+      "seed": 3567,
+      "tier": "T3",
+      "archetype": "X1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-C"
+      ]
+    },
+    {
+      "file": "pack01_65_seed5076_positive.log",
+      "seed": 5076,
+      "tier": "T4",
+      "archetype": "A1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "POFFIN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_66_seed3935_positive.log",
+      "seed": 3935,
+      "tier": "T4",
+      "archetype": "A1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "MEOWTH-T1",
+        "REC-F-D"
+      ]
+    },
+    {
+      "file": "pack01_67_seed3918_positive.log",
+      "seed": 3918,
+      "tier": "T4",
+      "archetype": "A1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_68_seed2259_positive.log",
+      "seed": 2259,
+      "tier": "T4",
+      "archetype": "A1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "MEOWTH-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_69_seed3150_positive.log",
+      "seed": 3150,
+      "tier": "T4",
+      "archetype": "A1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_70_seed4549_positive.log",
+      "seed": 4549,
+      "tier": "T4",
+      "archetype": "A1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "GREEDY-T2"
+      ]
+    },
+    {
+      "file": "pack01_71_seed3290_positive.log",
+      "seed": 3290,
+      "tier": "T4",
+      "archetype": "A2",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "LILLIE-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_72_seed2009_positive.log",
+      "seed": 2009,
+      "tier": "T4",
+      "archetype": "A2",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_73_seed2666_positive.log",
+      "seed": 2666,
+      "tier": "T4",
+      "archetype": "A2",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_74_seed2461_positive.log",
+      "seed": 2461,
+      "tier": "T4",
+      "archetype": "A2",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_75_seed4830_positive.log",
+      "seed": 4830,
+      "tier": "T4",
+      "archetype": "A2",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_76_seed4115_positive.log",
+      "seed": 4115,
+      "tier": "T4",
+      "archetype": "A2",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_77_seed2516_positive.log",
+      "seed": 2516,
+      "tier": "T4",
+      "archetype": "B1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "LILLIE-T2"
+      ]
+    },
+    {
+      "file": "pack01_78_seed2971_positive.log",
+      "seed": 2971,
+      "tier": "T4",
+      "archetype": "B1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-C"
+      ]
+    },
+    {
+      "file": "pack01_79_seed2854_positive.log",
+      "seed": 2854,
+      "tier": "T4",
+      "archetype": "B1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "LILLIE-T2"
+      ]
+    },
+    {
+      "file": "pack01_80_seed4583_positive.log",
+      "seed": 4583,
+      "tier": "T4",
+      "archetype": "B1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_81_seed4014_positive.log",
+      "seed": 4014,
+      "tier": "T4",
+      "archetype": "B1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "LILLIE-T2"
+      ]
+    },
+    {
+      "file": "pack01_82_seed4625_positive.log",
+      "seed": 4625,
+      "tier": "T4",
+      "archetype": "B1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "LILLIE-T1",
+        "REC-F-C"
+      ]
+    },
+    {
+      "file": "pack01_83_seed2412_positive.log",
+      "seed": 2412,
+      "tier": "T4",
+      "archetype": "C1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_84_seed3905_positive.log",
+      "seed": 3905,
+      "tier": "T4",
+      "archetype": "C1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-B"
+      ]
+    },
+    {
+      "file": "pack01_85_seed3426_positive.log",
+      "seed": 3426,
+      "tier": "T4",
+      "archetype": "C1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_86_seed4451_positive.log",
+      "seed": 4451,
+      "tier": "T4",
+      "archetype": "C1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "PAD-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_87_seed3368_positive.log",
+      "seed": 3368,
+      "tier": "T4",
+      "archetype": "C1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "LILLIE-T2"
+      ]
+    },
+    {
+      "file": "pack01_88_seed3645_positive.log",
+      "seed": 3645,
+      "tier": "T4",
+      "archetype": "C1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "PAD-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_89_seed4982_positive.log",
+      "seed": 4982,
+      "tier": "T4",
+      "archetype": "E1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_90_seed2149_positive.log",
+      "seed": 2149,
+      "tier": "T4",
+      "archetype": "E1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-C"
+      ]
+    },
+    {
+      "file": "pack01_91_seed3844_positive.log",
+      "seed": 3844,
+      "tier": "T4",
+      "archetype": "E1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "GREEDY-T2"
+      ]
+    },
+    {
+      "file": "pack01_92_seed5309_positive.log",
+      "seed": 5309,
+      "tier": "T4",
+      "archetype": "E1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_93_seed3120_positive.log",
+      "seed": 3120,
+      "tier": "T4",
+      "archetype": "E1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_94_seed3639_positive.log",
+      "seed": 3639,
+      "tier": "T4",
+      "archetype": "E1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_95_seed2898_positive.log",
+      "seed": 2898,
+      "tier": "T4",
+      "archetype": "F1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "FAN-T1",
+        "GREEDY-T2"
+      ]
+    },
+    {
+      "file": "pack01_96_seed2105_positive.log",
+      "seed": 2105,
+      "tier": "T4",
+      "archetype": "F1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "WATER-T2"
+      ]
+    },
+    {
+      "file": "pack01_97_seed5323_positive.log",
+      "seed": 5323,
+      "tier": "T4",
+      "archetype": "F1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_98_seed3581_positive.log",
+      "seed": 3581,
+      "tier": "T4",
+      "archetype": "F1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "LILLIE-T2"
+      ]
+    },
+    {
+      "file": "pack01_99_seed3537_positive.log",
+      "seed": 3537,
+      "tier": "T4",
+      "archetype": "F1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_100_seed2655_positive.log",
+      "seed": 2655,
+      "tier": "T4",
+      "archetype": "F1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "POFFIN-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_101_seed2264_positive.log",
+      "seed": 2264,
+      "tier": "T4",
+      "archetype": "S1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "GREEDY-T2"
+      ]
+    },
+    {
+      "file": "pack01_102_seed5143_positive.log",
+      "seed": 5143,
+      "tier": "T4",
+      "archetype": "S1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "LILLIE-T2"
+      ]
+    },
+    {
+      "file": "pack01_103_seed3060_positive.log",
+      "seed": 3060,
+      "tier": "T4",
+      "archetype": "S1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "GREEDY-T2"
+      ]
+    },
+    {
+      "file": "pack01_104_seed2599_positive.log",
+      "seed": 2599,
+      "tier": "T4",
+      "archetype": "S1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-B"
+      ]
+    },
+    {
+      "file": "pack01_105_seed5134_positive.log",
+      "seed": 5134,
+      "tier": "T4",
+      "archetype": "S1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_106_seed4485_positive.log",
+      "seed": 4485,
+      "tier": "T4",
+      "archetype": "S1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "GREEDY-T2"
+      ]
+    },
+    {
+      "file": "pack01_107_seed2046_positive.log",
+      "seed": 2046,
+      "tier": "T4",
+      "archetype": "X1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "LILLIE-T2"
+      ]
+    },
+    {
+      "file": "pack01_108_seed2859_positive.log",
+      "seed": 2859,
+      "tier": "T4",
+      "archetype": "X1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "LILLIE-T1",
+        "REC-F-D"
+      ]
+    },
+    {
+      "file": "pack01_109_seed2716_positive.log",
+      "seed": 2716,
+      "tier": "T4",
+      "archetype": "X1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "LILLIE-T2"
+      ]
+    },
+    {
+      "file": "pack01_110_seed4317_positive.log",
+      "seed": 4317,
+      "tier": "T4",
+      "archetype": "X1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_111_seed3234_positive.log",
+      "seed": 3234,
+      "tier": "T4",
+      "archetype": "X1",
+      "going_first": true,
+      "final_turn": 2,
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ]
+    },
+    {
+      "file": "pack01_112_seed2953_positive.log",
+      "seed": 2953,
+      "tier": "T4",
+      "archetype": "X1",
+      "going_first": false,
+      "final_turn": 2,
+      "routes": [
+        "LILLIE-T1",
+        "REC-F-D"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "generated_at": "2026-07-02T22:26:48",
+  "ckpt": "/root/agent-arena/data/opening_sft/sft_mlp.pt",
+  "seed_base": 5000,
+  "n_seeds": 60,
+  "modes": [
+    "sft",
+    "hybrid",
+    "planner"
+  ],
+  "results": {
+    "sft": {
+      "goal": 29,
+      "n": 60,
+      "rate": 0.48333333333333334,
+      "going_first": {
+        "goal": 18,
+        "n": 30,
+        "rate": 0.6
+      },
+      "going_second": {
+        "goal": 11,
+        "n": 30,
+        "rate": 0.36666666666666664
+      },
+      "vs_planner": {
+        "both": 28,
+        "self_only": 1,
+        "planner_only": 16
+      }
+    },
+    "hybrid": {
+      "goal": 45,
+      "n": 60,
+      "rate": 0.75,
+      "going_first": {
+        "goal": 24,
+        "n": 30,
+        "rate": 0.8
+      },
+      "going_second": {
+        "goal": 21,
+        "n": 30,
+        "rate": 0.7
+      },
+      "sft_turns": 93,
+      "planner_turns": 38,
+      "sft_turn_share": 0.7099236641221374,
+      "vs_planner": {
+        "both": 42,
+        "self_only": 3,
+        "planner_only": 2
+      }
+    },
+    "planner": {
+      "goal": 44,
+      "n": 60,
+      "rate": 0.7333333333333333,
+      "going_first": {
+        "goal": 22,
+        "n": 30,
+        "rate": 0.7333333333333333
+      },
+      "going_second": {
+        "goal": 22,
+        "n": 30,
+        "rate": 0.7333333333333333
+      },
+      "miss_distribution": {
+        "F-E": 3,
+        "F-B": 4,
+        "F-F": 4,
+        "F-C": 2,
+        "F-D": 3
+      }
+    }
+  }
+}

@@ -1,0 +1,561 @@
+{
+  "summary": {
+    "generated_at": "2026-06-28T00:13:37",
+    "games_scanned": 500,
+    "seed_base": 0,
+    "turn_limit": "先攻3 / 后攻2 (seed%2)",
+    "sample_fraction": 0.1,
+    "export_limit": 50,
+    "pack_size": 10,
+    "n_packs": 5,
+    "ratio": "6:3:1 (negative:to_optimize:positive)",
+    "quota_target": {
+      "negative": 30,
+      "to_optimize": 15,
+      "positive": 5
+    },
+    "kpi": {
+      "goal": 0,
+      "violations": 0,
+      "going_first": 250,
+      "going_second": 250,
+      "goal_rate": 0.0,
+      "violation_rate": 0.0
+    },
+    "skipped_unclassified": 0,
+    "pool_counts": {
+      "negative": 500,
+      "to_optimize": 0,
+      "positive": 0
+    },
+    "exported": 30,
+    "exported_counts": {
+      "negative": 30,
+      "to_optimize": 0,
+      "positive": 0
+    },
+    "export_dir": "/root/agent-arena/.agent/skills/piloting_starmie_froslass/logs/review_manual/20260628_001337"
+  },
+  "review_batch": [
+    {
+      "seed": 164,
+      "sample_label": "negative",
+      "category": "FAIL_T3_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 3,
+      "archetype": "E1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R6-T1",
+        "R5-REC",
+        "R5-REC"
+      ],
+      "file": "pack01_01_seed164_negative.log",
+      "pack": 1
+    },
+    {
+      "seed": 383,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 2,
+      "archetype": "F1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R3-T1",
+        "R5-REC"
+      ],
+      "file": "pack01_02_seed383_negative.log",
+      "pack": 1
+    },
+    {
+      "seed": 45,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 2,
+      "archetype": "F1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R3b-T1",
+        "R2-REC"
+      ],
+      "file": "pack01_03_seed45_negative.log",
+      "pack": 1
+    },
+    {
+      "seed": 156,
+      "sample_label": "negative",
+      "category": "FAIL_T3_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 3,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R3-T1",
+        "R5-REC",
+        "R5-REC"
+      ],
+      "file": "pack01_04_seed156_negative.log",
+      "pack": 1
+    },
+    {
+      "seed": 53,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 2,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R3b-T1",
+        "R3-REC"
+      ],
+      "file": "pack01_05_seed53_negative.log",
+      "pack": 1
+    },
+    {
+      "seed": 72,
+      "sample_label": "negative",
+      "category": "FAIL_T3_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 3,
+      "archetype": "A1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R4-T1",
+        "R-IDLE-REC",
+        "R-IDLE-REC"
+      ],
+      "file": "pack01_06_seed72_negative.log",
+      "pack": 1
+    },
+    {
+      "seed": 315,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 2,
+      "archetype": "C1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R3-T1",
+        "R5-REC"
+      ],
+      "file": "pack02_01_seed315_negative.log",
+      "pack": 2
+    },
+    {
+      "seed": 209,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-D",
+      "goal": false,
+      "miss_class": "F-D",
+      "final_turn": 2,
+      "archetype": "S1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R5-T1",
+        "R5-REC"
+      ],
+      "file": "pack02_02_seed209_negative.log",
+      "pack": 2
+    },
+    {
+      "seed": 74,
+      "sample_label": "negative",
+      "category": "FAIL_T3_F-D",
+      "goal": false,
+      "miss_class": "F-D",
+      "final_turn": 3,
+      "archetype": "S1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R7-T1",
+        "R3b-REC",
+        "R3b-REC"
+      ],
+      "file": "pack02_03_seed74_negative.log",
+      "pack": 2
+    },
+    {
+      "seed": 333,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-C",
+      "goal": false,
+      "miss_class": "F-C",
+      "final_turn": 2,
+      "archetype": "S1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R7-T1",
+        "R4b-REC"
+      ],
+      "file": "pack02_04_seed333_negative.log",
+      "pack": 2
+    },
+    {
+      "seed": 403,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-C",
+      "goal": false,
+      "miss_class": "F-C",
+      "final_turn": 2,
+      "archetype": "S1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R5-T1",
+        "R4-REC"
+      ],
+      "file": "pack02_05_seed403_negative.log",
+      "pack": 2
+    },
+    {
+      "seed": 415,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-D",
+      "goal": false,
+      "miss_class": "F-D",
+      "final_turn": 2,
+      "archetype": "S1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R-Lillie-T1",
+        "R5-REC"
+      ],
+      "file": "pack02_06_seed415_negative.log",
+      "pack": 2
+    },
+    {
+      "seed": 92,
+      "sample_label": "negative",
+      "category": "FAIL_T3_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 3,
+      "archetype": "C1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R2-T1",
+        "R2-REC",
+        "R2-REC"
+      ],
+      "file": "pack03_01_seed92_negative.log",
+      "pack": 3
+    },
+    {
+      "seed": 215,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 2,
+      "archetype": "A1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R4-T1",
+        "R5-REC"
+      ],
+      "file": "pack03_02_seed215_negative.log",
+      "pack": 3
+    },
+    {
+      "seed": 479,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 2,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R2-T1",
+        "R5-REC"
+      ],
+      "file": "pack03_03_seed479_negative.log",
+      "pack": 3
+    },
+    {
+      "seed": 59,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 2,
+      "archetype": "A1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R3b-T1",
+        "R3-REC"
+      ],
+      "file": "pack03_04_seed59_negative.log",
+      "pack": 3
+    },
+    {
+      "seed": 368,
+      "sample_label": "negative",
+      "category": "FAIL_T3_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 3,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R2-T1",
+        "R2-REC",
+        "R2-REC"
+      ],
+      "file": "pack03_05_seed368_negative.log",
+      "pack": 3
+    },
+    {
+      "seed": 163,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 2,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R-IDLE-T1",
+        "R5-REC"
+      ],
+      "file": "pack03_06_seed163_negative.log",
+      "pack": 3
+    },
+    {
+      "seed": 210,
+      "sample_label": "negative",
+      "category": "FAIL_T3_F-D",
+      "goal": false,
+      "miss_class": "F-D",
+      "final_turn": 3,
+      "archetype": "S1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R5-T1",
+        "R5-REC",
+        "R5-REC"
+      ],
+      "file": "pack04_01_seed210_negative.log",
+      "pack": 4
+    },
+    {
+      "seed": 251,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 2,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R3-T1",
+        "R5-REC"
+      ],
+      "file": "pack04_02_seed251_negative.log",
+      "pack": 4
+    },
+    {
+      "seed": 443,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 2,
+      "archetype": "C1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R3b-T1",
+        "R5-REC"
+      ],
+      "file": "pack04_03_seed443_negative.log",
+      "pack": 4
+    },
+    {
+      "seed": 320,
+      "sample_label": "negative",
+      "category": "FAIL_T3_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 3,
+      "archetype": "C1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R-IDLE-T1",
+        "R-Lillie-REC",
+        "R-Lillie-REC"
+      ],
+      "file": "pack04_04_seed320_negative.log",
+      "pack": 4
+    },
+    {
+      "seed": 289,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 2,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R3b-T1",
+        "R2-REC"
+      ],
+      "file": "pack04_05_seed289_negative.log",
+      "pack": 4
+    },
+    {
+      "seed": 389,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-D",
+      "goal": false,
+      "miss_class": "F-D",
+      "final_turn": 2,
+      "archetype": "S1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R5-T1",
+        "R5-REC"
+      ],
+      "file": "pack04_06_seed389_negative.log",
+      "pack": 4
+    },
+    {
+      "seed": 7,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 2,
+      "archetype": "C1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R2-T1",
+        "R2-REC"
+      ],
+      "file": "pack05_01_seed7_negative.log",
+      "pack": 5
+    },
+    {
+      "seed": 462,
+      "sample_label": "negative",
+      "category": "FAIL_T3_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 3,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R3b-T1",
+        "R3-REC",
+        "R5-REC"
+      ],
+      "file": "pack05_02_seed462_negative.log",
+      "pack": 5
+    },
+    {
+      "seed": 249,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 2,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R-Lillie-T1",
+        "R-Lillie-REC"
+      ],
+      "file": "pack05_03_seed249_negative.log",
+      "pack": 5
+    },
+    {
+      "seed": 228,
+      "sample_label": "negative",
+      "category": "FAIL_T3_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 3,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R-IDLE-T1",
+        "R-IDLE-REC",
+        "R-IDLE-REC"
+      ],
+      "file": "pack05_04_seed228_negative.log",
+      "pack": 5
+    },
+    {
+      "seed": 245,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-D",
+      "goal": false,
+      "miss_class": "F-D",
+      "final_turn": 2,
+      "archetype": "S1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R5-T1",
+        "R5-REC"
+      ],
+      "file": "pack05_05_seed245_negative.log",
+      "pack": 5
+    },
+    {
+      "seed": 211,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 2,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R3-T1",
+        "R5-REC"
+      ],
+      "file": "pack05_06_seed211_negative.log",
+      "pack": 5
+    }
+  ]
+}

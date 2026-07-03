@@ -1,0 +1,29 @@
+{
+  "n_slices": 1625,
+  "by_kind": {
+    "SETUP_ACTIVE": 166,
+    "PLAY_POFFIN": 62,
+    "ATTACH": 244,
+    "ABILITY_FAN_CALL": 82,
+    "PLAY_POKEMON": 301,
+    "EVOLVE": 191,
+    "RETREAT": 124,
+    "PLAY_HILDA": 97,
+    "PLAY_POKE_PAD": 106,
+    "ABILITY_RUN_AWAY": 40,
+    "PLAY_LILLIE": 46,
+    "PLAY_ULTRA_BALL": 79,
+    "ABILITY_LAST_DITCH": 41,
+    "PLAY_CRISPIN": 11,
+    "PLAY_SALVATOR": 10,
+    "PLAY_SWITCH": 3,
+    "PLAY_JUDGE": 6,
+    "PLAY_NIGHT_STRETCHER": 2,
+    "SETUP_BENCH": 14
+  },
+  "by_source": {
+    "expert_edited": 545,
+    "approved_sim": 1080
+  },
+  "n_kinds": 19
+}

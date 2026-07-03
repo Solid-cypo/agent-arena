@@ -1,0 +1,999 @@
+{
+  "summary": {
+    "generated_at": "2026-06-28T09:14:10",
+    "games_scanned": 500,
+    "seed_base": 0,
+    "turn_limit": "先攻3 / 后攻2 (seed%2)",
+    "sample_fraction": 0.1,
+    "export_limit": 50,
+    "pack_size": 10,
+    "n_packs": 5,
+    "ratio": "6:3:1 (negative:to_optimize:positive)",
+    "quota_target": {
+      "negative": 30,
+      "to_optimize": 15,
+      "positive": 5
+    },
+    "kpi": {
+      "goal": 314,
+      "violations": 0,
+      "going_first": 250,
+      "going_second": 250,
+      "goal_rate": 0.628,
+      "violation_rate": 0.0
+    },
+    "skipped_unclassified": 0,
+    "pool_counts": {
+      "negative": 186,
+      "to_optimize": 42,
+      "positive": 272
+    },
+    "exported": 50,
+    "exported_counts": {
+      "negative": 30,
+      "to_optimize": 15,
+      "positive": 5
+    },
+    "export_dir": "/root/agent-arena/.agent/skills/piloting_starmie_froslass/logs/review_manual/20260628_091403"
+  },
+  "review_batch": [
+    {
+      "seed": 7,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-C",
+      "goal": false,
+      "miss_class": "F-C",
+      "final_turn": 2,
+      "archetype": "C1",
+      "violations": [],
+      "blocked_notes": [
+        "本回合因手牌无水能量，跳过附着能量。"
+      ],
+      "routes": [
+        "GREEDY-T1",
+        "GREEDY-T2"
+      ],
+      "file": "pack01_01_seed7_negative.log",
+      "pack": 1
+    },
+    {
+      "seed": 38,
+      "sample_label": "negative",
+      "category": "FAIL_T3_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 3,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "GREEDY-T1",
+        "GREEDY-T2",
+        "GREEDY-T2"
+      ],
+      "file": "pack01_02_seed38_negative.log",
+      "pack": 1
+    },
+    {
+      "seed": 357,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-B",
+      "goal": false,
+      "miss_class": "F-B",
+      "final_turn": 2,
+      "archetype": "A1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "FAN-T1",
+        "GREEDY-T2"
+      ],
+      "file": "pack01_03_seed357_negative.log",
+      "pack": 1
+    },
+    {
+      "seed": 282,
+      "sample_label": "negative",
+      "category": "FAIL_T3_F-D",
+      "goal": false,
+      "miss_class": "F-D",
+      "final_turn": 3,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [
+        "本回合因手牌无水能量，跳过附着能量。"
+      ],
+      "routes": [
+        "GREEDY-T1",
+        "GREEDY-T2",
+        "REC-F-E"
+      ],
+      "file": "pack01_04_seed282_negative.log",
+      "pack": 1
+    },
+    {
+      "seed": 419,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-C",
+      "goal": false,
+      "miss_class": "F-C",
+      "final_turn": 2,
+      "archetype": "A1",
+      "violations": [],
+      "blocked_notes": [
+        "无法将超级进化宝可梦换上战斗场（手牌无交替）。",
+        "本回合因手牌无水能量，跳过附着能量。"
+      ],
+      "routes": [
+        "FAN-T1",
+        "REC-F-A"
+      ],
+      "file": "pack01_05_seed419_negative.log",
+      "pack": 1
+    },
+    {
+      "seed": 106,
+      "sample_label": "negative",
+      "category": "FAIL_T3_F-C",
+      "goal": false,
+      "miss_class": "F-C",
+      "final_turn": 3,
+      "archetype": "S1",
+      "violations": [],
+      "blocked_notes": [
+        "本回合因手牌无水能量，跳过附着能量。"
+      ],
+      "routes": [
+        "GREEDY-T1",
+        "GREEDY-T2",
+        "GREEDY-T2"
+      ],
+      "file": "pack01_06_seed106_negative.log",
+      "pack": 1
+    },
+    {
+      "seed": 176,
+      "sample_label": "to_optimize",
+      "category": "SLOW_T3",
+      "goal": true,
+      "miss_class": "OK",
+      "final_turn": 3,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [
+        "本回合因手牌无水能量，跳过附着能量。",
+        "无法将超级进化宝可梦换上战斗场（手牌无交替）。"
+      ],
+      "routes": [
+        "GREEDY-T1",
+        "GREEDY-T2",
+        "GREEDY-T2"
+      ],
+      "file": "pack01_07_seed176_to_optimize.log",
+      "pack": 1
+    },
+    {
+      "seed": 70,
+      "sample_label": "to_optimize",
+      "category": "SLOW_T3",
+      "goal": true,
+      "miss_class": "OK",
+      "final_turn": 3,
+      "archetype": "A1",
+      "violations": [],
+      "blocked_notes": [
+        "本回合因手牌无水能量，跳过附着能量。",
+        "无法将超级进化宝可梦换上战斗场（手牌无交替）。"
+      ],
+      "routes": [
+        "LILLIE-T1",
+        "LILLIE-T2",
+        "GREEDY-T2"
+      ],
+      "file": "pack01_08_seed70_to_optimize.log",
+      "pack": 1
+    },
+    {
+      "seed": 24,
+      "sample_label": "to_optimize",
+      "category": "SLOW_T3",
+      "goal": true,
+      "miss_class": "OK",
+      "final_turn": 3,
+      "archetype": "F1",
+      "violations": [],
+      "blocked_notes": [
+        "Supporter blocked: 希尔达 (first-turn going-first (E-SUP-1))",
+        "无法将超级进化宝可梦换上战斗场（手牌无交替）。"
+      ],
+      "routes": [
+        "GREEDY-T1",
+        "GREEDY-T2",
+        "REC-F-A"
+      ],
+      "file": "pack01_09_seed24_to_optimize.log",
+      "pack": 1
+    },
+    {
+      "seed": 457,
+      "sample_label": "positive",
+      "category": "CLEAN_T2",
+      "goal": true,
+      "miss_class": "OK",
+      "final_turn": 2,
+      "archetype": "C1",
+      "violations": [],
+      "blocked_notes": [
+        "无法将超级进化宝可梦换上战斗场（手牌无交替）。"
+      ],
+      "routes": [
+        "R1-T1",
+        "REC-F-A"
+      ],
+      "file": "pack01_10_seed457_positive.log",
+      "pack": 1
+    },
+    {
+      "seed": 477,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-B",
+      "goal": false,
+      "miss_class": "F-B",
+      "final_turn": 2,
+      "archetype": "A1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "FAN-T1",
+        "LILLIE-T2"
+      ],
+      "file": "pack02_01_seed477_negative.log",
+      "pack": 2
+    },
+    {
+      "seed": 209,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-B",
+      "goal": false,
+      "miss_class": "F-B",
+      "final_turn": 2,
+      "archetype": "S1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "GREEDY-T1",
+        "GREEDY-T2"
+      ],
+      "file": "pack02_02_seed209_negative.log",
+      "pack": 2
+    },
+    {
+      "seed": 494,
+      "sample_label": "negative",
+      "category": "FAIL_T3_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 3,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-E",
+        "GREEDY-T2"
+      ],
+      "file": "pack02_03_seed494_negative.log",
+      "pack": 2
+    },
+    {
+      "seed": 37,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-C",
+      "goal": false,
+      "miss_class": "F-C",
+      "final_turn": 2,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [
+        "本回合因手牌无水能量，跳过附着能量。"
+      ],
+      "routes": [
+        "GREEDY-T1",
+        "GREEDY-T2"
+      ],
+      "file": "pack02_04_seed37_negative.log",
+      "pack": 2
+    },
+    {
+      "seed": 435,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-B",
+      "goal": false,
+      "miss_class": "F-B",
+      "final_turn": 2,
+      "archetype": "E1",
+      "violations": [],
+      "blocked_notes": [
+        "本回合因手牌无水能量，跳过附着能量。"
+      ],
+      "routes": [
+        "FAN-T1",
+        "LILLIE-T2"
+      ],
+      "file": "pack02_05_seed435_negative.log",
+      "pack": 2
+    },
+    {
+      "seed": 40,
+      "sample_label": "negative",
+      "category": "FAIL_T3_F-B",
+      "goal": false,
+      "miss_class": "F-B",
+      "final_turn": 3,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "FAN-T1",
+        "GREEDY-T2",
+        "GREEDY-T2"
+      ],
+      "file": "pack02_06_seed40_negative.log",
+      "pack": 2
+    },
+    {
+      "seed": 260,
+      "sample_label": "to_optimize",
+      "category": "SLOW_T3",
+      "goal": true,
+      "miss_class": "OK",
+      "final_turn": 3,
+      "archetype": "A1",
+      "violations": [],
+      "blocked_notes": [
+        "无法将超级进化宝可梦换上战斗场（手牌无交替）。"
+      ],
+      "routes": [
+        "FAN-T1",
+        "GREEDY-T2",
+        "GREEDY-T2"
+      ],
+      "file": "pack02_07_seed260_to_optimize.log",
+      "pack": 2
+    },
+    {
+      "seed": 400,
+      "sample_label": "to_optimize",
+      "category": "SLOW_T3",
+      "goal": true,
+      "miss_class": "OK",
+      "final_turn": 3,
+      "archetype": "F1",
+      "violations": [],
+      "blocked_notes": [
+        "无法将超级进化宝可梦换上战斗场（手牌无交替）。"
+      ],
+      "routes": [
+        "GREEDY-T1",
+        "GREEDY-T2",
+        "REC-F-A"
+      ],
+      "file": "pack02_08_seed400_to_optimize.log",
+      "pack": 2
+    },
+    {
+      "seed": 292,
+      "sample_label": "to_optimize",
+      "category": "SLOW_T3",
+      "goal": true,
+      "miss_class": "OK",
+      "final_turn": 3,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [
+        "无法将超级进化宝可梦换上战斗场（手牌无交替）。"
+      ],
+      "routes": [
+        "FAN-T1",
+        "GREEDY-T2",
+        "LILLIE-T2"
+      ],
+      "file": "pack02_09_seed292_to_optimize.log",
+      "pack": 2
+    },
+    {
+      "seed": 387,
+      "sample_label": "positive",
+      "category": "CLEAN_T2",
+      "goal": true,
+      "miss_class": "OK",
+      "final_turn": 2,
+      "archetype": "X1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "MEOWTH-T1",
+        "REC-F-A"
+      ],
+      "file": "pack02_10_seed387_positive.log",
+      "pack": 2
+    },
+    {
+      "seed": 475,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 2,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "GREEDY-T1",
+        "GREEDY-T2"
+      ],
+      "file": "pack03_01_seed475_negative.log",
+      "pack": 3
+    },
+    {
+      "seed": 487,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-F",
+      "goal": false,
+      "miss_class": "F-F",
+      "final_turn": 2,
+      "archetype": "X1",
+      "violations": [],
+      "blocked_notes": [
+        "无法将超级进化宝可梦换上战斗场（手牌无交替）。",
+        "本回合因手牌无水能量，跳过附着能量。"
+      ],
+      "routes": [
+        "R1-T1",
+        "GREEDY-T2"
+      ],
+      "file": "pack03_02_seed487_negative.log",
+      "pack": 3
+    },
+    {
+      "seed": 81,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-D",
+      "goal": false,
+      "miss_class": "F-D",
+      "final_turn": 2,
+      "archetype": "S1",
+      "violations": [],
+      "blocked_notes": [
+        "本回合因手牌无水能量，跳过附着能量。"
+      ],
+      "routes": [
+        "LILLIE-T1",
+        "LILLIE-T2"
+      ],
+      "file": "pack03_03_seed81_negative.log",
+      "pack": 3
+    },
+    {
+      "seed": 114,
+      "sample_label": "negative",
+      "category": "FAIL_T3_F-F",
+      "goal": false,
+      "miss_class": "F-F",
+      "final_turn": 3,
+      "archetype": "C1",
+      "violations": [],
+      "blocked_notes": [
+        "本回合因手牌无水能量，跳过附着能量。",
+        "无法将超级进化宝可梦换上战斗场（手牌无交替）。"
+      ],
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-D",
+        "REC-F-F"
+      ],
+      "file": "pack03_04_seed114_negative.log",
+      "pack": 3
+    },
+    {
+      "seed": 414,
+      "sample_label": "negative",
+      "category": "FAIL_T3_F-C",
+      "goal": false,
+      "miss_class": "F-C",
+      "final_turn": 3,
+      "archetype": "C1",
+      "violations": [],
+      "blocked_notes": [
+        "本回合因手牌无水能量，跳过附着能量。"
+      ],
+      "routes": [
+        "GREEDY-T1",
+        "GREEDY-T2",
+        "REC-F-E"
+      ],
+      "file": "pack03_05_seed414_negative.log",
+      "pack": 3
+    },
+    {
+      "seed": 293,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-C",
+      "goal": false,
+      "miss_class": "F-C",
+      "final_turn": 2,
+      "archetype": "C1",
+      "violations": [],
+      "blocked_notes": [
+        "本回合因手牌无水能量，跳过附着能量。",
+        "无法将超级进化宝可梦换上战斗场（手牌无交替）。"
+      ],
+      "routes": [
+        "GREEDY-T1",
+        "GREEDY-T2"
+      ],
+      "file": "pack03_06_seed293_negative.log",
+      "pack": 3
+    },
+    {
+      "seed": 448,
+      "sample_label": "to_optimize",
+      "category": "SLOW_T3",
+      "goal": true,
+      "miss_class": "OK",
+      "final_turn": 3,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [
+        "无法将超级进化宝可梦换上战斗场（手牌无交替）。"
+      ],
+      "routes": [
+        "GREEDY-T1",
+        "LILLIE-T2",
+        "REC-F-A"
+      ],
+      "file": "pack03_07_seed448_to_optimize.log",
+      "pack": 3
+    },
+    {
+      "seed": 330,
+      "sample_label": "to_optimize",
+      "category": "SLOW_T3",
+      "goal": true,
+      "miss_class": "OK",
+      "final_turn": 3,
+      "archetype": "C1",
+      "violations": [],
+      "blocked_notes": [
+        "Supporter blocked: 希尔达 (first-turn going-first (E-SUP-1))",
+        "无法将超级进化宝可梦换上战斗场（手牌无交替）。"
+      ],
+      "routes": [
+        "GREEDY-T1",
+        "MEOWTH-T2",
+        "REC-F-A"
+      ],
+      "file": "pack03_08_seed330_to_optimize.log",
+      "pack": 3
+    },
+    {
+      "seed": 422,
+      "sample_label": "to_optimize",
+      "category": "SLOW_T3",
+      "goal": true,
+      "miss_class": "OK",
+      "final_turn": 3,
+      "archetype": "S1",
+      "violations": [],
+      "blocked_notes": [
+        "本回合因手牌无水能量，跳过附着能量。"
+      ],
+      "routes": [
+        "GREEDY-T1",
+        "G-BRIDGE-T2",
+        "GREEDY-T2"
+      ],
+      "file": "pack03_09_seed422_to_optimize.log",
+      "pack": 3
+    },
+    {
+      "seed": 115,
+      "sample_label": "positive",
+      "category": "CLEAN_T2",
+      "goal": true,
+      "miss_class": "OK",
+      "final_turn": 2,
+      "archetype": "S1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-A"
+      ],
+      "file": "pack03_10_seed115_positive.log",
+      "pack": 3
+    },
+    {
+      "seed": 13,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-F",
+      "goal": false,
+      "miss_class": "F-F",
+      "final_turn": 2,
+      "archetype": "A1",
+      "violations": [],
+      "blocked_notes": [
+        "无法将超级进化宝可梦换上战斗场（手牌无交替）。"
+      ],
+      "routes": [
+        "POFFIN-T1",
+        "REC-F-A"
+      ],
+      "file": "pack04_01_seed13_negative.log",
+      "pack": 4
+    },
+    {
+      "seed": 373,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-D",
+      "goal": false,
+      "miss_class": "F-D",
+      "final_turn": 2,
+      "archetype": "X1",
+      "violations": [],
+      "blocked_notes": [
+        "本回合因手牌无水能量，跳过附着能量。"
+      ],
+      "routes": [
+        "GREEDY-T1",
+        "GREEDY-T2"
+      ],
+      "file": "pack04_02_seed373_negative.log",
+      "pack": 4
+    },
+    {
+      "seed": 153,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-D",
+      "goal": false,
+      "miss_class": "F-D",
+      "final_turn": 2,
+      "archetype": "S1",
+      "violations": [],
+      "blocked_notes": [
+        "本回合因手牌无水能量，跳过附着能量。"
+      ],
+      "routes": [
+        "GREEDY-T1",
+        "GREEDY-T2"
+      ],
+      "file": "pack04_03_seed153_negative.log",
+      "pack": 4
+    },
+    {
+      "seed": 183,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-B",
+      "goal": false,
+      "miss_class": "F-B",
+      "final_turn": 2,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "LILLIE-T1",
+        "GREEDY-T2"
+      ],
+      "file": "pack04_04_seed183_negative.log",
+      "pack": 4
+    },
+    {
+      "seed": 58,
+      "sample_label": "negative",
+      "category": "FAIL_T3_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 3,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "G-BRIDGE-T1",
+        "REC-F-E",
+        "REC-F-E"
+      ],
+      "file": "pack04_05_seed58_negative.log",
+      "pack": 4
+    },
+    {
+      "seed": 95,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-B",
+      "goal": false,
+      "miss_class": "F-B",
+      "final_turn": 2,
+      "archetype": "F1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "FAN-T1",
+        "GREEDY-T2"
+      ],
+      "file": "pack04_06_seed95_negative.log",
+      "pack": 4
+    },
+    {
+      "seed": 354,
+      "sample_label": "to_optimize",
+      "category": "SLOW_T3",
+      "goal": true,
+      "miss_class": "OK",
+      "final_turn": 3,
+      "archetype": "C1",
+      "violations": [],
+      "blocked_notes": [
+        "无法将超级进化宝可梦换上战斗场（手牌无交替）。"
+      ],
+      "routes": [
+        "FAN-T1",
+        "LILLIE-T2",
+        "LILLIE-T2"
+      ],
+      "file": "pack04_07_seed354_to_optimize.log",
+      "pack": 4
+    },
+    {
+      "seed": 16,
+      "sample_label": "to_optimize",
+      "category": "SLOW_T3",
+      "goal": true,
+      "miss_class": "OK",
+      "final_turn": 3,
+      "archetype": "A1",
+      "violations": [],
+      "blocked_notes": [
+        "本回合因手牌无水能量，跳过附着能量。",
+        "无法将超级进化宝可梦换上战斗场（手牌无交替）。"
+      ],
+      "routes": [
+        "GREEDY-T1",
+        "LILLIE-T2",
+        "REC-F-D"
+      ],
+      "file": "pack04_08_seed16_to_optimize.log",
+      "pack": 4
+    },
+    {
+      "seed": 54,
+      "sample_label": "to_optimize",
+      "category": "SLOW_T3",
+      "goal": true,
+      "miss_class": "OK",
+      "final_turn": 3,
+      "archetype": "S1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "GREEDY-T1",
+        "GREEDY-T2",
+        "LILLIE-T2"
+      ],
+      "file": "pack04_09_seed54_to_optimize.log",
+      "pack": 4
+    },
+    {
+      "seed": 236,
+      "sample_label": "positive",
+      "category": "CLEAN_T2",
+      "goal": true,
+      "miss_class": "OK",
+      "final_turn": 2,
+      "archetype": "A1",
+      "violations": [],
+      "blocked_notes": [
+        "Supporter blocked: 希尔达 (first-turn going-first (E-SUP-1))",
+        "无法将超级进化宝可梦换上战斗场（手牌无交替）。"
+      ],
+      "routes": [
+        "R1-T1",
+        "REC-F-A"
+      ],
+      "file": "pack04_10_seed236_positive.log",
+      "pack": 4
+    },
+    {
+      "seed": 328,
+      "sample_label": "negative",
+      "category": "FAIL_T3_F-E",
+      "goal": false,
+      "miss_class": "F-E",
+      "final_turn": 3,
+      "archetype": "C1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "GREEDY-T1",
+        "REC-F-E",
+        "REC-F-E"
+      ],
+      "file": "pack05_01_seed328_negative.log",
+      "pack": 5
+    },
+    {
+      "seed": 164,
+      "sample_label": "negative",
+      "category": "FAIL_T3_F-F",
+      "goal": false,
+      "miss_class": "F-F",
+      "final_turn": 3,
+      "archetype": "E1",
+      "violations": [],
+      "blocked_notes": [
+        "Supporter blocked: 希尔达 (first-turn going-first (E-SUP-1))",
+        "本回合因手牌无水能量，跳过附着能量。",
+        "无法将超级进化宝可梦换上战斗场（手牌无交替）。"
+      ],
+      "routes": [
+        "GREEDY-T1",
+        "LILLIE-T2",
+        "REC-F-C"
+      ],
+      "file": "pack05_02_seed164_negative.log",
+      "pack": 5
+    },
+    {
+      "seed": 283,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-D",
+      "goal": false,
+      "miss_class": "F-D",
+      "final_turn": 2,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [
+        "本回合因手牌无水能量，跳过附着能量。"
+      ],
+      "routes": [
+        "LILLIE-T1",
+        "GREEDY-T2"
+      ],
+      "file": "pack05_03_seed283_negative.log",
+      "pack": 5
+    },
+    {
+      "seed": 107,
+      "sample_label": "negative",
+      "category": "FAIL_T2_F-F",
+      "goal": false,
+      "miss_class": "F-F",
+      "final_turn": 2,
+      "archetype": "C1",
+      "violations": [],
+      "blocked_notes": [
+        "本回合因手牌无水能量，跳过附着能量。",
+        "无法将超级进化宝可梦换上战斗场（手牌无交替）。"
+      ],
+      "routes": [
+        "GREEDY-T1",
+        "WATER-T2"
+      ],
+      "file": "pack05_04_seed107_negative.log",
+      "pack": 5
+    },
+    {
+      "seed": 8,
+      "sample_label": "negative",
+      "category": "FAIL_T3_F-B",
+      "goal": false,
+      "miss_class": "F-B",
+      "final_turn": 3,
+      "archetype": "B1",
+      "violations": [],
+      "blocked_notes": [
+        "Supporter blocked: 克里宾 (first-turn going-first (E-SUP-1))"
+      ],
+      "routes": [
+        "GREEDY-T1",
+        "GREEDY-T2",
+        "GREEDY-T2"
+      ],
+      "file": "pack05_05_seed8_negative.log",
+      "pack": 5
+    },
+    {
+      "seed": 192,
+      "sample_label": "negative",
+      "category": "FAIL_T3_F-F",
+      "goal": false,
+      "miss_class": "F-F",
+      "final_turn": 3,
+      "archetype": "C1",
+      "violations": [],
+      "blocked_notes": [
+        "本回合因手牌无水能量，跳过附着能量。",
+        "无法将超级进化宝可梦换上战斗场（手牌无交替）。"
+      ],
+      "routes": [
+        "LILLIE-T1",
+        "LILLIE-T2",
+        "REC-F-F"
+      ],
+      "file": "pack05_06_seed192_negative.log",
+      "pack": 5
+    },
+    {
+      "seed": 18,
+      "sample_label": "to_optimize",
+      "category": "SLOW_T3",
+      "goal": true,
+      "miss_class": "OK",
+      "final_turn": 3,
+      "archetype": "C1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "GREEDY-T1",
+        "LILLIE-T2",
+        "REC-F-B"
+      ],
+      "file": "pack05_07_seed18_to_optimize.log",
+      "pack": 5
+    },
+    {
+      "seed": 418,
+      "sample_label": "to_optimize",
+      "category": "SLOW_T3",
+      "goal": true,
+      "miss_class": "OK",
+      "final_turn": 3,
+      "archetype": "S1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "LILLIE-T1",
+        "LILLIE-T2",
+        "REC-F-B"
+      ],
+      "file": "pack05_08_seed418_to_optimize.log",
+      "pack": 5
+    },
+    {
+      "seed": 126,
+      "sample_label": "to_optimize",
+      "category": "SLOW_T3",
+      "goal": true,
+      "miss_class": "OK",
+      "final_turn": 3,
+      "archetype": "C1",
+      "violations": [],
+      "blocked_notes": [
+        "Supporter blocked: 希尔达 (first-turn going-first (E-SUP-1))",
+        "无法将超级进化宝可梦换上战斗场（手牌无交替）。"
+      ],
+      "routes": [
+        "GREEDY-T1",
+        "GREEDY-T2",
+        "REC-F-A"
+      ],
+      "file": "pack05_09_seed126_to_optimize.log",
+      "pack": 5
+    },
+    {
+      "seed": 49,
+      "sample_label": "positive",
+      "category": "CLEAN_T2",
+      "goal": true,
+      "miss_class": "OK",
+      "final_turn": 2,
+      "archetype": "S1",
+      "violations": [],
+      "blocked_notes": [],
+      "routes": [
+        "R1-T1",
+        "REC-F-A"
+      ],
+      "file": "pack05_10_seed49_positive.log",
+      "pack": 5
+    }
+  ]
+}

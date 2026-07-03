@@ -1,0 +1,242 @@
+{
+  "in_slices": "/root/agent-arena/data/opening_sft/state_action.jsonl",
+  "n_total": 2231,
+  "n_train": 1898,
+  "n_val": 333,
+  "val_fraction": 0.15,
+  "split_seed": 42,
+  "n_val_seeds": 25,
+  "val_seeds": [
+    574,
+    798,
+    1042,
+    1072,
+    1073,
+    1289,
+    1304,
+    1346,
+    1362,
+    1417,
+    1460,
+    2716,
+    2971,
+    3150,
+    4231,
+    4286,
+    4313,
+    4583,
+    4612,
+    4830,
+    4871,
+    4923,
+    4982,
+    5237,
+    5315
+  ],
+  "train_stats": {
+    "n_slices": 1898,
+    "n_seeds": 141,
+    "by_source": {
+      "approved_sim": 1292,
+      "expert_edited": 606
+    },
+    "by_goal": {
+      "true": 1732,
+      "false": 166
+    },
+    "by_action_kind": {
+      "SETUP_ACTIVE": 141,
+      "DRAW": 226,
+      "PLAY_TRAINER": 531,
+      "PLAY_POKEMON": 259,
+      "ATTACH": 223,
+      "EVOLVE": 171,
+      "DISCARD": 79,
+      "RETREAT": 107,
+      "SETUP_BENCH": 11,
+      "ABILITY_FAN_CALL": 71,
+      "ABILITY_LAST_DITCH": 32,
+      "SWITCH": 12,
+      "ABILITY_RUN_AWAY": 35
+    },
+    "by_turn": {
+      "0": 533,
+      "1": 899,
+      "2": 466
+    },
+    "by_archetype": {
+      "A1": 350,
+      "A2": 126,
+      "E1": 164,
+      "C1": 318,
+      "B1": 258,
+      "S1": 224,
+      "F1": 203,
+      "X1": 255
+    },
+    "by_sample_label": {
+      "positive": 1466,
+      "negative": 174,
+      "optimize": 224,
+      "goal": 34
+    },
+    "by_difficulty": {
+      "T3": 443,
+      "T4": 1111,
+      "T1": 157,
+      "T2": 187
+    },
+    "gap_active_counts": {
+      "g1": 519,
+      "g3": 876,
+      "g6": 480,
+      "g2": 555,
+      "g4": 734,
+      "g5": 175
+    },
+    "duplicate_state_fingerprints": 0,
+    "duplicate_slice_extra": 0,
+    "conflict_state_action_groups": 0,
+    "conflict_slice_extra": 0,
+    "slices_per_seed_min": 3,
+    "slices_per_seed_max": 31,
+    "slices_per_seed_mean": 13.46
+  },
+  "val_stats": {
+    "n_slices": 333,
+    "n_seeds": 25,
+    "by_source": {
+      "expert_edited": 146,
+      "approved_sim": 187
+    },
+    "by_goal": {
+      "true": 328,
+      "false": 5
+    },
+    "by_action_kind": {
+      "SETUP_ACTIVE": 25,
+      "DRAW": 40,
+      "PLAY_TRAINER": 101,
+      "ABILITY_FAN_CALL": 11,
+      "PLAY_POKEMON": 42,
+      "ATTACH": 37,
+      "ABILITY_LAST_DITCH": 9,
+      "EVOLVE": 29,
+      "DISCARD": 10,
+      "RETREAT": 17,
+      "ABILITY_RUN_AWAY": 5,
+      "SWITCH": 4,
+      "SETUP_BENCH": 3
+    },
+    "by_turn": {
+      "0": 92,
+      "1": 179,
+      "2": 62
+    },
+    "by_archetype": {
+      "X1": 43,
+      "A1": 50,
+      "B1": 80,
+      "F1": 27,
+      "E1": 24,
+      "A2": 41,
+      "C1": 60,
+      "S1": 8
+    },
+    "by_sample_label": {
+      "positive": 250,
+      "goal": 47,
+      "negative": 36
+    },
+    "by_difficulty": {
+      "T4": 171,
+      "T1": 23,
+      "T3": 115,
+      "T2": 24
+    },
+    "gap_active_counts": {
+      "g1": 86,
+      "g3": 156,
+      "g2": 122,
+      "g4": 144,
+      "g5": 26,
+      "g6": 61
+    },
+    "duplicate_state_fingerprints": 0,
+    "duplicate_slice_extra": 0,
+    "conflict_state_action_groups": 0,
+    "conflict_slice_extra": 0,
+    "slices_per_seed_min": 5,
+    "slices_per_seed_max": 20,
+    "slices_per_seed_mean": 13.32
+  },
+  "full_stats": {
+    "n_slices": 2231,
+    "n_seeds": 166,
+    "by_source": {
+      "expert_edited": 752,
+      "approved_sim": 1479
+    },
+    "by_goal": {
+      "true": 2060,
+      "false": 171
+    },
+    "by_action_kind": {
+      "SETUP_ACTIVE": 166,
+      "PLAY_TRAINER": 632,
+      "ATTACH": 260,
+      "ABILITY_FAN_CALL": 82,
+      "PLAY_POKEMON": 301,
+      "DRAW": 266,
+      "EVOLVE": 200,
+      "DISCARD": 89,
+      "RETREAT": 124,
+      "ABILITY_RUN_AWAY": 40,
+      "ABILITY_LAST_DITCH": 41,
+      "SWITCH": 16,
+      "SETUP_BENCH": 14
+    },
+    "by_turn": {
+      "0": 625,
+      "1": 1078,
+      "2": 528
+    },
+    "by_archetype": {
+      "X1": 298,
+      "A1": 400,
+      "B1": 338,
+      "C1": 378,
+      "F1": 230,
+      "S1": 232,
+      "E1": 188,
+      "A2": 167
+    },
+    "by_sample_label": {
+      "goal": 81,
+      "negative": 210,
+      "optimize": 224,
+      "positive": 1716
+    },
+    "by_difficulty": {
+      "T3": 558,
+      "T4": 1282,
+      "T1": 180,
+      "T2": 211
+    },
+    "gap_active_counts": {
+      "g1": 605,
+      "g6": 541,
+      "g2": 677,
+      "g4": 878,
+      "g3": 1032,
+      "g5": 201
+    },
+    "duplicate_state_fingerprints": 0,
+    "duplicate_slice_extra": 0,
+    "conflict_state_action_groups": 0,
+    "conflict_slice_extra": 0,
+    "slices_per_seed_min": 3,
+    "slices_per_seed_max": 31,
+    "slices_per_seed_mean": 13.44
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "n_slices": 2231,
+  "n_seeds": 166,
+  "by_source": {
+    "expert_edited": 752,
+    "approved_sim": 1479
+  },
+  "by_goal": {
+    "true": 2060,
+    "false": 171
+  },
+  "by_action_kind": {
+    "SETUP_ACTIVE": 166,
+    "PLAY_TRAINER": 632,
+    "ATTACH": 260,
+    "ABILITY_FAN_CALL": 82,
+    "PLAY_POKEMON": 301,
+    "DRAW": 266,
+    "EVOLVE": 200,
+    "DISCARD": 89,
+    "RETREAT": 124,
+    "ABILITY_RUN_AWAY": 40,
+    "ABILITY_LAST_DITCH": 41,
+    "SWITCH": 16,
+    "SETUP_BENCH": 14
+  },
+  "by_turn": {
+    "0": 625,
+    "1": 1078,
+    "2": 528
+  },
+  "by_archetype": {
+    "X1": 298,
+    "A1": 400,
+    "B1": 338,
+    "C1": 378,
+    "F1": 230,
+    "S1": 232,
+    "E1": 188,
+    "A2": 167
+  },
+  "by_sample_label": {
+    "goal": 81,
+    "negative": 210,
+    "optimize": 224,
+    "positive": 1716
+  },
+  "by_difficulty": {
+    "T3": 558,
+    "T4": 1282,
+    "T1": 180,
+    "T2": 211
+  },
+  "gap_active_counts": {
+    "g1": 605,
+    "g6": 541,
+    "g2": 677,
+    "g4": 878,
+    "g3": 1032,
+    "g5": 201
+  },
+  "duplicate_state_fingerprints": 0,
+  "duplicate_slice_extra": 0,
+  "conflict_state_action_groups": 0,
+  "conflict_slice_extra": 0,
+  "slices_per_seed_min": 3,
+  "slices_per_seed_max": 31,
+  "slices_per_seed_mean": 13.44
+}

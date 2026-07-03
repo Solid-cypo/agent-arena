@@ -1,0 +1,77 @@
+// expert_status=approved
+// difficulty=T4
+// PACK=01 INDEX=73
+// SAMPLE_LABEL=positive (正面)
+// category=CLEAN_T2 seed=2666 archetype=A2
+// role=先攻 turn_limit=3
+// goal=True miss=OK final_turn=2
+// routes=GREEDY-T1 → REC-F-A
+// 专家：positive 路线 OK，步骤无需修改；通读无误即保留 approved
+// 勿改起始区/回合快照；勿用 CORRECT 注释
+========================================================================
+Run #2666 (seed=2666)
+结果: GOAL 达成 (OK) · 结束于 My-T2 · 上限 3 回合
+
+【起始】
+  奖品区 (6): 基本水能量, 希尔达, 含羞苞, 土龙节节 ex, 基本水能量, 雪童子
+  起手手牌 (7): 海星星, Mega 大雪妖女 ex, 危险废墟, 莉莉艾, 高级球, 引火能量, 旋转罗盘
+  Mulligan 次数: 0
+
+【Setup】
+  原型: A2
+  操作:
+  1. [布置] 战斗场 ← 海星星
+  2. [布置] 替补席 ← 旋转罗盘
+  Setup 后手牌: Mega 大雪妖女 ex, 危险废墟, 莉莉艾, 高级球, 引火能量
+  Setup 后场面:
+  Active: 海星星 [无能量]
+  Bench[0]: 旋转罗盘 [无能量]
+
+【My-T1】 路线: GREEDY-T1
+  回合开始手牌:
+    Mega 大雪妖女 ex, 危险废墟, 莉莉艾, 高级球, 引火能量
+  回合开始场面:
+  Active: 海星星 [无能量]
+  Bench[0]: 旋转罗盘 [无能量]
+  本回合操作:
+  1. [特性] 旋转罗盘特性检索 ['土龙弟弟', '土龙弟弟']
+  2. [放置] 替补席 ← 土龙弟弟
+  3. [放置] 替补席 ← 土龙弟弟
+  4. [操作] 使用高级球（检索 Meowth g2）
+  5. [操作] 使用高级球检索 喵头目 ex，丢弃 莉莉艾、危险废墟
+  6. [放置] 替补席 ← 喵头目 ex
+  7. [特性] 绝境抓 → 希尔达
+  8. [备注] Supporter blocked: 希尔达 (first-turn going-first (E-SUP-1))
+  9. [备注] 希尔达 search → ['Mega 大海星 ex', '基本水能量']
+  10. [贴能] 基本水能量 → 海星星（战斗场）
+  回合结束手牌:
+    Mega 大雪妖女 ex, 引火能量, 希尔达, Mega 大海星 ex
+  回合结束场面:
+  Active: 海星星 [基本水能量]
+  Bench[0]: 旋转罗盘 [无能量]
+  Bench[1]: 土龙弟弟 [无能量]
+  Bench[2]: 土龙弟弟 [无能量]
+  Bench[3]: 喵头目 ex [无能量]
+
+【My-T2】 路线: REC-F-A
+  回合开始手牌:
+    Mega 大雪妖女 ex, 引火能量, 希尔达, Mega 大海星 ex
+  回合开始场面:
+  Active: 海星星 [基本水能量]
+  Bench[0]: 旋转罗盘 [无能量]
+  Bench[1]: 土龙弟弟 [无能量]
+  Bench[2]: 土龙弟弟 [无能量]
+  Bench[3]: 喵头目 ex [无能量]
+  本回合操作:
+  1. [抽牌] 抽到 宝可梦手环
+  2. [操作] 使用希尔达（G1 chain）
+  3. [备注] 希尔达 search → ['Mega 大海星 ex', '基本水能量']
+  4. [进化] 海星星 → Mega 大海星 ex
+  回合结束手牌:
+    Mega 大雪妖女 ex, 引火能量, 宝可梦手环, Mega 大海星 ex, 基本水能量
+  回合结束场面:
+  Active: Mega 大海星 ex [基本水能量]
+  Bench[0]: 旋转罗盘 [无能量]
+  Bench[1]: 土龙弟弟 [无能量]
+  Bench[2]: 土龙弟弟 [无能量]
+  Bench[3]: 喵头目 ex [无能量]

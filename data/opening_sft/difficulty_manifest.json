@@ -1,0 +1,792 @@
+{
+  "by_difficulty": {
+    "T3": 43,
+    "T4": 67,
+    "T1": 20,
+    "T2": 24
+  },
+  "expert": {
+    "T3": 13,
+    "T4": 32,
+    "T1": 5,
+    "T2": 4
+  },
+  "approved": {
+    "T1": 15,
+    "T4": 35,
+    "T2": 20,
+    "T3": 30
+  },
+  "files": [
+    {
+      "file": "pack01_01_seed1304_negative_goal.log",
+      "difficulty": "T3",
+      "n_slices": 14
+    },
+    {
+      "file": "pack01_01_seed2061_positive.log",
+      "difficulty": "T1",
+      "n_slices": 6
+    },
+    {
+      "file": "pack01_02_seed1072_negative_goal.log",
+      "difficulty": "T4",
+      "n_slices": 20
+    },
+    {
+      "file": "pack01_02_seed2093_positive.log",
+      "difficulty": "T1",
+      "n_slices": 7
+    },
+    {
+      "file": "pack01_03_seed1067_negative_goal.log",
+      "difficulty": "T4",
+      "n_slices": 14
+    },
+    {
+      "file": "pack01_03_seed2044_positive.log",
+      "difficulty": "T1",
+      "n_slices": 5
+    },
+    {
+      "file": "pack01_04_seed1305_negative.log",
+      "difficulty": "T4",
+      "n_slices": 23
+    },
+    {
+      "file": "pack01_04_seed2224_positive.log",
+      "difficulty": "T1",
+      "n_slices": 4
+    },
+    {
+      "file": "pack01_05_seed1460_negative_goal.log",
+      "difficulty": "T4",
+      "n_slices": 13
+    },
+    {
+      "file": "pack01_05_seed2243_positive.log",
+      "difficulty": "T1",
+      "n_slices": 6
+    },
+    {
+      "file": "pack01_06_seed1274_negative.log",
+      "difficulty": "T1",
+      "n_slices": 5
+    },
+    {
+      "file": "pack01_06_seed2143_positive.log",
+      "difficulty": "T1",
+      "n_slices": 8
+    },
+    {
+      "file": "pack01_07_seed1382_to_optimize_goal.log",
+      "difficulty": "T4",
+      "n_slices": 20
+    },
+    {
+      "file": "pack01_07_seed2231_positive.log",
+      "difficulty": "T1",
+      "n_slices": 6
+    },
+    {
+      "file": "pack01_08_seed1128_to_optimize.log",
+      "difficulty": "T4",
+      "n_slices": 20
+    },
+    {
+      "file": "pack01_08_seed2220_positive.log",
+      "difficulty": "T1",
+      "n_slices": 6
+    },
+    {
+      "file": "pack01_09_seed1244_to_optimize.log",
+      "difficulty": "T4",
+      "n_slices": 18
+    },
+    {
+      "file": "pack01_09_seed2165_positive.log",
+      "difficulty": "T1",
+      "n_slices": 6
+    },
+    {
+      "file": "pack01_100_seed2169_positive.log",
+      "difficulty": "T4",
+      "n_slices": 13
+    },
+    {
+      "file": "pack01_10_seed1383_positive.log",
+      "difficulty": "T4",
+      "n_slices": 18
+    },
+    {
+      "file": "pack01_10_seed2222_positive.log",
+      "difficulty": "T1",
+      "n_slices": 5
+    },
+    {
+      "file": "pack01_11_seed2235_positive.log",
+      "difficulty": "T1",
+      "n_slices": 9
+    },
+    {
+      "file": "pack01_12_seed2064_positive.log",
+      "difficulty": "T1",
+      "n_slices": 6
+    },
+    {
+      "file": "pack01_13_seed2080_positive.log",
+      "difficulty": "T1",
+      "n_slices": 7
+    },
+    {
+      "file": "pack01_14_seed2225_positive.log",
+      "difficulty": "T1",
+      "n_slices": 7
+    },
+    {
+      "file": "pack01_15_seed2058_positive.log",
+      "difficulty": "T1",
+      "n_slices": 6
+    },
+    {
+      "file": "pack01_16_seed2184_positive.log",
+      "difficulty": "T2",
+      "n_slices": 11
+    },
+    {
+      "file": "pack01_17_seed2000_positive.log",
+      "difficulty": "T2",
+      "n_slices": 7
+    },
+    {
+      "file": "pack01_18_seed2137_positive.log",
+      "difficulty": "T2",
+      "n_slices": 7
+    },
+    {
+      "file": "pack01_19_seed2131_positive.log",
+      "difficulty": "T2",
+      "n_slices": 15
+    },
+    {
+      "file": "pack01_20_seed2099_positive.log",
+      "difficulty": "T2",
+      "n_slices": 8
+    },
+    {
+      "file": "pack01_21_seed2115_positive.log",
+      "difficulty": "T2",
+      "n_slices": 10
+    },
+    {
+      "file": "pack01_22_seed2196_positive.log",
+      "difficulty": "T2",
+      "n_slices": 10
+    },
+    {
+      "file": "pack01_23_seed2114_positive.log",
+      "difficulty": "T2",
+      "n_slices": 7
+    },
+    {
+      "file": "pack01_24_seed2065_positive.log",
+      "difficulty": "T2",
+      "n_slices": 11
+    },
+    {
+      "file": "pack01_25_seed2123_positive.log",
+      "difficulty": "T2",
+      "n_slices": 11
+    },
+    {
+      "file": "pack01_26_seed2180_positive.log",
+      "difficulty": "T2",
+      "n_slices": 9
+    },
+    {
+      "file": "pack01_27_seed2004_positive.log",
+      "difficulty": "T2",
+      "n_slices": 9
+    },
+    {
+      "file": "pack01_28_seed2254_positive.log",
+      "difficulty": "T2",
+      "n_slices": 7
+    },
+    {
+      "file": "pack01_29_seed2040_positive.log",
+      "difficulty": "T2",
+      "n_slices": 10
+    },
+    {
+      "file": "pack01_30_seed2261_positive.log",
+      "difficulty": "T2",
+      "n_slices": 18
+    },
+    {
+      "file": "pack01_31_seed2159_positive.log",
+      "difficulty": "T2",
+      "n_slices": 11
+    },
+    {
+      "file": "pack01_32_seed2246_positive.log",
+      "difficulty": "T2",
+      "n_slices": 11
+    },
+    {
+      "file": "pack01_33_seed2146_positive.log",
+      "difficulty": "T2",
+      "n_slices": 11
+    },
+    {
+      "file": "pack01_34_seed2238_positive.log",
+      "difficulty": "T2",
+      "n_slices": 7
+    },
+    {
+      "file": "pack01_35_seed2187_positive.log",
+      "difficulty": "T2",
+      "n_slices": 10
+    },
+    {
+      "file": "pack01_36_seed2098_positive.log",
+      "difficulty": "T3",
+      "n_slices": 9
+    },
+    {
+      "file": "pack01_37_seed2067_positive.log",
+      "difficulty": "T3",
+      "n_slices": 12
+    },
+    {
+      "file": "pack01_38_seed2003_positive.log",
+      "difficulty": "T3",
+      "n_slices": 20
+    },
+    {
+      "file": "pack01_39_seed2145_positive.log",
+      "difficulty": "T3",
+      "n_slices": 14
+    },
+    {
+      "file": "pack01_40_seed2041_positive.log",
+      "difficulty": "T3",
+      "n_slices": 13
+    },
+    {
+      "file": "pack01_41_seed2013_positive.log",
+      "difficulty": "T3",
+      "n_slices": 13
+    },
+    {
+      "file": "pack01_42_seed2179_positive.log",
+      "difficulty": "T3",
+      "n_slices": 12
+    },
+    {
+      "file": "pack01_43_seed2205_positive.log",
+      "difficulty": "T3",
+      "n_slices": 9
+    },
+    {
+      "file": "pack01_44_seed2197_positive.log",
+      "difficulty": "T3",
+      "n_slices": 10
+    },
+    {
+      "file": "pack01_45_seed2171_positive.log",
+      "difficulty": "T3",
+      "n_slices": 13
+    },
+    {
+      "file": "pack01_46_seed2209_positive.log",
+      "difficulty": "T3",
+      "n_slices": 13
+    },
+    {
+      "file": "pack01_47_seed2186_positive.log",
+      "difficulty": "T3",
+      "n_slices": 11
+    },
+    {
+      "file": "pack01_48_seed2130_positive.log",
+      "difficulty": "T3",
+      "n_slices": 13
+    },
+    {
+      "file": "pack01_49_seed2269_positive.log",
+      "difficulty": "T3",
+      "n_slices": 12
+    },
+    {
+      "file": "pack01_50_seed2221_positive.log",
+      "difficulty": "T3",
+      "n_slices": 13
+    },
+    {
+      "file": "pack01_51_seed2228_positive.log",
+      "difficulty": "T3",
+      "n_slices": 12
+    },
+    {
+      "file": "pack01_52_seed2026_positive.log",
+      "difficulty": "T3",
+      "n_slices": 9
+    },
+    {
+      "file": "pack01_53_seed2267_positive.log",
+      "difficulty": "T3",
+      "n_slices": 13
+    },
+    {
+      "file": "pack01_54_seed2237_positive.log",
+      "difficulty": "T3",
+      "n_slices": 13
+    },
+    {
+      "file": "pack01_55_seed2157_positive.log",
+      "difficulty": "T3",
+      "n_slices": 10
+    },
+    {
+      "file": "pack01_56_seed2274_positive.log",
+      "difficulty": "T3",
+      "n_slices": 12
+    },
+    {
+      "file": "pack01_57_seed2241_positive.log",
+      "difficulty": "T3",
+      "n_slices": 14
+    },
+    {
+      "file": "pack01_58_seed2239_positive.log",
+      "difficulty": "T3",
+      "n_slices": 15
+    },
+    {
+      "file": "pack01_59_seed2204_positive.log",
+      "difficulty": "T3",
+      "n_slices": 14
+    },
+    {
+      "file": "pack01_60_seed2183_positive.log",
+      "difficulty": "T3",
+      "n_slices": 14
+    },
+    {
+      "file": "pack01_61_seed2050_positive.log",
+      "difficulty": "T3",
+      "n_slices": 13
+    },
+    {
+      "file": "pack01_62_seed2242_positive.log",
+      "difficulty": "T3",
+      "n_slices": 11
+    },
+    {
+      "file": "pack01_63_seed2087_positive.log",
+      "difficulty": "T3",
+      "n_slices": 14
+    },
+    {
+      "file": "pack01_64_seed2134_positive.log",
+      "difficulty": "T3",
+      "n_slices": 10
+    },
+    {
+      "file": "pack01_65_seed2122_positive.log",
+      "difficulty": "T3",
+      "n_slices": 12
+    },
+    {
+      "file": "pack01_66_seed2272_positive.log",
+      "difficulty": "T4",
+      "n_slices": 11
+    },
+    {
+      "file": "pack01_67_seed2227_positive.log",
+      "difficulty": "T4",
+      "n_slices": 15
+    },
+    {
+      "file": "pack01_68_seed2091_positive.log",
+      "difficulty": "T4",
+      "n_slices": 13
+    },
+    {
+      "file": "pack01_69_seed2215_positive.log",
+      "difficulty": "T4",
+      "n_slices": 13
+    },
+    {
+      "file": "pack01_70_seed2036_positive.log",
+      "difficulty": "T4",
+      "n_slices": 14
+    },
+    {
+      "file": "pack01_71_seed2103_positive.log",
+      "difficulty": "T4",
+      "n_slices": 17
+    },
+    {
+      "file": "pack01_72_seed2136_positive.log",
+      "difficulty": "T4",
+      "n_slices": 14
+    },
+    {
+      "file": "pack01_73_seed2252_positive.log",
+      "difficulty": "T4",
+      "n_slices": 14
+    },
+    {
+      "file": "pack01_74_seed2070_positive.log",
+      "difficulty": "T4",
+      "n_slices": 13
+    },
+    {
+      "file": "pack01_75_seed2251_positive.log",
+      "difficulty": "T4",
+      "n_slices": 13
+    },
+    {
+      "file": "pack01_76_seed2021_positive.log",
+      "difficulty": "T4",
+      "n_slices": 16
+    },
+    {
+      "file": "pack01_77_seed2161_positive.log",
+      "difficulty": "T4",
+      "n_slices": 18
+    },
+    {
+      "file": "pack01_78_seed2025_positive.log",
+      "difficulty": "T4",
+      "n_slices": 15
+    },
+    {
+      "file": "pack01_79_seed2073_positive.log",
+      "difficulty": "T4",
+      "n_slices": 17
+    },
+    {
+      "file": "pack01_80_seed2086_positive.log",
+      "difficulty": "T4",
+      "n_slices": 15
+    },
+    {
+      "file": "pack01_81_seed2158_positive.log",
+      "difficulty": "T4",
+      "n_slices": 19
+    },
+    {
+      "file": "pack01_82_seed2201_positive.log",
+      "difficulty": "T4",
+      "n_slices": 15
+    },
+    {
+      "file": "pack01_83_seed2079_positive.log",
+      "difficulty": "T4",
+      "n_slices": 21
+    },
+    {
+      "file": "pack01_84_seed2034_positive.log",
+      "difficulty": "T4",
+      "n_slices": 11
+    },
+    {
+      "file": "pack01_85_seed2075_positive.log",
+      "difficulty": "T4",
+      "n_slices": 14
+    },
+    {
+      "file": "pack01_86_seed2271_positive.log",
+      "difficulty": "T4",
+      "n_slices": 15
+    },
+    {
+      "file": "pack01_87_seed2167_positive.log",
+      "difficulty": "T4",
+      "n_slices": 11
+    },
+    {
+      "file": "pack01_88_seed2259_positive.log",
+      "difficulty": "T4",
+      "n_slices": 15
+    },
+    {
+      "file": "pack01_89_seed2105_positive.log",
+      "difficulty": "T4",
+      "n_slices": 13
+    },
+    {
+      "file": "pack01_90_seed2051_positive.log",
+      "difficulty": "T4",
+      "n_slices": 18
+    },
+    {
+      "file": "pack01_91_seed2240_positive.log",
+      "difficulty": "T4",
+      "n_slices": 13
+    },
+    {
+      "file": "pack01_92_seed2089_positive.log",
+      "difficulty": "T4",
+      "n_slices": 14
+    },
+    {
+      "file": "pack01_93_seed2189_positive.log",
+      "difficulty": "T4",
+      "n_slices": 15
+    },
+    {
+      "file": "pack01_94_seed2031_positive.log",
+      "difficulty": "T4",
+      "n_slices": 15
+    },
+    {
+      "file": "pack01_95_seed2140_positive.log",
+      "difficulty": "T4",
+      "n_slices": 13
+    },
+    {
+      "file": "pack01_96_seed2111_positive.log",
+      "difficulty": "T4",
+      "n_slices": 18
+    },
+    {
+      "file": "pack01_97_seed2009_positive.log",
+      "difficulty": "T4",
+      "n_slices": 14
+    },
+    {
+      "file": "pack01_98_seed2088_positive.log",
+      "difficulty": "T4",
+      "n_slices": 16
+    },
+    {
+      "file": "pack01_99_seed2218_positive.log",
+      "difficulty": "T4",
+      "n_slices": 14
+    },
+    {
+      "file": "pack02_01_seed1012_negative.log",
+      "difficulty": "T1",
+      "n_slices": 3
+    },
+    {
+      "file": "pack02_02_seed1233_negative.log",
+      "difficulty": "T4",
+      "n_slices": 14
+    },
+    {
+      "file": "pack02_03_seed1458_negative.log",
+      "difficulty": "T1",
+      "n_slices": 7
+    },
+    {
+      "file": "pack02_04_seed1018_negative.log",
+      "difficulty": "T4",
+      "n_slices": 13
+    },
+    {
+      "file": "pack02_05_seed1073_positive.log",
+      "difficulty": "T4",
+      "n_slices": 18
+    },
+    {
+      "file": "pack02_06_seed1362_negative.log",
+      "difficulty": "T3",
+      "n_slices": 12
+    },
+    {
+      "file": "pack02_07_seed1068_to_optimize.log",
+      "difficulty": "T4",
+      "n_slices": 17
+    },
+    {
+      "file": "pack02_08_seed1046_to_optimize.log",
+      "difficulty": "T4",
+      "n_slices": 16
+    },
+    {
+      "file": "pack02_09_seed1272_to_optimize.log",
+      "difficulty": "T4",
+      "n_slices": 15
+    },
+    {
+      "file": "pack02_10_seed1406_positive.log",
+      "difficulty": "T4",
+      "n_slices": 16
+    },
+    {
+      "file": "pack03_01_seed1229_positive.log",
+      "difficulty": "T4",
+      "n_slices": 18
+    },
+    {
+      "file": "pack03_02_seed1031_negative.log",
+      "difficulty": "T3",
+      "n_slices": 11
+    },
+    {
+      "file": "pack03_03_seed1235_negative.log",
+      "difficulty": "T4",
+      "n_slices": 23
+    },
+    {
+      "file": "pack03_04_seed1170_to_optimize.log",
+      "difficulty": "T1",
+      "n_slices": 11
+    },
+    {
+      "file": "pack03_05_seed1300_positive.log",
+      "difficulty": "T4",
+      "n_slices": 18
+    },
+    {
+      "file": "pack03_06_seed1109_positive.log",
+      "difficulty": "T4",
+      "n_slices": 15
+    },
+    {
+      "file": "pack03_07_seed1270_to_optimize.log",
+      "difficulty": "T3",
+      "n_slices": 13
+    },
+    {
+      "file": "pack03_08_seed1318_to_optimize.log",
+      "difficulty": "T3",
+      "n_slices": 12
+    },
+    {
+      "file": "pack03_09_seed1480_to_optimize.log",
+      "difficulty": "T4",
+      "n_slices": 16
+    },
+    {
+      "file": "pack03_10_seed1391_positive.log",
+      "difficulty": "T1",
+      "n_slices": 6
+    },
+    {
+      "file": "pack04_01_seed1004_positive.log",
+      "difficulty": "T4",
+      "n_slices": 13
+    },
+    {
+      "file": "pack04_02_seed1091_negative.log",
+      "difficulty": "T2",
+      "n_slices": 13
+    },
+    {
+      "file": "pack04_03_seed1015_positive.log",
+      "difficulty": "T4",
+      "n_slices": 31
+    },
+    {
+      "file": "pack04_04_seed1268_to_optimize.log",
+      "difficulty": "T4",
+      "n_slices": 13
+    },
+    {
+      "file": "pack04_05_seed1346_positive.log",
+      "difficulty": "T4",
+      "n_slices": 12
+    },
+    {
+      "file": "pack04_06_seed1322_positive.log",
+      "difficulty": "T4",
+      "n_slices": 21
+    },
+    {
+      "file": "pack04_07_seed1064_to_optimize.log",
+      "difficulty": "T3",
+      "n_slices": 14
+    },
+    {
+      "file": "pack04_08_seed1256_negative.log",
+      "difficulty": "T4",
+      "n_slices": 26
+    },
+    {
+      "file": "pack04_09_seed1266_to_optimize.log",
+      "difficulty": "T3",
+      "n_slices": 13
+    },
+    {
+      "file": "pack04_10_seed1006_positive.log",
+      "difficulty": "T4",
+      "n_slices": 16
+    },
+    {
+      "file": "pack05_01_seed1251_negative.log",
+      "difficulty": "T3",
+      "n_slices": 11
+    },
+    {
+      "file": "pack05_02_seed1401_negative.log",
+      "difficulty": "T2",
+      "n_slices": 11
+    },
+    {
+      "file": "pack05_03_seed1289_positive.log",
+      "difficulty": "T3",
+      "n_slices": 11
+    },
+    {
+      "file": "pack05_04_seed1417_positive.log",
+      "difficulty": "T3",
+      "n_slices": 14
+    },
+    {
+      "file": "pack05_05_seed1079_negative.log",
+      "difficulty": "T3",
+      "n_slices": 14
+    },
+    {
+      "file": "pack05_06_seed1447_positive.log",
+      "difficulty": "T4",
+      "n_slices": 13
+    },
+    {
+      "file": "pack05_07_seed1016_to_optimize.log",
+      "difficulty": "T3",
+      "n_slices": 15
+    },
+    {
+      "file": "pack05_08_seed1044_to_optimize.log",
+      "difficulty": "T4",
+      "n_slices": 18
+    },
+    {
+      "file": "pack05_09_seed1156_to_optimize.log",
+      "difficulty": "T3",
+      "n_slices": 13
+    },
+    {
+      "file": "pack05_10_seed1042_positive.log",
+      "difficulty": "T2",
+      "n_slices": 8
+    },
+    {
+      "file": "pack06_01_seed983_positive.log",
+      "difficulty": "T4",
+      "n_slices": 22
+    },
+    {
+      "file": "pack06_02_seed635_positive.log",
+      "difficulty": "T4",
+      "n_slices": 18
+    },
+    {
+      "file": "pack06_03_seed798_negative.log",
+      "difficulty": "T4",
+      "n_slices": 19
+    },
+    {
+      "file": "pack06_04_seed574_negative.log",
+      "difficulty": "T2",
+      "n_slices": 5
+    }
+  ]
+}
