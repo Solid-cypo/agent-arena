@@ -161,13 +161,13 @@ def _is_legal(kind: str, primary: int | None, v: dict[str, Any]) -> bool:
     hand = v["hand"]
     bench_ids = v["bench_ids"]
     active_id = v["active_id"]
-    # Real-engine ground-truth flags inferred from the offered options (see the
-    # integration in starmie_pilot). Fall back to the adapter's (training-aligned)
-    # supporter_played / energy_attached when the inferred keys are absent (e.g.
-    # during sim training). This keeps the StateEncoder features unchanged while
-    # letting the legal mask respect already-used supporters / energy.
-    sup = v.get("sup_inferred", v["supporter_played"])
-    ea = v.get("ea_inferred", v["energy_attached"])
+    # supporter_played / energy_attached are overwritten in the integration with
+    # ground-truth values inferred from the engine's offered options (the real
+    # player object lacks supporterPlayed/energyAttached attrs). During sim
+    # training they come from pre_state.flags. Either way these are the true
+    # turn flags, so the legal mask respects already-used supporters / energy.
+    sup = v["supporter_played"]
+    ea = v["energy_attached"]
     # `offered_ability_srcs`: when populated (a set), an ABILITY_* action is only
     # legal if the engine is actually offering that source's ability option this
     # turn. None = not populated (fall back to state-only legality).

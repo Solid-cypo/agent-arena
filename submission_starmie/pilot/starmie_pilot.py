@@ -1570,16 +1570,16 @@ def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None)
                                 obs, board, sit["hand"], sit["resources"], mi,
                             )
                             view = _build_rl_view(adapter)
-                            # Ground-truth legality from the engine's offered
-                            # options: the real player object has NO
+                            # Ground-truth sup/energy flags from the engine's
+                            # offered options. The real cabt player object has NO
                             # supporterPlayed / energyAttached attributes, so the
-                            # adapter's view always reports False for both — the
-                            # policy would then sample already-used supporters /
-                            # a second energy attach and hit a no-match. Infer the
-                            # true flags here from what the engine actually offers
-                            # and expose them via separate keys consumed only by
-                            # _is_legal (the StateEncoder keeps the training-aligned
-                            # supporter_played / energy_attached features).
+                            # adapter reports both as always-False — but training
+                            # slices encode the TRUE flags (pre_state.flags), so an
+                            # always-False inference view is a train/inference
+                            # feature mismatch that makes the policy sample already-
+                            # used supporters / a second attach (no-match). Infer the
+                            # true flags here and OVERWRITE the view fields so both
+                            # the StateEncoder and _is_legal align with training.
                             try:
                                 _off_sup = False
                                 _off_attach = False
@@ -1591,8 +1591,8 @@ def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None)
                                             _off_sup = True
                                 _vh = view.get("hand", []) or []
                                 _has_sup = any(c in _SUPPORTER_IDS for c in _vh)
-                                view["sup_inferred"] = bool(_has_sup and not _off_sup)
-                                view["ea_inferred"] = bool(not _off_attach)
+                                view["supporter_played"] = bool(_has_sup and not _off_sup)
+                                view["energy_attached"] = bool(not _off_attach)
                             except Exception:
                                 pass
                             # Tell the proposer which abilities the engine is
