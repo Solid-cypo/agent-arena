@@ -74,6 +74,7 @@ from opening_cards import (
     WATER_BASIC,
     can_retreat_pokemon,
     ENERGY_IDS as _ENERGY_IDS,
+    SUPPORTER_IDS as _SUPPORTER_IDS,
     WATER_ENERGY_IDS as _WATER_ENERGY_IDS,
 )
 from opening_bridge import compute_opening_route, score_opening_option
@@ -1413,7 +1414,13 @@ def option_score(obs, option, weights: dict[str, float], sit: dict[str, Any]) ->
 
 _RL_PROPOSER = None
 _RL_TRIED = False
-_RL_ENABLED = True  # toggle for A/B comparison in local audits
+# Proposer is gated off by default for Kaggle deployment: with the v1
+# Mega-promotion fix (HR-O6/O7) the v1 pilot completes the opening at ~72% on
+# its own, and the sim-trained proposer (whose sup/energy features were encoded
+# with an always-False supporter_played/energy_attached on the real engine)
+# currently drags completion down ~5pp when it leads. Enable locally for A/B
+# audits via RL_ENABLED=1, or after a retrain that beats v1.
+_RL_ENABLED = os.environ.get("RL_ENABLED", "0") != "0"
 
 
 def _rl_proposer():
@@ -1471,6 +1478,8 @@ RL_STATS: dict[str, int] = {
     "opening_complete_games": 0,
 }
 RL_KIND_STATS: dict[str, dict[str, int]] = {"blocked": {}, "nomatch": {}}
+# Capped sample of no-match decisions for sim-to-real view-mismatch diagnosis.
+RL_NOMATCH_SAMPLES: list[dict] = []
 
 
 def _rl_kind_tick(bucket: str, kind: str) -> None:
@@ -1561,6 +1570,31 @@ def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None)
                                 obs, board, sit["hand"], sit["resources"], mi,
                             )
                             view = _build_rl_view(adapter)
+                            # Ground-truth legality from the engine's offered
+                            # options: the real player object has NO
+                            # supporterPlayed / energyAttached attributes, so the
+                            # adapter's view always reports False for both — the
+                            # policy would then sample already-used supporters /
+                            # a second energy attach and hit a no-match. Infer the
+                            # true flags here from what the engine actually offers
+                            # and expose them via separate keys consumed only by
+                            # _is_legal (the StateEncoder keeps the training-aligned
+                            # supporter_played / energy_attached features).
+                            try:
+                                _off_sup = False
+                                _off_attach = False
+                                for _o in options:
+                                    if int(_o.type) == int(OptionType.ATTACH):
+                                        _off_attach = True
+                                    elif int(_o.type) == int(OptionType.PLAY):
+                                        if _hand_card_id(obs, _o, mi) in _SUPPORTER_IDS:
+                                            _off_sup = True
+                                _vh = view.get("hand", []) or []
+                                _has_sup = any(c in _SUPPORTER_IDS for c in _vh)
+                                view["sup_inferred"] = bool(_has_sup and not _off_sup)
+                                view["ea_inferred"] = bool(not _off_attach)
+                            except Exception:
+                                pass
                             # Tell the proposer which abilities the engine is
                             # actually offering this turn, so it never samples an
                             # already-used ability (e.g. Meowth Last-Ditch) and
@@ -1600,6 +1634,28 @@ def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None)
                             else:
                                 RL_STATS["no_option_match"] += 1
                                 _rl_kind_tick("nomatch", rl_kind)
+                                if len(RL_NOMATCH_SAMPLES) < 80:
+                                    try:
+                                        _rh = [
+                                            _si(getattr(c, "id", None))
+                                            for c in (obs.current.players[mi].hand or [])
+                                        ]
+                                        _oc = []
+                                        for _o in options:
+                                            if int(_o.type) == int(OptionType.PLAY):
+                                                _oc.append(_hand_card_id(obs, _o, mi))
+                                        RL_NOMATCH_SAMPLES.append({
+                                            "top": prop.last_action,
+                                            "view_hand": list(view.get("hand", [])),
+                                            "real_hand": _rh,
+                                            "offered_play_cids": _oc,
+                                            "supporter_played": view.get("supporter_played"),
+                                            "energy_attached": view.get("energy_attached"),
+                                            "ctx": int(getattr(obs.select, "context", -1)),
+                                            "opt_types": [int(o.type) for o in options],
+                                        })
+                                    except Exception:
+                                        pass
                         else:
                             RL_STATS["non_mappable_decision"] += 1
                     except Exception:
