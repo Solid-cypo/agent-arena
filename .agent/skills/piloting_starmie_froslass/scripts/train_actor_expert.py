@@ -348,6 +348,11 @@ def main():
     ap.add_argument("--hardcell-slices", default=None,
                     help="extra BC slices (e.g. approved_hardcell) for curriculum")
     ap.add_argument("--hardcell-oversample", type=int, default=2)
+    ap.add_argument("--dagger-slices", default=None,
+                    help="DAgger BC slices from the improved v1 on the real engine "
+                         "(source=dagger_v1); teaches corrected opening lines incl. "
+                         "Mega promotion that the gold barely covers.")
+    ap.add_argument("--dagger-oversample", type=int, default=1)
     args = ap.parse_args()
 
     random.seed(0); np.random.seed(0); torch.manual_seed(0)
@@ -357,6 +362,10 @@ def main():
         hc = [json.loads(l) for l in open(args.hardcell_slices, encoding="utf-8") if l.strip()]
         slices = slices + hc
         print(f"hardcell slices appended: {len(hc)}")
+    if args.dagger_slices:
+        dg = [json.loads(l) for l in open(args.dagger_slices, encoding="utf-8") if l.strip()]
+        slices = slices + dg
+        print(f"dagger slices appended: {len(dg)}")
     from arena.deck import load_deck_csv
     cv = sorted(set(load_deck_csv(args.deck)))
     h1_to_idx, idx_to_head1, h2_to_idx, idx_to_head2 = build_vocabs(slices, card_vocab=cv)
@@ -366,10 +375,12 @@ def main():
 
     net = PolicyNet(encoder.feature_dim, len(h1_to_idx), len(h2_to_idx)).to(DEVICE)
     extra_src = ("approved_hardcell",) if args.hardcell_slices else ()
+    if args.dagger_slices:
+        extra_src = extra_src + ("dagger_v1",)
     bc_samples = load_bc_samples(slices, encoder, h1_to_idx, h2_to_idx,
                                  extra_sources=extra_src,
                                  extra_oversample=args.hardcell_oversample)
-    print(f"BC samples: {len(bc_samples)} (gold + hardcell x{args.hardcell_oversample})")
+    print(f"BC samples: {len(bc_samples)} (gold + hardcell x{args.hardcell_oversample} + dagger x{args.dagger_oversample})")
 
     eval_seeds = list(range(1000, 1000 + args.eval_seeds))
     if args.init_weights:
