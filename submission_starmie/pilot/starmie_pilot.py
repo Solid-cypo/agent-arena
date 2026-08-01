@@ -310,6 +310,175 @@ def _synergy_core_ready(board) -> bool:
     )
 
 
+def _dp_engine_actions_available(
+    obs, my_index: int, board, hand=None, resources=None,
+) -> bool:
+    """True when a productive DP/engine action is still playable this turn.
+
+    Used to defer Jetting after Mega Starmie (运转大于一切): attacking ends
+    the turn, so benching/search/attach/draw-supporter must win the sort
+    while the DP core is incomplete.
+    """
+    if _synergy_core_ready(board):
+        return False
+    try:
+        me = obs.current.players[my_index]
+        hand_ids = [_si(getattr(c, "id", None)) for c in (me.hand or []) if c]
+    except Exception:
+        return False
+    hid = set(hand_ids)
+    bench_open = int(getattr(board, "bench_open", 0) or 0)
+
+    # Bench DP pieces.
+    if bench_open > 0:
+        if _OC_MUNKIDORI in hid and not board.munkidori_on_field:
+            return True
+        need_egg = not (
+            getattr(board, "mega_froslass_on_field", False)
+            and board.froslass_104_on_field
+        )
+        if _OC_SNORUNT in hid and need_egg and _snorunt_field_count(obs, my_index) < 2:
+            return True
+
+    # Evolve 104 onto a spare Snorunt.
+    if (
+        _OC_FROSLASS in hid
+        and not board.froslass_104_on_field
+        and (
+            getattr(board, "snorunt_on_field", False)
+            or _snorunt_on_bench(obs, my_index)
+            or board.active_id == _OC_SNORUNT
+        )
+    ):
+        return True
+
+    # Attach dark to Munkidori.
+    if (
+        board.munkidori_on_field
+        and not getattr(board, "munkidori_has_dark", False)
+        and (DARK_BASIC in hid or _OC_PRISM in hid)
+    ):
+        return True
+
+    # Search tools while DP pieces remain in deck.
+    copies = getattr(resources, "copies_left", None) if resources is not None else None
+    def _left(cid: int) -> int:
+        if copies is None:
+            return 1  # unknown — assume searchable
+        try:
+            return int(copies(cid))
+        except Exception:
+            return 0
+
+    if _OC_POKE_PAD in hid and (
+        _left(_OC_SNORUNT) > 0 or _left(_OC_FROSLASS) > 0 or _left(_MUNKIDORI_ID) > 0
+    ):
+        return True
+    if _OC_POFFIN in hid and bench_open > 0 and (
+        _left(_OC_SNORUNT) > 0 or _left(_MUNKIDORI_ID) > 0
+    ):
+        return True
+    if _OC_ULTRA_BALL in hid and (
+        _left(_OC_SNORUNT) > 0 or _left(_OC_FROSLASS) > 0 or _left(_MUNKIDORI_ID) > 0
+    ):
+        return True
+
+    # Draw supporters still available — dig for DP (Boss excluded by engine gate).
+    if hand is not None and not getattr(hand, "supporter_played", False):
+        if LILLIE in hid or HILDA in hid or CRISPIN in hid:
+            return True
+
+    # Night Stretcher for scarce dark while Munk lacks it.
+    if _OC_NIGHT_STRETCHER in hid and board.munkidori_on_field and not board.munkidori_has_dark:
+        try:
+            disc = {_si(getattr(c, "id", None)) for c in (me.discard or []) if c}
+            if DARK_BASIC in disc and DARK_BASIC not in hid:
+                return True
+        except Exception:
+            pass
+
+    return False
+
+
+def _should_defer_starmie_attack_for_engine(
+    obs, my_index: int, board, phase, hand=None, resources=None, *, nebula_ko: bool = False,
+) -> bool:
+    """运转大于一切: after Mega, finish DP before Jetting (except KO/closeout)."""
+    if nebula_ko:
+        return False
+    if int(getattr(board, "prize_self", 99) or 99) <= 2:
+        return False
+    if not getattr(phase, "opening_complete", False) and not board.mega_starmie_on_field:
+        return False
+    if _synergy_core_ready(board):
+        return False
+    # Only defer while Mega is the active attacker (otherwise HARVEST/other).
+    if not (board.active_is_mega_starmie and board.active_has_water):
+        return False
+    return _dp_engine_actions_available(obs, my_index, board, hand, resources)
+
+
+_MAIN_PHASE_TYPES = (
+    OptionType.PLAY,
+    OptionType.ATTACH,
+    OptionType.EVOLVE,
+    OptionType.ABILITY,
+    OptionType.RETREAT,
+)
+
+
+def _main_phase_open(sit: dict[str, Any]) -> bool:
+    """True when the current select still offers a non-attack main-phase action."""
+    opts = sit.get("select_options") or []
+    return any(getattr(o, "type", None) in _MAIN_PHASE_TYPES for o in opts)
+
+
+def _attack_last_score(sit: dict[str, Any], *, force_now: bool = False) -> float | None:
+    """If attack must wait for main-phase work, return a soft trailing score.
+
+    Returns None when the caller should use its normal dominate score
+    (KO / prize closeout / no main-phase options left).
+    """
+    if force_now:
+        return None
+    if int(sit.get("prize_self", 99) or 99) <= 2:
+        return None
+    if _main_phase_open(sit):
+        return 5.0  # below every hard-rule setup; above blank END (0 / -DOMINATE)
+    return None
+
+
+def _resentful_damage(opp_hand: int) -> int:
+    return 50 * max(0, int(opp_hand))
+
+
+def _resentful_worthless(opp_hand: int) -> bool:
+    """Resentful Refrain is 50×opp hand — empty hand = 0 damage, dead attack."""
+    return _resentful_damage(opp_hand) == 0
+
+
+def _starmie_promote_over_froslass(obs, my_index: int, board, sit: dict[str, Any]) -> bool:
+    """Active 861 but Resentful is dead/weak and Mega Starmie sits on the bench.
+
+    Dual-attacker rule: cut back to Starmie when opp hand is empty (Resentful=0).
+    Do NOT require water on the bench Starmie — oil it after the cut-in.
+    Also cut in when Resentful < Absolute Snow (150) and a fueled Starmie is ready
+    (Jetting line is the primary attacker).
+    """
+    if not board.active_is_mega_froslass:
+        return False
+    opp_hand = int(sit.get("opp_hand_count") or 0)
+    has_starmie = _bench_has_id(obs, my_index, _CARDS["mega_starmie_ex"])
+    if not has_starmie:
+        return False
+    if _resentful_worthless(opp_hand):
+        return True
+    _, fueled = _bench_mega_starmie_with_water(obs, my_index)
+    if fueled is not None and _resentful_damage(opp_hand) < 150:
+        return True
+    return False
+
+
 def _boss_engine_gate(board, phase, hand_ctx=None) -> bool:
     """P2: 运转大于一切 — Boss's Orders only once the engine is built
     (opening complete + DP set on field) or when closing out (≤2 prizes).
@@ -527,27 +696,45 @@ def _harvest_hard_rules(
         ):
             return _DOMINATE_OPEN
 
-    # HR-H3 / HR-H4  Resentful default; Absorbing Snow only when hand is small
+    # HR-H3 / HR-H4  Resentful only when it actually damages; else Absolute Snow.
+    # Empty opp hand → Resentful = 0: never boost it (cut to Starmie instead).
     if option.type == OptionType.ATTACK and _mega_froslass_should_attack(board):
         atk_id = _attack_id(option)
+        if _starmie_promote_over_froslass(obs, mi, board, sit):
+            return -_DOMINATE  # must Switch/Retreat to bench Mega Starmie
+        last = _attack_last_score(sit)
         if atk_id == _ATK_RESENTFUL:
-            return _DOMINATE_PLUS  # outrank post-Mega supporter boost (~1005)
-        if atk_id == _ATK_ABS_SNOW and opp_hand * 50 < 200:
-            return _DOMINATE_ATTACK * 0.5
+            if _resentful_damage(opp_hand) >= 200:
+                return last if last is not None else _DOMINATE_PLUS
+            return -_DOMINATE  # worse than Absolute Snow (150)
+        if atk_id == _ATK_ABS_SNOW:
+            if _resentful_damage(opp_hand) < 200:
+                return last if last is not None else _DOMINATE_ATTACK
+            return -_DOMINATE
 
-    # HR-H3b  When Resentful is live, do not spend the turn on supporters / abilities.
-    if _mega_froslass_should_attack(board) and not sit.get("harvest_resentful_fired"):
+    # HR-H3b  When Resentful is LIVE (opp hand ≥ 1), don't spend on supporters.
+    # Allow Switch when cutting back to Starmie on empty-hand boards.
+    if (
+        _mega_froslass_should_attack(board)
+        and not sit.get("harvest_resentful_fired")
+        and not _resentful_worthless(opp_hand)
+        and not _starmie_promote_over_froslass(obs, mi, board, sit)
+    ):
         if option.type == OptionType.PLAY:
             cid = _hand_card_id(obs, option, mi)
             if cid == UNFAIR_STAMP and sit.get("harvest_ko_last_turn"):
                 pass  # HR-H7 may still want Stamp
+            elif cid == _OC_SWITCH:
+                pass  # never ban the cut-back tool
             elif cid in _SUPPORTER_IDS or cid == _BOSS_ID:
                 return -_DOMINATE  # beat Layer1 post-Mega supporter boost
         if option.type == OptionType.ABILITY:
             return -_DOMINATE
 
-    # HR-H5  Penalize END when Mega Froslass should attack
+    # HR-H5  Penalize END when Mega Froslass should attack (unless cutting to Starmie)
     if option.type == OptionType.END and _mega_froslass_should_attack(board):
+        if _starmie_promote_over_froslass(obs, mi, board, sit):
+            return -_DOMINATE  # must promote, not pass
         return -_DOMINATE
 
     # HR-H5b  Penalize END when 861 can attach water this turn
@@ -2036,12 +2223,16 @@ def _layer1_supporter_draw_axis(
     sup = sit.get("supporter_dec")
     if sup and sup.action == "PLAY" and option.type == OptionType.PLAY:
         if cid == sup.card_id:
-            # Never Layer1-boost supporters when Resentful is live (HR-H3).
-            if _mega_froslass_should_attack(board) and not sit.get(
-                "harvest_resentful_fired"
+            # Never Layer1-boost supporters when Resentful is LIVE (≥200 dmg).
+            # Empty-hand / cut-to-Starmie turns must keep Switch + engine free.
+            if (
+                _mega_froslass_should_attack(board)
+                and not sit.get("harvest_resentful_fired")
+                and not _resentful_worthless(int(sit.get("opp_hand_count") or 0))
+                and not _starmie_promote_over_froslass(obs, mi, board, sit)
+                and _resentful_damage(int(sit.get("opp_hand_count") or 0)) >= 200
             ):
                 return -_DOMINATE
-            # HR-H6: Judge before first Resentful when 861 can attack (handled above).
             # Post-usable-Mega: never lose to HR-6 Jetting Blow (975).
             score = _planner_score(sup.priority)
             if phase.opening_complete and not hand.supporter_played:
@@ -2192,10 +2383,14 @@ def _dry_attacker_needs_water(obs, my_index: int) -> bool:
     return False
 
 
-def _attach_priority_bonus(obs, option, mi: int, board, phase, hand) -> float:
-    """Every turn: prefer a productive ATTACH (dry Mega/Staryu water, then Munk dark).
+def _attach_priority_bonus(
+    obs, option, mi: int, board, phase, hand, *, alak_matchup: bool = False,
+) -> float:
+    """Every turn: prefer a productive ATTACH.
 
-    When hand still has energy and a dry attacker exists, END / junk attach lose.
+    Default (non-Alakazam): dry attacker water FIRST (Mega / Staryu that can
+    come online this turn), then Munk dark. Alakazam matchup is the exception
+    where DP (Munk dark) may outrank spare-Staryu water.
     """
     if option.type == OptionType.END:
         if hand and getattr(hand, "energy_attached", False):
@@ -2204,7 +2399,7 @@ def _attach_priority_bonus(obs, option, mi: int, board, phase, hand) -> float:
             return _ATTACH_ILLEGAL  # deeper than -DOMINATE so END never ties illegal attaches
         # Dark left + Munk dry: still a productive attach this turn.
         if (
-            _hand_has_id(obs, mi, DARK_BASIC)
+            (_hand_has_id(obs, mi, DARK_BASIC) or _hand_has_id(obs, mi, _OC_PRISM))
             and board.munkidori_on_field
             and not board.munkidori_has_dark
         ):
@@ -2227,8 +2422,11 @@ def _attach_priority_bonus(obs, option, mi: int, board, phase, hand) -> float:
     if _pokemon_energy_count(target) >= 1:
         return 0.0
 
+    dry_atk = _dry_attacker_needs_water(obs, mi)
+    water_in_hand = _hand_has_water_energy(obs, mi)
+
     # Soft-ban junk oil when dry attackers exist (hard ban also in _attach_hard_ban).
-    if _dry_attacker_needs_water(obs, mi) and tid in (
+    if dry_atk and tid in (
         _BUDEW_ID, _FAN_ROTOM_ID, DUNSPARCE_A, DUNSPARCE_B, _CARDS["dudunsparce"],
     ):
         return _ATTACH_ILLEGAL
@@ -2243,24 +2441,30 @@ def _attach_priority_bonus(obs, option, mi: int, board, phase, hand) -> float:
                 return _DOMINATE_MID
             return _DOMINATE_OPEN_PATH if board.active_is_mega_starmie else _DOMINATE_PLUS
         if tid == _OC_STARYU and not _has_water_energy(target):
-            # Prefer Staryu water only when no dry Mega still needs it.
+            # Prefer Staryu water when no dry Mega still needs it.
             if not _field_has_dry_mega(obs, mi):
-                # DP boost: Munkidori's dark outranks spare-Staryu water —
-                # the Megas are fueled, so the DP engine gets this attach.
-                if _munk_needs_dark(obs, mi) and _hand_has_dark_energy(obs, mi):
+                # Alakazam-only: Munk dark may outrank spare-Staryu water.
+                if (
+                    alak_matchup
+                    and _munk_needs_dark(obs, mi)
+                    and _hand_has_dark_energy(obs, mi)
+                ):
                     return _DOMINATE_MID - 40.0
-                return _DOMINATE_PLUS
+                return _DOMINATE_PLUS  # normal: fuel the attacker egg first
             return _DOMINATE_MID
         # Water onto Snorunt is legal but low-value while dry Mega exists.
         if tid == _OC_SNORUNT and _field_has_dry_mega(obs, mi):
             return -_DOMINATE_MID
 
-    # Dark onto Munk — productive when attackers already fueled or no water left.
-    # DP boost: only a dry MEGA outranks the dark attach; a spare Staryu
-    # waiting for water must not starve the DP engine.
-    if eid == DARK_BASIC and tid == _MUNKIDORI_ID and not _has_darkness_energy(target):
-        if _field_has_dry_mega(obs, mi) and _hand_has_water_energy(obs, mi):
-            return -_DOMINATE_MID  # water the Mega first this turn
+    # Dark/Prism onto Munk — never before a dry attacker that can take water
+    # this turn, except Alakazam matchup (DP disruption is the plan).
+    if (
+        eid in (DARK_BASIC, _OC_PRISM, int(EnergyType.DARKNESS))
+        and tid == _MUNKIDORI_ID
+        and not _has_darkness_energy(target)
+    ):
+        if dry_atk and water_in_hand and not alak_matchup:
+            return -_DOMINATE_MID  # water the attacker first
         return _DOMINATE_OPEN_PATH if phase.primary == "HARVEST" else _DOMINATE
 
     return 0.0
@@ -2326,8 +2530,11 @@ def _froslass_promote_needed(obs, my_index: int, board, sit: dict[str, Any]) -> 
 
     Once Resentful has fired this game, only promote when Active cannot attack
     as Mega Starmie+water. Until then, always cut over so 861 actually fires.
+    Never cut Starmie for 861 when opp hand is empty (Resentful = 0).
     """
     if board.active_is_mega_froslass:
+        return False
+    if _resentful_worthless(int(sit.get("opp_hand_count") or 0)):
         return False
     _, bench_mf = _bench_mega_froslass_with_water(obs, my_index)
     if bench_mf is None:
@@ -2550,25 +2757,105 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
                 return _DOMINATE_OPEN_PATH
             return _DOMINATE_OPEN
 
-    # Active Mega Froslass + water → Resentful in ANY phase (not only HARVEST).
-    if _mega_froslass_should_attack(board) and not sit.get("harvest_resentful_fired"):
+    # Dual-attacker: Active 861 + dead/weak Resentful + bench Mega Starmie
+    # → cut back to Starmie (Resentful=0 must not Absolute-Snow stall).
+    if _starmie_promote_over_froslass(obs, mi, board, sit):
+        can_cut = (
+            _hand_has_id(obs, mi, _OC_SWITCH)
+            or _active_can_retreat(obs, mi)
+        )
+        opts = sit.get("select_options") or []
+        cut_offered = any(
+            getattr(o, "type", None) == OptionType.RETREAT
+            or (
+                getattr(o, "type", None) == OptionType.PLAY
+                and _hand_card_id(obs, o, mi) == _OC_SWITCH
+            )
+            for o in opts
+        ) if opts else can_cut
+        if option.type == OptionType.PLAY and _hand_card_id(obs, option, mi) == _OC_SWITCH:
+            return _DOMINATE_OPEN_PATH
+        if option.type == OptionType.RETREAT and _active_can_retreat(obs, mi):
+            return _DOMINATE_OPEN_PATH
+        if option.type == OptionType.CARD:
+            try:
+                ctx = int(obs.select.context)
+            except Exception:
+                ctx = -1
+            if ctx in (int(SelectContext.SWITCH), int(SelectContext.TO_ACTIVE)):
+                pi = _si(getattr(option, "playerIndex", None), mi)
+                if pi == mi:
+                    pkm = _pokemon_in_area(
+                        obs, option.area, _si(getattr(option, "index", None)), mi,
+                    )
+                    if pkm and _si(getattr(pkm, "id", None)) == _CARDS["mega_starmie_ex"]:
+                        return _DOMINATE_OPEN_PATH
+                    return -_DOMINATE
+        if option.type == OptionType.ATTACK:
+            # Soft-lock only while a cut-in action is actually offered.
+            if cut_offered:
+                return -_DOMINATE
+            atk_id = _attack_id(option)
+            last = _attack_last_score(sit)
+            if atk_id == _ATK_ABS_SNOW:
+                return last if last is not None else _DOMINATE_ATTACK
+            if atk_id == _ATK_RESENTFUL:
+                return -_DOMINATE
+        if option.type == OptionType.END and cut_offered:
+            return -_DOMINATE
+
+    # Active Mega Froslass + water → Resentful only when it deals real damage.
+    opp_hand_n = int(sit.get("opp_hand_count") or 0)
+    if (
+        _mega_froslass_should_attack(board)
+        and not sit.get("harvest_resentful_fired")
+        and not _resentful_worthless(opp_hand_n)
+        and not _starmie_promote_over_froslass(obs, mi, board, sit)
+    ):
         if option.type == OptionType.ATTACK:
             atk_id = _attack_id(option)
+            last = _attack_last_score(sit)
             if atk_id == _ATK_RESENTFUL:
-                return _DOMINATE_PLUS
+                if _resentful_damage(opp_hand_n) >= 200:
+                    return last if last is not None else _DOMINATE_PLUS
+                return -_DOMINATE
             if atk_id == _ATK_ABS_SNOW:
-                return _DOMINATE_ATTACK * 0.5
-            return -_DOMINATE  # never other attacks while Resentful available
-        if option.type in (
-            OptionType.PLAY,
-            OptionType.ABILITY,
-            OptionType.RETREAT,
-            OptionType.ATTACH,
-            OptionType.EVOLVE,
+                if _resentful_damage(opp_hand_n) < 200:
+                    return last if last is not None else _DOMINATE_ATTACK
+                return -_DOMINATE
+            return -_DOMINATE  # never other attacks while 861 is the attacker
+        # Allow Switch always; ban other turn-spenders only when Resentful is strong.
+        if option.type == OptionType.PLAY:
+            cid = _hand_card_id(obs, option, mi)
+            if cid == _OC_SWITCH:
+                return 0.0
+            if _resentful_damage(opp_hand_n) >= 200 and (
+                cid in _SUPPORTER_IDS or cid == _BOSS_ID
+            ):
+                return -_DOMINATE
+        if (
+            option.type in (OptionType.ABILITY, OptionType.ATTACH, OptionType.EVOLVE)
+            and _resentful_damage(opp_hand_n) >= 200
         ):
+            return -_DOMINATE
+        if option.type == OptionType.RETREAT and _resentful_damage(opp_hand_n) >= 200:
             return -_DOMINATE
         if option.type == OptionType.END:
             return _ATTACH_ILLEGAL
+
+    # Absolute Snow fallback when Resentful is dead but cannot cut to Starmie.
+    if (
+        option.type == OptionType.ATTACK
+        and _mega_froslass_should_attack(board)
+        and _resentful_worthless(opp_hand_n)
+        and not _starmie_promote_over_froslass(obs, mi, board, sit)
+    ):
+        atk_id = _attack_id(option)
+        last = _attack_last_score(sit)
+        if atk_id == _ATK_ABS_SNOW:
+            return last if last is not None else _DOMINATE_ATTACK
+        if atk_id == _ATK_RESENTFUL:
+            return -_DOMINATE
 
     # Bench 861+water → promote to Active so Resentful can fire at least once.
     if _froslass_promote_needed(obs, mi, board, sit):
@@ -2675,7 +2962,10 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
             if cid and not _obs_can_bench_card(obs, mi, cid):
                 return -_DOMINATE_OPEN_PATH
 
-    attach_pri = _attach_priority_bonus(obs, option, mi, board, phase, hand)
+    attach_pri = _attach_priority_bonus(
+        obs, option, mi, board, phase, hand,
+        alak_matchup=bool(sit.get("matchup_alakazam_confirmed")),
+    )
     if attach_pri != 0.0:
         return attach_pri
 
@@ -2931,9 +3221,17 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
                 return _DOMINATE_PLUS - 10.0
 
     # HR-3 / HR-11 — synergy bench (AGGRESSION+ only; OPENING uses path planner)
+    # Post-Mega DP incomplete: scores must beat Jetting (_DOMINATE_ATTACK=975)
+    # — attacking ends the turn and was starving the DP set.
+    dp_urgent = (
+        getattr(board, "mega_starmie_on_field", False)
+        and not _synergy_core_ready(board)
+    )
     if phase.primary != "OPENING" and option.type == OptionType.PLAY and synergy and board.bench_open > 0:
         cid = _hand_card_id(obs, option, mi)
         if cid == _OC_SNORUNT and not board.snorunt_line_on_bench:
+            if dp_urgent:
+                return _DOMINATE_PLUS - 20.0
             return _DOMINATE if board.munkidori_on_bench else _DOMINATE_MID
         # DP boost: 2nd Snorunt while the twin lines (861 + 104) are not both
         # online — one egg per evolution (overflow ban caps at 2 upstream).
@@ -2944,9 +3242,9 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
                 and board.froslass_104_on_field
             )
         ):
-            return _DOMINATE_MID - 20.0
+            return (_DOMINATE_PLUS - 40.0) if dp_urgent else (_DOMINATE_MID - 20.0)
         if cid == _OC_MUNKIDORI and not board.munkidori_on_field:
-            return _DOMINATE
+            return (_DOMINATE_PLUS - 10.0) if dp_urgent else _DOMINATE
 
     # HR-11  Synergy engine — Poké Pad / Poffin while DP field pieces missing
     # (104/Snorunt line or Munkidori not yet on field; dark-only gaps are an
@@ -2974,6 +3272,14 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
                 or resources.copies_left(_MUNKIDORI_ID) > 0
             ):
                 return _DOMINATE_PLUS
+        # Ultra Ball dig for DP pieces — same urgency as Pad post-Mega.
+        if cid == _OC_ULTRA_BALL and dp_urgent:
+            if (
+                resources.copies_left(_OC_SNORUNT) > 0
+                or resources.copies_left(_OC_FROSLASS) > 0
+                or resources.copies_left(_MUNKIDORI_ID) > 0
+            ):
+                return _DOMINATE_PLUS - 30.0
 
     # HR-10  Double Munkidori — second copy on bench (AGGRESSION/HARVEST)
     if (
@@ -2990,6 +3296,8 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
             return _DOMINATE
 
     # HR-4  Attach dark/prism to any Munkidori missing dark (My-T2+ / HARVEST)
+    # Non-Alakazam: never outrank watering a dry attacker (Mega/Staryu) that
+    # can come online this turn — DP fill waits one attach.
     if option.type == OptionType.ATTACH and post_opening:
         target = _attach_target_pokemon(obs, option, mi)
         eid = _attach_energy_id(obs, option, mi)
@@ -2999,6 +3307,13 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
             and not _has_darkness_energy(target)
             and eid in (_OC_PRISM, DARK_BASIC)
         ):
+            alak = bool(sit.get("matchup_alakazam_confirmed"))
+            if (
+                not alak
+                and _dry_attacker_needs_water(obs, mi)
+                and _hand_has_water_energy(obs, mi)
+            ):
+                return -_DOMINATE_MID
             # PATH in HARVEST recovery — keep Adrena-Brain online after Starmie trades.
             if phase.primary == "HARVEST" or (synergy and board.munkidori_on_field):
                 return _DOMINATE_OPEN_PATH
@@ -3062,13 +3377,23 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
                 return _DOMINATE_OPEN_PATH
             return _DOMINATE_OPEN  # post-Mega setup while Starmie still Active
 
-    # HR-6  Mega Starmie must attack (AGGRESSION / OPENING late — not HARVEST backup)
-    # Defer to post-Mega supporter when one is planned and not yet spent.
-    # Also defer Jetting when Snorunt→861 is available this turn.
+    # HR-6  Mega Starmie attack — ALWAYS last among main-phase actions.
+    # Exceptions: Nebula KO, prize ≤ 2 closeout. Otherwise soft-trail (5.0)
+    # while PLAY/ATTACH/EVOLVE/ABILITY/RETREAT remain, then fire Jetting.
     if option.type == OptionType.ATTACK and _starmie_should_attack(board):
         if phase.primary == "AGGRESSION" or (
             phase.primary == "OPENING" and board.my_turn_number >= 2
         ):
+            atk_id = _attack_id(option)
+            nebula_ko = (
+                atk_id == _ATK_NEBULA_BEAM
+                and _nebula_ko_available(obs, mi, prize_ids)
+            )
+            if nebula_ko:
+                return _DOMINATE_PLUS
+            last = _attack_last_score(sit, force_now=False)
+            if last is not None:
+                return last  # main-phase still open → attack trails
             can_setup_861 = (
                 phase.opening_complete
                 and _hand_has_id(obs, mi, _CARDS["mega_froslass_ex"])
@@ -3077,7 +3402,6 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
                     or board.active_id == _OC_SNORUNT
                 )
                 and not getattr(board, "mega_froslass_on_field", False)
-                # S4: never defer Jetting for 861 while its window is closed.
                 and _mega_froslass_window_open(obs, mi, board, phase)
             )
             sup = sit.get("supporter_dec")
@@ -3088,25 +3412,30 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
                 and getattr(sup, "action", None) == "PLAY"
                 and phase.opening_complete
             ):
-                # Soft attack nudge only — supporter Layer1 wins the sort.
-                atk_id = _attack_id(option)
-                if atk_id == _ATK_NEBULA_BEAM and _nebula_ko_available(obs, mi, prize_ids):
-                    return _DOMINATE_PLUS  # KO still outranks supporter dig
                 return _DOMINATE_MID
-            atk_id = _attack_id(option)
-            if atk_id == _ATK_NEBULA_BEAM and _nebula_ko_available(obs, mi, prize_ids):
-                return _DOMINATE_PLUS
             if atk_id == _ATK_JETTING_BLOW:
                 if can_setup_861:
-                    return _DOMINATE_MID  # let HR-8 861 evolve win the sort
+                    return _DOMINATE_MID
+                return _DOMINATE_ATTACK
+            if atk_id == _ATK_NEBULA_BEAM:
                 return _DOMINATE_ATTACK
 
-    # HR-6b  Penalize END when Mega Starmie should attack
+    # HR-6b  Penalize END when Mega Starmie should attack — but if DP engine
+    # work is still pending, END is also wrong (should do setup). Keep END
+    # banned whenever we still owe an attack OR owe engine work post-Mega.
     if option.type == OptionType.END and _starmie_should_attack(board):
         if phase.primary == "AGGRESSION" or (
             phase.primary == "OPENING" and board.my_turn_number >= 2
         ):
             return -_DOMINATE
+    if (
+        option.type == OptionType.END
+        and getattr(board, "mega_starmie_on_field", False)
+        and not _synergy_core_ready(board)
+        and _dp_engine_actions_available(obs, mi, board, hand, resources)
+        and phase.primary == "AGGRESSION"
+    ):
+        return -_DOMINATE
 
     # HR-7  Budew Itchy Pollen — OPENING stall when no Mega ex ready
     if option.type == OptionType.ATTACK and phase.primary == "OPENING" and turn >= 3:
@@ -3651,6 +3980,9 @@ def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None)
                     agent_state["board_at_my_turn_3"] = agent_state.get(
                         "final_board")
 
+            # Expose the full option list so attack-last can see remaining
+            # main-phase actions (PLAY/ATTACH/EVOLVE/ABILITY/RETREAT).
+            sit["select_options"] = options
             order = sorted(
                 range(len(options)),
                 key=lambda i: option_score(obs, options[i], w, sit),
