@@ -81,6 +81,7 @@ class HandContext:
     has_lillie: bool
     has_crispin: bool
     gust_target_on_opp_bench: bool
+    gust_target_koable: bool = False
 
 
 @dataclass
@@ -235,7 +236,9 @@ def build_deck_resources(
     )
 
 
-def build_hand_context_from_obs(obs, *, gust_target_on_opp_bench: bool = False) -> HandContext:
+def build_hand_context_from_obs(
+    obs, *, gust_target_on_opp_bench: bool = False, gust_target_koable: bool = False,
+) -> HandContext:
     mi = _si(getattr(obs.current, "yourIndex", None))
     me = obs.current.players[mi]
     hand = me.hand or []
@@ -249,4 +252,5 @@ def build_hand_context_from_obs(obs, *, gust_target_on_opp_bench: bool = False) 
         has_lillie=LILLIE in ids,
         has_crispin=CRISPIN in ids,
         gust_target_on_opp_bench=gust_target_on_opp_bench,
+        gust_target_koable=gust_target_koable,
     )

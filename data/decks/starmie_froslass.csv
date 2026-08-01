@@ -1,12 +1,14 @@
 # Dual Mega ex Aggro: Mega Starmie ex + Mega Froslass ex
 # Archetype: TEMPO/BURST - dual attacker, Boss's Orders gusting, Munkidori disruption
 # Total: 60 cards
+# Deck note 2026-07-15: cut Dudunsparce ex (306); +1 Staryu (1030) for Mega≤T3 path
 # --- Pokemon x17 ---
 860
 860
 860
 861
 861
+1030
 1030
 1030
 1031
@@ -21,7 +23,6 @@
 66
 65
 65
-306
 1071
 # --- Items x15 ---
 1086
@@ -58,11 +59,13 @@
 1260
 1260
 # --- Energy x8 ---
+# 2026-07-27: cut Prism(16)+Ignition(17) → +1 Water +1 Dark (no prism/ignition oil)
+# Water fuels Starmie/Froslass Mega; Dark fuels Munkidori / retreat only.
+3
 3
 3
 3
 3
 7
 7
-16
-17
+7

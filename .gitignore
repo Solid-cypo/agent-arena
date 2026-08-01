@@ -28,3 +28,10 @@ submission_starmie.tar.gz
 # Regeneratable opening hard-case logs
 .agent/skills/piloting_starmie_froslass/logs/hard_cases/
 backups/
+# Submission bundles (archived on Kaggle)
+/submission_starmie*.tar.gz
+# Raw replay archives (re-downloadable via Kaggle API; see CATALOG.md)
+data/kaggle_episodes/
+# Opening SFT bulk data (models whitelisted below)
+data/opening_sft/*
+!data/opening_sft/*.npz
