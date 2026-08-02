@@ -105,6 +105,7 @@ def test_dr5_forbid_lillie_when_boss_gust():
     hand = _hand(
         hand_ids=[LILLIE, BOSS_ORDERS], hand_size=2,
         has_boss=True, gust_target_on_opp_bench=True,
+        gust_target_koable=True,
     )
     res = _resources()
     forbidden, rule = lillie_forbidden(board, _phase(), hand, res)
@@ -116,6 +117,7 @@ def test_sp_boss_priority():
     hand = _hand(
         hand_ids=[BOSS_ORDERS, LILLIE], hand_size=2,
         has_boss=True, gust_target_on_opp_bench=True,
+        gust_target_koable=True,
     )
     res = _resources(remaining=Counter(load_deck_template()) - Counter([BOSS_ORDERS]))
     dec = pick_supporter(board, _phase(), hand, res)

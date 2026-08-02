@@ -21,6 +21,7 @@ PILOT_MODULES = (
     "draw_axis.py",
     "supporter_planner.py",
     "turn_planner.py",
+    "opponent_roles.py",
     "matchup_alakazam.py",
 )
 

@@ -41,12 +41,14 @@ from turn_planner import discard_value  # noqa: E402
 
 # Minimal tag instrumentation (aligned with run_combat_eval taxonomy).
 BOSS = 1182
+BUDEW = 235
 SUPPORTERS = {1182, 1198, 1213, 1225, 1227, 1229, 1189}
 DUNSPARCE, DUDUNSPARCE = 65, 66
 MEGA_STARMIE, MEGA_FROSLASS = 1031, 861
 FROSLASS_104, MUNKIDORI = 104, 112
 ST_ATKS = {1487, 1488}
 MF_ATKS = {1240, 1241}
+ITCHY_POLLEN = 323
 SEARCH_EFFECTS = {1086, 1097, 1121, 1152, 1189, 1225}
 OPT_CARD, OPT_PLAY, OPT_ABILITY, OPT_ATTACK = 3, 7, 10, 13
 DARK_ENERGIES = {7, 16, 17}
@@ -89,6 +91,8 @@ def _selected_card_id(obs_dict: dict, option: dict, my_index: int) -> int:
 
 def make_tags(g: dict) -> list[str]:
     tags = []
+    if g.get("effective_boss", 0) == 0:
+        tags.append("no_effective_boss")
     if g["boss"] == 0:
         tags.append("zero_boss")
     if g["sup"] == 0:
@@ -178,6 +182,9 @@ def play_one(
 
     gstat = {
         "boss": 0,
+        "effective_boss": 0,
+        "ineffective_boss": 0,
+        "boss_prize_deltas": [],
         "sup": 0,
         "st_atk": 0,
         "mf_atk": 0,
@@ -203,6 +210,17 @@ def play_one(
         "froslass_expected_prizes": [],
         "prize_stuck": False,
         "prize_timeline": [],
+        "going_second": None,
+        "opp_role_known": 0,
+        "opp_role_seen": 0,
+        "boss_target_matches_plan": 0,
+        "boss_target_checks": 0,
+        "rider_target_matches_plan": 0,
+        "rider_target_checks": 0,
+        "boss_grabs_rider": 0,
+        "budew_played": False,
+        "budew_itchy_turns": 0,
+        "boss_pending": False,
     }
     tr = {
         "turn": -1,
@@ -212,6 +230,10 @@ def play_one(
         "ready_mega": False,
         "double_seen_turn": -1,
         "double_attempt_prizes": None,
+        "double_ko_success_this_turn": False,
+        "boss_played_this_turn": False,
+        "boss_prizes_at_play": None,
+        "itchy_this_turn": False,
     }
 
     def wrap_our(obs_dict, _gs=gstat, _tr=tr):
@@ -233,6 +255,18 @@ def play_one(
                 plan = st.get("last_turn_plan")
             except Exception:
                 pass
+            fp = _si(cur.get("firstPlayer"), -1)
+            if _gs["going_second"] is None and fp in (0, 1):
+                _gs["going_second"] = fp != mi
+            if plan is not None:
+                opp_targets = [
+                    t
+                    for t in ((plan.facts.opp_active,) + plan.facts.opp_bench)
+                    if t is not None
+                ]
+                if opp_targets:
+                    _gs["opp_role_seen"] += len(opp_targets)
+                    _gs["opp_role_known"] += sum(1 for t in opp_targets if t.known_role)
             fid = _field_ids(me)
             if MEGA_STARMIE in fid:
                 _gs["ever_mega"] = True
@@ -266,9 +300,23 @@ def play_one(
                     and _tr["double_attempt_prizes"] - ps >= 2
                 ):
                     _gs["double_ko_success"] += 1
+                    _tr["double_ko_success_this_turn"] = True
                 _tr["double_attempt_prizes"] = None
+                if _tr["boss_played_this_turn"] and _tr["boss_prizes_at_play"] is not None:
+                    delta = _tr["boss_prizes_at_play"] - ps
+                    _gs["boss_prize_deltas"].append(delta)
+                    if delta > 0 or _tr["double_ko_success_this_turn"]:
+                        _gs["effective_boss"] += 1
+                    else:
+                        _gs["ineffective_boss"] += 1
+                if _tr["itchy_this_turn"]:
+                    _gs["budew_itchy_turns"] += 1
                 _tr["turn"] = mt
                 _tr["attacked"] = False
+                _tr["itchy_this_turn"] = False
+                _tr["boss_played_this_turn"] = False
+                _tr["boss_prizes_at_play"] = None
+                _tr["double_ko_success_this_turn"] = False
                 _tr["ready_mega"] = bool(
                     plan and plan.combat.attack_required
                 )
@@ -369,6 +417,8 @@ def play_one(
                             _gs["froslass_expected_prizes"].append(
                                 plan.combat.expected_prizes
                             )
+                    if aid == ITCHY_POLLEN:
+                        _tr["itchy_this_turn"] = True
                     if aid == 1487 and plan is not None and plan.combat.mode == "DOUBLE_KO":
                         _gs["double_ko_attempt"] += 1
                         _tr["double_attempt_prizes"] = len(me.get("prize") or [])
@@ -383,6 +433,11 @@ def play_one(
                         _gs["sup"] += 1
                     if cid == BOSS:
                         _gs["boss"] += 1
+                        _gs["boss_pending"] = True
+                        _tr["boss_played_this_turn"] = True
+                        _tr["boss_prizes_at_play"] = len(me.get("prize") or [])
+                    if cid == BUDEW:
+                        _gs["budew_played"] = True
                     if cid == DUDUNSPARCE:
                         _gs["evo66"] += 1
                 elif t == 9:  # EVOLVE
@@ -412,9 +467,30 @@ def play_one(
                     ):
                         _gs["dudunsparce_draw_good_hand"] += 1
                 elif t == OPT_CARD and plan is not None:
-                    cid = sp._card_option_id(
-                        obs_obj, obs_obj.select.option[d], mi,
-                    )
+                    pi = _si(o.get("playerIndex"), mi)
+                    idx = _si(o.get("index"), -1)
+                    if (
+                        plan.combat.rider_target is not None
+                        and pi != mi
+                        and ctx in (
+                            int(SelectContext.DAMAGE),
+                            int(SelectContext.DAMAGE_COUNTER),
+                        )
+                    ):
+                        _gs["rider_target_checks"] += 1
+                        if idx == plan.combat.rider_target.index:
+                            _gs["rider_target_matches_plan"] += 1
+                    if _gs.get("boss_pending") and pi != mi:
+                        if plan.combat.boss_target is not None:
+                            _gs["boss_target_checks"] += 1
+                            if idx == plan.combat.boss_target.index:
+                                _gs["boss_target_matches_plan"] += 1
+                        if (
+                            plan.combat.rider_target is not None
+                            and idx == plan.combat.rider_target.index
+                        ):
+                            _gs["boss_grabs_rider"] += 1
+                        _gs["boss_pending"] = False
                 elif (
                     t == 14
                     and plan is not None
@@ -453,6 +529,14 @@ def play_one(
         and tr["double_attempt_prizes"] - tr["current_prizes"] >= 2
     ):
         gstat["double_ko_success"] += 1
+        tr["double_ko_success_this_turn"] = True
+    if tr["boss_played_this_turn"] and tr["boss_prizes_at_play"] is not None:
+        delta = tr["boss_prizes_at_play"] - tr["current_prizes"]
+        gstat["boss_prize_deltas"].append(delta)
+        if delta > 0 or tr["double_ko_success_this_turn"]:
+            gstat["effective_boss"] += 1
+        else:
+            gstat["ineffective_boss"] += 1
 
     # prize stuck: last 3 my-turns same prize count > 0
     tl = gstat["prize_timeline"]
@@ -564,6 +648,17 @@ def main() -> int:
                 "bad_ultra_ball_discard": gstat["bad_ultra_ball_discard"],
                 "dudunsparce_draw_good_hand": gstat["dudunsparce_draw_good_hand"],
                 "froslass_expected_prizes": gstat["froslass_expected_prizes"],
+                "going_second": gstat["going_second"],
+                "opponent_role_coverage": (
+                    gstat["opp_role_known"] / max(1, gstat["opp_role_seen"])
+                ),
+                "boss_target_matches_plan": gstat["boss_target_matches_plan"],
+                "boss_target_checks": gstat["boss_target_checks"],
+                "rider_target_matches_plan": gstat["rider_target_matches_plan"],
+                "rider_target_checks": gstat["rider_target_checks"],
+                "boss_grabs_rider": gstat["boss_grabs_rider"],
+                "budew_played": gstat["budew_played"],
+                "budew_itchy_turns": gstat["budew_itchy_turns"],
             })
             print(f"  {fname}: us_reward={gstat['reward_for_us']} tags={tags}")
 

@@ -47,41 +47,61 @@ _OTHER_SUPPORTERS = (LILLIE, HILDA, CRISPIN, JUDGE, UNFAIR_STAMP, WALLYS_COMPASS
 
 
 def _boss_ok(
-    board: BoardSnapshot, phase: PhaseState, hand: HandContext | None = None,
+    board: BoardSnapshot,
+    phase: PhaseState,
+    hand: HandContext | None = None,
+    *,
+    turn_plan=None,
 ) -> bool:
-    """P2: 运转大于一切 — Boss only after MEGA + DP set are built, or when
-    closing (≤2 prizes). Otherwise the slot goes to draw/setup supporters.
-    Relaxation: if Boss is the ONLY supporter in hand, playing it beats an
-    empty supporter slot (also 运转)."""
+    """Effective-Boss gate: only allow Boss when TurnPlan expects a prize
+    advance (or DoubleKO needs a front swap), or when closing (≤2 prizes).
+
+    ``zero_boss`` is no longer optimized; empty-slot / sole-supporter Boss is
+    not a reason to play an ineffective gust.
+    """
     if board.prize_self <= 2:
         return True
+    if turn_plan is not None:
+        combat = getattr(turn_plan, "combat", None)
+        if combat is not None:
+            if getattr(combat, "boss_target", None) is not None:
+                return True
+            if int(getattr(combat, "expected_prize_delta", 0) or 0) > 0:
+                return True
+            # TurnPlan evaluated this turn and rejected Boss — do not soft-open.
+            if getattr(combat, "attack_required", False):
+                return False
     if not getattr(phase, "opening_complete", False):
         return False
     dp_ready = (
         board.froslass_104_on_field
         or getattr(board, "mega_froslass_on_field", False)
     ) and board.munkidori_on_field
-    if dp_ready:
+    if dp_ready and hand is not None and getattr(hand, "gust_target_koable", False):
+        # Engine ready + immediate KO-able gust (legacy soft path without plan).
         return True
-    if hand is not None:
-        # Immediate prize this turn — tempo Boss is engine-positive.
-        if getattr(hand, "gust_target_koable", False):
-            return True
-        # Boss as the only supporter beats an empty supporter slot.
-        if not any(_in_hand(hand, s) for s in _OTHER_SUPPORTERS):
-            return True
+    if hand is not None and getattr(hand, "gust_target_koable", False):
+        # Without TurnPlan, keep KO-able gust as the only soft open.
+        return True
     return False
 
 
 def _fix_now_supporter(
-    hand: HandContext, board: BoardSnapshot, phase: PhaseState | None = None,
+    hand: HandContext,
+    board: BoardSnapshot,
+    phase: PhaseState | None = None,
+    *,
+    turn_plan=None,
 ) -> int | None:
     """Return a supporter that immediately advances the board (prefer over Lillie)."""
     if (
         hand.has_boss
         and hand.gust_target_on_opp_bench
         and _in_hand(hand, BOSS_ORDERS)
-        and (phase is None or _boss_ok(board, phase, hand))
+        and (
+            phase is None
+            or _boss_ok(board, phase, hand, turn_plan=turn_plan)
+        )
     ):
         return BOSS_ORDERS
     # Hilda / Crispin: water or mega line still missing while opening incomplete.
@@ -103,15 +123,20 @@ def lillie_forbidden(
     phase: PhaseState,
     hand: HandContext,
     resources: DeckResourceSnapshot,
+    *,
+    turn_plan=None,
 ) -> tuple[bool, str]:
     """Hard bans only — OPENING / hand-size / first-aggression are no longer bans."""
-    # Prefer Boss gust over washing the hand with Lillie — only once the
-    # engine is built (P2: 运转大于一切).
-    if hand.has_boss and hand.gust_target_on_opp_bench and _boss_ok(board, phase, hand):
+    # Prefer effective Boss gust over washing the hand with Lillie.
+    if (
+        hand.has_boss
+        and hand.gust_target_on_opp_bench
+        and _boss_ok(board, phase, hand, turn_plan=turn_plan)
+    ):
         return True, "DR-5"
 
     # Soft-prefer fix-now tools (Hilda/Crispin/Boss) over Lillie dig.
-    if _fix_now_supporter(hand, board, phase) is not None:
+    if _fix_now_supporter(hand, board, phase, turn_plan=turn_plan) is not None:
         return True, "DR-FIX-NOW"
 
     if resources.exhausted(LILLIE) and LILLIE not in hand.hand_ids:
@@ -233,6 +258,7 @@ def pick_supporter(
     *,
     mega_starmie_damaged: bool = False,
     harvest_ko_last_turn: bool = False,
+    turn_plan=None,
 ) -> SupporterDecision | None:
     if hand.supporter_played:
         return None
@@ -243,11 +269,11 @@ def pick_supporter(
         hand.has_boss
         and hand.gust_target_on_opp_bench
         and _in_hand(hand, BOSS_ORDERS)
-        and _boss_ok(board, phase, hand)
+        and _boss_ok(board, phase, hand, turn_plan=turn_plan)
     ):
         return SupporterDecision(
             "PLAY", BOSS_ORDERS, "SP-BOSS-1", 950.0,
-            f"Boss gust — boss unseen left={resources.boss_left}",
+            f"effective Boss gust — boss unseen left={resources.boss_left}",
         )
 
     if harvest_ko_last_turn and _in_hand(hand, UNFAIR_STAMP) and phase.primary == "HARVEST":

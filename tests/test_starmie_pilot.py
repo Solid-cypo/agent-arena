@@ -819,6 +819,56 @@ def test_control_judge_still_blocked_before_resentful_in_harvest():
     assert sp._hard_rule_bonus(obs, opt, sit) <= -sp._DOMINATE
 
 
+def test_poffin_reorder_follows_acquire_targets_dual_pick():
+    """Held-66 style AcquirePlan (STARYU, DUNSPARCE) must beat opening table order."""
+    from cg.api import SelectContext
+    from opening_cards import DUNSPARCE_A, POFFIN, STARYU
+    from turn_planner import AcquirePlan, CombatPlan
+
+    me = _player(active=_pkm(sp._BUDEW_ID), hand=[NS(id=POFFIN)])
+    opp = _player(active=_pkm(999))
+    # Offered: Fan Rotom, Dunsparce, Staryu — opening table prefers Staryu then
+    # Fan; AcquirePlan wants Staryu then Dunsparce ahead of Fan.
+    deck = [NS(id=174), NS(id=DUNSPARCE_A), NS(id=STARYU)]
+    options = [
+        NS(type=OptionType.CARD, index=0),
+        NS(type=OptionType.CARD, index=1),
+        NS(type=OptionType.CARD, index=2),
+    ]
+    obs = _obs(turn=2, my_index=0, me=me, opp=opp)
+    obs.select = NS(
+        context=int(SelectContext.TO_BENCH),
+        effect=NS(id=POFFIN),
+        deck=deck,
+        option=options,
+        maxCount=2,
+    )
+    acquire = AcquirePlan(
+        targets=(STARYU, DUNSPARCE_A),
+        sources=(POFFIN,),
+        ball_allowed=False,
+        ball_reason="",
+        discard_values=(),
+        recover_target=None,
+    )
+    combat = CombatPlan(
+        mode="NONE",
+        attack_required=False,
+        required_before_attack=(),
+        next_action="BUILD",
+    )
+    sit = {
+        "turn_plan": NS(acquire=acquire, combat=combat),
+        "board": None,
+        "matchup_alakazam_confirmed": False,
+    }
+    order = [0, 1, 2]
+    reordered = sp._reorder_poffin_bench(obs, options, order, 0, sit)
+    # Staryu (idx 2) then Dunsparce (idx 1) before Fan (idx 0).
+    assert reordered[0] == 2
+    assert reordered[1] == 1
+
+
 if __name__ == "__main__":
     import traceback
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]

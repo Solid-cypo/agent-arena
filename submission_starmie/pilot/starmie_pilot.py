@@ -372,14 +372,15 @@ def _starmie_promote_over_froslass(obs, my_index: int, board, sit: dict[str, Any
     return False
 
 
-def _boss_engine_gate(board, phase, hand_ctx=None) -> bool:
-    """P2: 运转大于一切 — Boss's Orders only once the engine is built
-    (opening complete + DP set on field) or when closing out (≤2 prizes).
-    Before that the supporter slot belongs to draw/setup (Lillie/Hilda).
-    Mirrors supporter_planner._boss_ok (incl. Boss-only-supporter relax)."""
+def _boss_engine_gate(board, phase, hand_ctx=None, turn_plan=None) -> bool:
+    """Effective-Boss gate — mirrors supporter_planner._boss_ok.
+
+    Prefer TurnPlan.boss_target / expected_prize_delta; ≤2 prizes still opens.
+    Sole-supporter Boss is no longer a relaxation.
+    """
     from supporter_planner import _boss_ok
 
-    return _boss_ok(board, phase, hand_ctx)
+    return _boss_ok(board, phase, hand_ctx, turn_plan=turn_plan)
 
 
 def _defer_mega_promotion(board, phase) -> bool:
@@ -517,14 +518,14 @@ def _harvest_hard_rules(
         if cid == UNFAIR_STAMP and sit.get("harvest_ko_last_turn"):
             return _DOMINATE_OPEN
 
-    # HR-H8  Boss's Orders onto prize-path bench target (P2: engine gate)
+    # HR-H8  Boss's Orders onto prize-path bench target (effective-Boss gate)
     if option.type == OptionType.PLAY:
         cid = _hand_card_id(obs, option, mi)
         if (
             cid == _BOSS_ID
             and hand_ctx
             and hand_ctx.gust_target_on_opp_bench
-            and _boss_engine_gate(board, phase)
+            and _boss_engine_gate(board, phase, hand_ctx, sit.get("turn_plan"))
         ):
             return _DOMINATE_SUPPORT
 
@@ -712,7 +713,7 @@ def _control_hard_rules(
             if (
                 hand_ctx
                 and hand_ctx.gust_target_on_opp_bench
-                and _boss_engine_gate(board, phase)
+                and _boss_engine_gate(board, phase, hand_ctx, sit.get("turn_plan"))
             ):
                 return _DOMINATE_SUPPORT
 
@@ -1337,10 +1338,11 @@ def _sanitize_illegal_attaches(obs, options: list, order: list[int], chosen: lis
 def _reorder_poffin_bench(
     obs, options: list, order: list[int], my_index: int, sit: dict | None = None
 ) -> list[int]:
-    """TO_BENCH Poffin: role-cap first, then POFFIN_OPENING_PRIORITY (Staryu first).
+    """TO_BENCH Poffin: AcquirePlan targets first, then opening / matchup order.
 
-    Alakazam confirmed + LOCK window: missing OA-LOCK pieces (Budew/Munk/Snorunt)
-    jump ahead of the default Staryu-first order (deadline-aware Plan B)."""
+    When ``plan.acquire.targets`` lists benchables (e.g. STARYU + DUNSPARCE
+    with held Dudunsparce), those IDs win over the fixed opening table.
+    """
     try:
         ctx = int(obs.select.context)
     except Exception:
@@ -1355,13 +1357,32 @@ def _reorder_poffin_bench(
     if eff_id != _OC_POFFIN:
         return order
     pri = {cid: i for i, cid in enumerate(POFFIN_OPENING_PRIORITY)}
-    if sit is not None and sit.get("matchup_alakazam_confirmed"):
+    plan = sit.get("turn_plan") if sit is not None else None
+    acquire_targets = (
+        tuple(getattr(getattr(plan, "acquire", None), "targets", ()) or ())
+        if plan is not None
+        else ()
+    )
+    if acquire_targets:
+        # Strict AcquirePlan order, then residual opening priorities.
+        rest = [c for c in POFFIN_OPENING_PRIORITY if c not in acquire_targets]
+        pri = {cid: i for i, cid in enumerate(tuple(acquire_targets) + tuple(rest))}
+    elif sit is not None and sit.get("matchup_alakazam_confirmed"):
         alak_board = sit.get("board")
         if alak_in_lock_window(alak_board):
             lock_first = alak_lock_pick_order(obs, alak_board, my_index)
             if lock_first:
                 rest = [c for c in POFFIN_OPENING_PRIORITY if c not in lock_first]
                 pri = {cid: i for i, cid in enumerate(tuple(lock_first) + tuple(rest))}
+    elif sit is not None and _going_second(sit.get("board")):
+        # Going second: prefer Budew in free Poffin fills once the Staryu seat
+        # is safe (Staryu stays ahead in POFFIN_OPENING_PRIORITY when needed).
+        board = sit.get("board")
+        if board is not None and not bool(getattr(board, "staryu_on_field", False)):
+            pass  # keep Staryu-first default
+        elif not _field_has_budew(obs, my_index):
+            rest = [c for c in POFFIN_OPENING_PRIORITY if c != _BUDEW_ID]
+            pri = {cid: i for i, cid in enumerate((_BUDEW_ID,) + tuple(rest))}
     # Simulate filling slots in priority order under role caps.
     active_id, bench_ids, bench_open = _field_pokemon_ids(obs, my_index)
     try:
@@ -1398,6 +1419,148 @@ def _adrena_selection_bonus(obs, option, board, phase, my_index: int) -> float:
             return _DOMINATE_PLUS
         if pi != my_index and ctx == int(SelectContext.DAMAGE_COUNTER):
             return _DOMINATE
+    return 0.0
+
+
+def _going_second(board) -> bool:
+    """True once the engine has assigned firstPlayer and we are not that seat."""
+    if board is None:
+        return False
+    fp = _si(getattr(board, "first_player", -1), -1)
+    mi = _si(getattr(board, "my_index", 0), 0)
+    return fp in (0, 1) and fp != mi
+
+
+def _field_has_budew(obs, my_index: int) -> bool:
+    try:
+        me = obs.current.players[my_index]
+        active = (me.active or [None])[0]
+        if active and _si(getattr(active, "id", None)) == _BUDEW_ID:
+            return True
+        return any(
+            p and _si(getattr(p, "id", None)) == _BUDEW_ID
+            for p in (me.bench or [])
+        )
+    except Exception:
+        return False
+
+
+def _going_second_budew_bonus(obs, option, sit: dict[str, Any]) -> float:
+    """GS policy: if Budew can be dispatched, dispatch it.
+
+    Scope: all going-second games. Yields to TurnPlan mega-must-attack and to
+    the last bench seat when the main attacker base is still missing.
+    """
+    plan = sit.get("turn_plan")
+    if plan is not None and plan.combat.attack_required:
+        return 0.0
+    board = sit.get("board")
+    if not _going_second(board):
+        return 0.0
+    # Ready Mega path owns the turn — do not stall with Budew.
+    if plan is not None and (
+        plan.facts.active_ready_mega or plan.facts.can_dispatch_bench_mega
+    ):
+        return 0.0
+    if sit.get("mega_ready") and bool(getattr(board, "mega_starmie_on_field", False)):
+        return 0.0
+
+    mi = sit["my_index"]
+    budew_active = bool(
+        _active_pokemon(obs, mi)
+        and _si(getattr(_active_pokemon(obs, mi), "id", None)) == _BUDEW_ID
+    )
+    budew_field = _field_has_budew(obs, mi)
+    need_base = bool(plan.gap.need_base) if plan is not None else False
+    bench_open = int(getattr(board, "bench_open", 0) or 0)
+
+    # Wall: once Active, stay until the opponent breaks it (or Mega takes over).
+    if budew_active and not sit.get("alak_finisher_window") and not sit.get(
+        "alak_follow_window"
+    ):
+        if option.type == OptionType.RETREAT:
+            return -_DOMINATE_MID
+        if option.type == OptionType.PLAY and _hand_card_id(obs, option, mi) == _OC_SWITCH:
+            return -_DOMINATE_MID
+        if option.type == OptionType.ATTACK and _attack_id(option) == _ATK_ITCHY_POLLEN:
+            return _DOMINATE
+
+    # Play Budew from hand whenever a legal bench seat exists.
+    if option.type == OptionType.PLAY and _hand_card_id(obs, option, mi) == _BUDEW_ID:
+        if budew_field or bench_open <= 0:
+            return 0.0
+        if not _obs_can_bench_card(obs, mi, _BUDEW_ID):
+            return 0.0
+        # Keep the last open seat for Staryu when the attacker base is missing.
+        if need_base and bench_open <= 1 and not bool(
+            getattr(board, "staryu_on_field", False)
+        ):
+            return 0.0
+        return _DOMINATE_OPEN
+
+    # Promote benched Budew to Active (Switch preferred, retreat as backup).
+    if budew_field and not budew_active:
+        if option.type == OptionType.PLAY and _hand_card_id(obs, option, mi) == _OC_SWITCH:
+            return _DOMINATE_OPEN
+        if option.type == OptionType.RETREAT and _active_can_retreat(obs, mi):
+            return _DOMINATE_OPEN - 10.0
+        if option.type == OptionType.CARD:
+            try:
+                ctx = int(obs.select.context)
+            except Exception:
+                ctx = -1
+            pi = _si(getattr(option, "playerIndex", None), mi)
+            if (
+                pi == mi
+                and ctx in (int(SelectContext.SWITCH), int(SelectContext.TO_ACTIVE))
+            ):
+                pkm = _pokemon_in_area(
+                    obs, option.area, _si(getattr(option, "index", None)), mi,
+                )
+                if pkm and _si(getattr(pkm, "id", None)) == _BUDEW_ID:
+                    return _DOMINATE_OPEN_PATH
+
+    # Free search: take Budew when it is still missing from the field.
+    if (
+        option.type == OptionType.CARD
+        and not budew_field
+        and not (need_base and not _hand_has_id(obs, mi, _OC_STARYU))
+    ):
+        try:
+            ctx = int(obs.select.context)
+        except Exception:
+            ctx = -1
+        if ctx in (
+            int(SelectContext.TO_BENCH),
+            int(SelectContext.TO_HAND),
+            int(SelectContext.TO_FIELD),
+        ):
+            if _card_option_id(obs, option, mi) == _BUDEW_ID:
+                return _DOMINATE_OPEN_PATH - 2.0
+
+    # Poffin / Pad chase Budew when going second and it is not online yet.
+    if (
+        option.type == OptionType.PLAY
+        and not budew_field
+        and _hand_card_id(obs, option, mi) in (_OC_POFFIN, _OC_POKE_PAD)
+    ):
+        # Do not steal free search from an open Staryu gap.
+        if need_base and not _hand_has_id(obs, mi, _OC_STARYU):
+            return 0.0
+        if plan is not None and plan.acquire.targets and _BUDEW_ID not in plan.acquire.targets:
+            # Exact attacker-line gaps still own the free search window.
+            if any(
+                t in (_OC_STARYU, _CARDS["mega_starmie_ex"])
+                for t in plan.acquire.targets
+            ):
+                return 0.0
+        # Staryu already online → Budew is the free-search job this turn.
+        if bool(getattr(board, "staryu_on_field", False)) or bool(
+            getattr(board, "mega_starmie_on_field", False)
+        ):
+            return _DOMINATE_OPEN
+        return _DOMINATE_MID + 40.0
+
     return 0.0
 
 
@@ -1749,8 +1912,15 @@ def _compute_situation(
 
         # Build the immutable source of truth before migration aliases.  A
         # legacy planner exception must never leave a decision without TurnPlan.
+        matchup_name = (
+            "alakazam" if sit.get("matchup_alakazam_confirmed") else None
+        )
         sit["turn_plan"] = build_turn_plan(
-            obs, board, phase=phase, resources=resources,
+            obs,
+            board,
+            phase=phase,
+            resources=resources,
+            matchup=matchup_name,
         )
         sit["doublekill_ready"] = (
             sit["turn_plan"].combat.mode == "DOUBLE_KO"
@@ -1763,6 +1933,7 @@ def _compute_situation(
         sit["supporter_dec"] = pick_supporter(
             board, phase, hand, resources, mega_starmie_damaged=hp_low,
             harvest_ko_last_turn=sit["harvest_ko_last_turn"],
+            turn_plan=sit["turn_plan"],
         )
         sit["draw_axis_dec"] = pick_draw_axis_action(
             board, phase, hand, resources,
@@ -1826,7 +1997,9 @@ def _layer1_supporter_draw_axis(
     cid = _hand_card_id(obs, option, mi) if option.type == OptionType.PLAY else 0
 
     if option.type == OptionType.PLAY and cid == LILLIE:
-        forbidden, _rule = lillie_forbidden(board, phase, hand, resources)
+        forbidden, _rule = lillie_forbidden(
+            board, phase, hand, resources, turn_plan=sit.get("turn_plan"),
+        )
         if forbidden:
             return -_DOMINATE
 
@@ -2510,10 +2683,17 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
     if crispin_ban != 0.0:
         return crispin_ban
 
-    # Attack rider damage target (Jetting bench 50): KO-able target first.
-    dmg_sel = _damage_select_bonus(obs, option, mi)
-    if dmg_sel != 0.0:
-        return dmg_sel
+    # When TurnPlan already named a rider/boss target, legacy selectors must
+    # not preempt it (especially 51–80 HP riders that old DAMAGE scoring ranks
+    # by lowest HP instead of role priority).
+    plan = sit.get("turn_plan")
+    plan_owns_rider = bool(plan and plan.combat.rider_target is not None)
+    plan_owns_boss = bool(plan and plan.combat.boss_target is not None)
+
+    if not plan_owns_rider:
+        dmg_sel = _damage_select_bonus(obs, option, mi)
+        if dmg_sel != 0.0:
+            return dmg_sel
 
     # Matchup-ALAK Plan B (confirmed only): Budew lock / finisher Stamp+Jetting.
     alak_bonus = alakazam_plan_b_hard_bonus(
@@ -2557,6 +2737,12 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
     if turn_plan_bonus != 0.0:
         return turn_plan_bonus
 
+    # Going-second Budew dispatch: play / promote / Itchy whenever legal.
+    # Runs after TurnPlan so mega-must-attack and exact acquire targets win.
+    gs_budew = _going_second_budew_bonus(obs, option, sit)
+    if gs_budew != 0.0:
+        return gs_budew
+
     stamp_prot = protect_unfair_stamp_discard(
         obs, option, mi, bool(sit.get("matchup_alakazam_confirmed")), _DOMINATE_PLUS,
     )
@@ -2564,10 +2750,12 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
         return stamp_prot
 
     # SP-BOSS-T  Boss gust target: Layer1 deterministic pick (after Plan B so
-    # the confirmed-Alakazam Budew-lock gust keeps priority).
-    boss_sel = _boss_gust_select_bonus(obs, option, sit)
-    if boss_sel != 0.0:
-        return boss_sel
+    # the confirmed-Alakazam Budew-lock gust keeps priority).  Skip when
+    # TurnPlan already owns the gust target.
+    if not plan_owns_boss:
+        boss_sel = _boss_gust_select_bonus(obs, option, sit)
+        if boss_sel != 0.0:
+            return boss_sel
 
     # Evolve Snorunt→861 early in ops block (Active+water = next-turn Resentful).
     if option.type == OptionType.EVOLVE and _evolve_to_mega_froslass_ex(obs, option, mi):
@@ -3139,12 +3327,14 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
             phase.primary == "OPENING" and board.my_turn_number >= 2
         ):
             return -_DOMINATE
-    # HR-7  Budew Itchy Pollen — OPENING stall when no Mega ex ready
-    if option.type == OptionType.ATTACK and phase.primary == "OPENING" and turn >= 3:
-        if not sit["mega_ready"]:
+    # HR-7  Budew Itchy Pollen — OPENING stall when no Mega ex ready.
+    # Going second: allow from engine turn 2 (My-T1); going first keeps turn>=3.
+    if option.type == OptionType.ATTACK and phase.primary == "OPENING":
+        gs = _going_second(board)
+        if turn >= (2 if gs else 3) and not sit["mega_ready"]:
             atk_id = _attack_id(option)
             if atk_id == _ATK_ITCHY_POLLEN:
-                return _DOMINATE * 0.5
+                return _DOMINATE * (0.8 if gs else 0.5)
 
     # HR-O6  Promote bench Mega Starmie to Active — when the engine asks us to
     # pick a bench Pokémon to swap/bring to the Active Spot (Switch trainer or

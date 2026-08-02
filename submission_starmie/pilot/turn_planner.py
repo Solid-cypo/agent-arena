@@ -37,6 +37,10 @@ from opening_cards import (
     ENERGY_IDS,
     retreat_cost_for,
 )
+from opponent_roles import (
+    is_attack_damage_protected,
+    opponent_role,
+)
 
 Objective = Literal["MAKE_ATTACKER", "ATTACK", "BUILD_DP", "SECOND_ATTACKER", "DRAW"]
 CombatMode = Literal["MEGA_MUST_ATTACK", "DOUBLE_KO", "FROSLASS_ATTACK", "NONE"]
@@ -84,6 +88,12 @@ class OppTarget:
     hp: int
     prizes: int
     threat: int = 0
+    role: str = "UNKNOWN"
+    line: str = ""
+    boss_priority: int = 0
+    rider_priority: int = 0
+    attack_protected: bool = False
+    known_role: bool = False
 
 
 @dataclass(frozen=True)
@@ -154,6 +164,7 @@ class CombatPlan:
     rider_target: OppTarget | None = None
     boss_target: OppTarget | None = None
     expected_prizes: int = 0
+    expected_prize_delta: int = 0
     froslass_build_allowed: bool = False
 
 
@@ -178,7 +189,12 @@ class TurnPlan:
     reasons: tuple[str, ...]
 
 
-def build_turn_facts(obs: Any, board: Any) -> TurnFacts:
+def build_turn_facts(
+    obs: Any,
+    board: Any,
+    *,
+    matchup: str | None = None,
+) -> TurnFacts:
     mi = _si(getattr(obs.current, "yourIndex", None))
     me = obs.current.players[mi]
     opp = obs.current.players[1 - mi]
@@ -225,14 +241,35 @@ def build_turn_facts(obs: Any, board: Any) -> TurnFacts:
         for p in field
     )
 
+    opp_field_ids = frozenset(
+        _si(getattr(p, "id", None))
+        for p in (
+            tuple(x for x in (opp.active or []) if x)
+            + tuple(x for x in (opp.bench or []) if x)
+        )
+    )
+
     def target(pokemon: Any, area: str, index: int) -> OppTarget:
+        cid = _si(getattr(pokemon, "id", None))
+        profile = opponent_role(cid, matchup)
+        engine_threat = _si(getattr(pokemon, "threat", None))
+        protected = (
+            area == "BENCH"
+            and is_attack_damage_protected(pokemon, opp_field_ids)
+        )
         return OppTarget(
             area=area,
             index=index,
-            card_id=_si(getattr(pokemon, "id", None)),
+            card_id=cid,
             hp=_si(getattr(pokemon, "hp", None), 999),
             prizes=_prize_value(pokemon),
-            threat=_si(getattr(pokemon, "threat", None)),
+            threat=max(engine_threat, profile.rider_priority, profile.boss_priority),
+            role=profile.role,
+            line=profile.line,
+            boss_priority=profile.boss_priority,
+            rider_priority=profile.rider_priority,
+            attack_protected=protected,
+            known_role=profile.known,
         )
 
     opp_active_p = (opp.active or [None])[0]
@@ -336,20 +373,74 @@ def _expected_froslass_prizes(facts: TurnFacts) -> int:
     return max((t.prizes for t in targets if 0 < t.hp <= damage), default=0)
 
 
+def _rider_key(target: OppTarget) -> tuple:
+    # Knockability is pre-filtered; prefer cutting a main base, then prizes, then HP.
+    return (target.rider_priority, target.prizes, -target.hp, -target.index)
+
+
+def _boss_key(target: OppTarget, *, jetting_damage: int = 120) -> tuple:
+    koable = 1 if 0 < target.hp <= jetting_damage else 0
+    return (koable, target.prizes, target.boss_priority, -target.hp, -target.index)
+
+
 def _double_ko(facts: TurnFacts) -> tuple[OppTarget | None, OppTarget | None]:
     if not facts.active_ready_mega or facts.active_id != MEGA_STARMIE:
         return None, None
     rider_limit = 80 if facts.transferable_damage >= 30 and facts.munkidori_has_dark else 50
-    riders = [t for t in facts.opp_bench if 0 < t.hp <= rider_limit]
+    riders = [
+        t
+        for t in facts.opp_bench
+        if 0 < t.hp <= rider_limit and not t.attack_protected
+    ]
     if not riders:
         return None, None
-    rider = max(riders, key=lambda t: (t.prizes, t.threat, -t.hp))
+    rider = max(riders, key=_rider_key)
     active = facts.opp_active
     if active and 0 < active.hp <= 120:
         return rider, None
     bosses = [t for t in facts.opp_bench if t != rider and 0 < t.hp <= 120]
-    boss = max(bosses, key=lambda t: (t.prizes, t.threat, -t.hp), default=None)
+    boss = max(bosses, key=_boss_key, default=None)
     return (rider, boss) if boss else (None, None)
+
+
+def _front_prizes(target: OppTarget | None) -> int:
+    if target is None or not (0 < target.hp <= 120):
+        return 0
+    return target.prizes
+
+
+def _prize_line(
+    *,
+    front: OppTarget | None,
+    rider: OppTarget | None,
+) -> int:
+    return _front_prizes(front) + (rider.prizes if rider else 0)
+
+
+def _effective_boss_candidate(
+    facts: TurnFacts,
+    *,
+    rider: OppTarget | None,
+    candidate: OppTarget | None,
+) -> tuple[OppTarget | None, int, int]:
+    """Return (boss, expected_prizes_with_boss, prize_delta vs no-boss).
+
+    Boss is effective only when grabbing it improves prize progress, or when a
+    DoubleKO rider exists and the current Active cannot be KO'd for 120.
+    """
+    baseline = _prize_line(front=facts.opp_active, rider=rider)
+    if candidate is None:
+        return None, baseline, 0
+    with_boss = _prize_line(front=candidate, rider=rider)
+    delta = with_boss - baseline
+    double_ko_needs_boss = bool(
+        rider is not None
+        and facts.opp_active is not None
+        and facts.opp_active.hp > 120
+    )
+    if delta > 0 or double_ko_needs_boss:
+        return candidate, with_boss, max(delta, 0 if not double_ko_needs_boss else delta)
+    return None, baseline, 0
 
 
 def _dp_prep_steps(facts: TurnFacts) -> list[str]:
@@ -385,26 +476,29 @@ def _combat_plan(facts: TurnFacts) -> CombatPlan:
     froslass_allowed = expected_f >= 2 or froslass_exception
 
     if facts.active_ready_mega and facts.active_id == MEGA_STARMIE:
-        rider, boss = _double_ko(facts)
+        rider, boss_raw = _double_ko(facts)
         required = _dp_prep_steps(facts)
-        if (
-            rider is None
-            and facts.opp_active
-            and facts.opp_active.hp > 120
-            and BOSS_ORDERS in facts.hand_ids
-            and not facts.supporter_played
-        ):
-            boss = max(
-                (t for t in facts.opp_bench if 0 < t.hp <= 120),
-                key=lambda t: (t.prizes, t.threat, -t.hp),
-                default=None,
-            )
-        if boss and BOSS_ORDERS in facts.hand_ids and not facts.supporter_played:
+        candidate = boss_raw
+        can_boss = (
+            BOSS_ORDERS in facts.hand_ids and not facts.supporter_played
+        )
+        if can_boss and candidate is None:
+            # Also consider a prize-improving gust when the Active is already
+            # KO-able (effective Boss), or any KO-able front when it is not.
+            bosses = [
+                t
+                for t in facts.opp_bench
+                if t is not rider and 0 < t.hp <= 120
+            ]
+            candidate = max(bosses, key=_boss_key, default=None)
+        if not can_boss:
+            candidate = None
+        boss, expected, delta = _effective_boss_candidate(
+            facts, rider=rider, candidate=candidate,
+        )
+        if boss is not None:
             required.append("BOSS")
-        elif boss:
-            boss = None
         mode: CombatMode = "DOUBLE_KO" if rider else "MEGA_MUST_ATTACK"
-        front = boss or facts.opp_active
         return CombatPlan(
             mode=mode,
             attack_required=True,
@@ -412,8 +506,8 @@ def _combat_plan(facts: TurnFacts) -> CombatPlan:
             next_action=required[0] if required else "ATTACK",
             rider_target=rider,
             boss_target=boss,
-            expected_prizes=(front.prizes if front and front.hp <= 120 else 0)
-            + (rider.prizes if rider else 0),
+            expected_prizes=expected,
+            expected_prize_delta=delta,
             froslass_build_allowed=froslass_allowed,
         )
 
@@ -466,34 +560,108 @@ def _combat_plan(facts: TurnFacts) -> CombatPlan:
     )
 
 
+def _dunsparce_base_id(facts: TurnFacts) -> int:
+    """Prefer the free-retreat Dunsparce printing when searching."""
+    if DUNSPARCE_A in facts.hand_ids or DUNSPARCE_A in facts.bench_ids:
+        return DUNSPARCE_B if DUNSPARCE_B not in facts.bench_ids else DUNSPARCE_A
+    return DUNSPARCE_A
+
+
+def _field_has_dunsparce(facts: TurnFacts) -> bool:
+    field = set(facts.bench_ids) | {facts.active_id}
+    return bool(field & {DUNSPARCE_A, DUNSPARCE_B, DUDUNSPARCE})
+
+
+def _attacker_online(facts: TurnFacts) -> bool:
+    return bool(
+        facts.active_ready_mega
+        or facts.bench_ready_mega_id
+        or facts.mega_starmie_on_field
+    )
+
+
 def _acquire_targets(facts: TurnFacts, gap: TurnGap, objective: Objective) -> tuple[int, ...]:
+    """Hand-component-driven minimal activation set.
+
+    Held evolution / DP pieces reshape the search: pair Dudunsparce with a
+    Dunsparce base, activate held Munkidori with Dark once an attacker is
+    online, and skip gaps already covered by cards in hand.
+    """
     if objective == "ATTACK":
         return ()
     hand = set(facts.hand_ids)
+    targets: list[int] = []
+
+    # Expert: held Dudunsparce → Poffin can seat attacker base + Dunsparce.
+    if (
+        DUDUNSPARCE in hand
+        and gap.need_base
+        and STARYU not in hand
+        and not _field_has_dunsparce(facts)
+    ):
+        targets.extend((STARYU, _dunsparce_base_id(facts)))
+        return tuple(dict.fromkeys(targets))
+
     if gap.need_base and STARYU not in hand:
+        return (STARYU,)
+
+    # Held Mega with no Staryu online: only hunt the base, not Dark/Snorunt.
+    if MEGA_STARMIE in hand and gap.need_base:
         return (STARYU,)
     if gap.need_evolution and MEGA_STARMIE not in hand:
         return (MEGA_STARMIE,)
     if gap.need_energy and not hand.intersection(_WATER_IDS):
         return (WATER_BASIC,)
-    # Once every missing attacker component is already held, spend free search
-    # windows on DP before evolving/attaching closes the turn with a mandatory
-    # attack.  Ultra Ball remains separately gated pre-Mega below.
+
+    # Held / on-field Munkidori: once an attacker is online, fetch Dark to
+    # activate Adrena-Brain rather than digging more utility basics.
+    munk_ready_to_activate = (
+        _attacker_online(facts)
+        and not facts.munkidori_has_dark
+        and DARK_BASIC not in hand
+        and (facts.munkidori_on_field or MUNKIDORI in hand)
+    )
+    if munk_ready_to_activate:
+        return (DARK_BASIC,)
+
     if gap.dp_gaps:
-        order = {
-            "MUNKIDORI": MUNKIDORI,
-            "DARK_ENERGY": DARK_BASIC,
-            "DAMAGE_PLACER": (
-                RISKY_RUINS
-                if RISKY_RUINS in facts.hand_ids
-                else (SNORUNT if not facts.snorunt_on_field else FROSLASS)
-            ),
-        }
-        return tuple(dict.fromkeys(order[g] for g in gap.dp_gaps))
+        # Skip gaps already satisfied by held pieces; only fetch missing ones.
+        order: list[int] = []
+        for g in gap.dp_gaps:
+            if g == "MUNKIDORI":
+                if MUNKIDORI in hand:
+                    continue
+                # Attacker not online yet: do not steal seats for Munk before base.
+                if not _attacker_online(facts) and (
+                    gap.need_base or gap.need_evolution or gap.need_energy
+                ):
+                    continue
+                order.append(MUNKIDORI)
+            elif g == "DARK_ENERGY":
+                if DARK_BASIC in hand:
+                    continue
+                if not facts.munkidori_on_field and MUNKIDORI not in hand:
+                    continue
+                if not _attacker_online(facts) and not facts.munkidori_on_field:
+                    continue
+                order.append(DARK_BASIC)
+            elif g == "DAMAGE_PLACER":
+                if RISKY_RUINS in hand or FROSLASS in hand:
+                    continue
+                if facts.snorunt_on_field:
+                    order.append(FROSLASS)
+                elif SNORUNT not in hand:
+                    order.append(SNORUNT)
+                else:
+                    order.append(FROSLASS)
+        if order:
+            return tuple(dict.fromkeys(order))
+
     if gap.need_second_attacker:
-        if not facts.snorunt_on_field:
+        if not facts.snorunt_on_field and SNORUNT not in hand:
             return (SNORUNT, MEGA_FROSLASS)
-        return (MEGA_FROSLASS,)
+        if MEGA_FROSLASS not in hand:
+            return (MEGA_FROSLASS,)
     return ()
 
 
@@ -614,8 +782,15 @@ def _draw_plan(facts: TurnFacts, gap: TurnGap, combat: CombatPlan) -> DrawPlan:
     return DrawPlan(allow_draw, first, second, reason)
 
 
-def build_turn_plan(obs: Any, board: Any, *, phase: Any | None = None, resources: Any | None = None) -> TurnPlan:
-    facts = build_turn_facts(obs, board)
+def build_turn_plan(
+    obs: Any,
+    board: Any,
+    *,
+    phase: Any | None = None,
+    resources: Any | None = None,
+    matchup: str | None = None,
+) -> TurnPlan:
+    facts = build_turn_facts(obs, board, matchup=matchup)
     gap = _turn_gap(facts)
     combat = _combat_plan(facts)
     if combat.attack_required and facts.active_ready_mega:

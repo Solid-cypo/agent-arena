@@ -8,27 +8,24 @@
 
 ## 当前状态（每次会话结束时更新此节）
 
-- **更新日期**：2026-08-02（夜）
-- **分支**：工作区有**未 commit** 的 TurnPlan 规划层、规则瘦身、测试与遥测改动
+- **更新日期**：2026-08-03
+- **分支**：有效 Boss + 手牌组件动态检索（工作区改动，待 commit）
 - **卡组**：`data/decks/starmie_froslass.csv` — 3×海星星、无 306、5 水 + 3 恶
 - **近期工作**：
-  - 新增统一 `TurnFacts / TurnGap / TurnPlan`，由 `AcquirePlan / CombatPlan / DrawPlan` 接管检索、战斗和抽牌门
-  - Mega 必攻、普通底座攻击禁令、DoubleKO（Adrena→Boss→Jetting→rider）已统一进入 CombatPlan
-  - 高级球改为缺口驱动 UB-1..5；live/opening 共用动态 `discard_value`，夜之伸展器只回收唯一缺口
-  - 861 预计两奖门、土龙 bench budget、结构化坏手 Run Away Draw 已落地
-  - DP 目标已简化为“带恶能愿增猿 + 伤害生成器”；生成器可为雪妖女 104 或危险废墟
-  - 删除旧 `_synergy_search_bonus`、固定弃牌/担架表、全局 DP defer 和 legacy opening route
+  - **有效 Boss**：仅 `expected_prize_delta>0` 或 DoubleKO 必需时强制 Boss；去掉 sole-supporter 放宽
+  - 遥测主 KPI：`effective_boss_rate` / `ineffective_boss_count` / `boss_prize_delta_avg`；败因 `no_effective_boss`；`zero_boss` 降为参考
+  - **AcquirePlan**：手牌进化体/DP 组件驱动最小激活集（66→海星星+土龙弟弟；愿增猿在线→恶能）
+  - Poffin 选牌严格服从 `acquire.targets`
+  - DP 目标保持“带恶能愿增猿 + 伤害生成器（104 或危险废墟）”
   - **继续保留回退 C2b**：不要求每回合消耗支援者或贴能
 - **最终回归**：
-  - 单测：Pilot 56/56｜TurnPlan 16/16｜Draw axis 9/9｜Opening 20/20
-  - T-C 启发式 5×60：283/300 = 94.3%；T-C-BC 4×60：169/240 = 70.4%
-  - 简化 DP 12 局审阅：8/12
-  - `ready_mega_no_attack=0`、`base_attack_with_ready_mega=0`、`bad_ultra_ball_discard=0`
-  - 检索目标一致率：T-C 97.4%，T-C-BC 98.1%
-  - 简化 `dp_rate`：29.7% / 28.8%，达到 25% 门槛；伤害生成器上线率 69.7% / 72.1%
+  - 单测：Pilot 57/57｜TurnPlan 26/26｜Combat 5/5｜Draw 9/9｜Budew GS 7/7｜Alak 7/7
+  - 启发式 5×20：92/100 = 92%；检索 100%；硬行为 0；`boss_grabs_rider=0`
+  - BC 4×20：56/80 = 70%；`effective_boss_rate` 54%；无效 Boss 11；检索 100%
+  - 产物：`logs/combat_eval_effboss_5x20/`、`logs/combat_eval_effboss_bc_4x20/`
 - **OPENING KPI**（历史，500 seed）：CP1 78.8%｜Goal@T2 35.8%｜Goal@T5 58.0%｜勿用 Walrein 胜率当主 KPI
-- **延期 matchup**：铝钢桥龙专项、对手愿增猿专项、matchup 级 Boss 威胁表
-- **工作区**：TurnPlan 改动未入库；`logs/` 大体积未跟踪；skill↔submission 已对齐
+- **延期 matchup**：铝钢桥龙专项、对手愿增猿专项
+- **工作区**：有效 Boss / 动态检索改动未入库；`logs/` 大体积未跟踪；skill↔submission 已 sync
 - **磁盘**：约 86%；改卡/规则务必立刻 commit
 - **指标文档**：`references/rulebook/METRICS-CombatV1_20260801.md`｜`TURN_PLAN_POLICY_20260802.md`｜`ULTRA_BALL_POLICY_20260801.md`｜专家讨论稿：`ULTRA_BALL_EXPERT_BRIEF_20260802.md`
 

@@ -6,8 +6,8 @@ Per-game instrumentation (our side):
   boss plays + gust target quality, dead turns (attack legal but turn ended
   without attacking), prize timeline / prize_stuck, supporter plays, 66 line,
   861/Mega attacks. Losses get the same tags as the online taxonomy:
-  zero_boss no_supporter no_attack no_mega no_861 861_no_fire dun_no_66
-  no_dun dud_no_ability prize_stuck
+  no_effective_boss zero_boss(no_supporter ref) no_supporter no_attack
+  no_mega no_861 861_no_fire dun_no_66 no_dun dud_no_ability prize_stuck
 
 Usage:
   PYTHONPATH=submission_starmie:submission_starmie/pilot \
@@ -42,6 +42,7 @@ from cg.api import AreaType, SelectContext  # noqa: E402
 from turn_planner import discard_value  # noqa: E402
 
 BOSS = 1182
+BUDEW = 235
 SUPPORTERS = {1182, 1198, 1213, 1225, 1227, 1229, 1189}
 DUNSPARCE, DUDUNSPARCE = 65, 66
 MEGA_STARMIE, MEGA_FROSLASS = 1031, 861
@@ -50,6 +51,7 @@ SNORUNT, STARYU = 860, 1030
 DARK_ENERGIES = {7, 16, 17}  # dark basic / prism / ignition
 ST_ATKS = {1487, 1488}
 MF_ATKS = {1240, 1241}
+ITCHY_POLLEN = 323
 SEARCH_EFFECTS = {1086, 1097, 1121, 1152, 1189, 1225}
 OPT_PLAY, OPT_ABILITY, OPT_ATTACK, OPT_CARD = 7, 10, 13, 3
 
@@ -99,6 +101,10 @@ def reset_agent() -> None:
 
 def make_tags(g: dict) -> list[str]:
     tags = []
+    # Primary Boss KPI: did we ever land a prize-advancing Boss?
+    if g.get("effective_boss", 0) == 0:
+        tags.append("no_effective_boss")
+    # zero_boss kept as a reference tag only (not the main KPI).
     if g["boss"] == 0:
         tags.append("zero_boss")
     if g["sup"] == 0:
@@ -159,6 +165,9 @@ def run_pool(
                 "we_are_a": i % 2 == 0,
                 "boss": 0,
                 "boss_targets": [],  # (hp, koable_by_jetting)
+                "effective_boss": 0,
+                "ineffective_boss": 0,
+                "boss_prize_deltas": [],
                 "sup": 0,
                 "st_atk": 0,
                 "mf_atk": 0,
@@ -198,6 +207,23 @@ def run_pool(
                 "prize_timeline": [],  # (my_turn, self_remaining, opp_remaining)
                 "prize_stuck": False,
                 "winner": None,
+                "going_second": None,
+                "opp_role_known": 0,
+                "opp_role_seen": 0,
+                "boss_target_matches_plan": 0,
+                "boss_target_checks": 0,
+                "rider_target_matches_plan": 0,
+                "rider_target_checks": 0,
+                "boss_grabs_rider": 0,
+                "double_ko_prep_order_ok": 0,
+                "double_ko_prep_checks": 0,
+                "budew_played": False,
+                "budew_dispatched": False,  # PLAY or search-to-field
+                "budew_on_field": False,
+                "budew_itchy_turns": 0,
+                "budew_lock_turns": 0,
+                "oa_lock_done": False,
+                "oa_lock_done_turn": 0,
             }
             tr = {
                 "turn": -1,
@@ -205,9 +231,16 @@ def run_pool(
                 "attacked": False,
                 "ready_mega": False,
                 "boss_pending": False,
+                "boss_played_this_turn": False,
+                "boss_prizes_at_play": None,
                 "double_opp_seen_turn": -1,
                 "double_attempt_prizes": None,
+                "double_ko_success_this_turn": False,
                 "last_prizes": 6,
+                "dk_steps": [],
+                "dk_required": (),
+                "itchy_this_turn": False,
+                "budew_active_this_turn": False,
             }
 
             def our(obs_dict, _g=g, _tr=tr):
@@ -230,8 +263,23 @@ def run_pool(
                     except Exception:
                         pass
 
+                    fp = _si(cur.get("firstPlayer"), -1)
+                    if _g["going_second"] is None and fp in (0, 1):
+                        _g["going_second"] = fp != mi
+
                     fid = _field_ids(me)
                     ready_mega = bool(plan and plan.combat.attack_required)
+                    if plan is not None:
+                        opp_targets = [
+                            t
+                            for t in ((plan.facts.opp_active,) + plan.facts.opp_bench)
+                            if t is not None
+                        ]
+                        if opp_targets:
+                            _g["opp_role_seen"] += len(opp_targets)
+                            _g["opp_role_known"] += sum(
+                                1 for t in opp_targets if t.known_role
+                            )
                     if MEGA_STARMIE in fid:
                         _g["ever_mega"] = True
                     if MEGA_FROSLASS in fid:
@@ -285,15 +333,49 @@ def run_pool(
                     if mt != _tr["turn"]:
                         if _tr["turn"] >= 1 and _tr["saw_attack"] and not _tr["attacked"]:
                             _g["dead_turns"] += 1
+                        prizes_now = len(me.get("prize") or [])
                         if _tr["double_attempt_prizes"] is not None:
-                            prizes_now = len(me.get("prize") or [])
                             if _tr["double_attempt_prizes"] - prizes_now >= 2:
                                 _g["double_ko_success"] += 1
+                                _tr["double_ko_success_this_turn"] = True
                             _tr["double_attempt_prizes"] = None
+                        if _tr["boss_played_this_turn"] and _tr["boss_prizes_at_play"] is not None:
+                            delta = _tr["boss_prizes_at_play"] - prizes_now
+                            _g["boss_prize_deltas"].append(delta)
+                            if delta > 0 or _tr["double_ko_success_this_turn"]:
+                                _g["effective_boss"] += 1
+                            else:
+                                _g["ineffective_boss"] += 1
+                        if _tr["dk_required"]:
+                            _g["double_ko_prep_checks"] += 1
+                            req = [s for s in _tr["dk_required"] if s in ("ADRENA", "BOSS")]
+                            seen = [s for s in _tr["dk_steps"] if s in ("ADRENA", "BOSS", "ATTACK")]
+                            # Prefix of required prep must appear in order before ATTACK.
+                            ok = True
+                            cursor = 0
+                            for step in req:
+                                try:
+                                    cursor = seen.index(step, cursor) + 1
+                                except ValueError:
+                                    ok = False
+                                    break
+                            if ok and "ATTACK" in seen:
+                                _g["double_ko_prep_order_ok"] += 1
+                        if _tr["itchy_this_turn"]:
+                            _g["budew_itchy_turns"] += 1
+                        if _tr["budew_active_this_turn"]:
+                            _g["budew_lock_turns"] += 1
                         _tr["turn"] = mt
                         _tr["saw_attack"] = False
                         _tr["attacked"] = False
                         _tr["ready_mega"] = ready_mega
+                        _tr["dk_steps"] = []
+                        _tr["dk_required"] = ()
+                        _tr["itchy_this_turn"] = False
+                        _tr["budew_active_this_turn"] = False
+                        _tr["boss_played_this_turn"] = False
+                        _tr["boss_prizes_at_play"] = None
+                        _tr["double_ko_success_this_turn"] = False
                         _g["my_turns"] = max(_g["my_turns"], mt)
                         if mt >= 1 and not ready_mega:
                             _g["turns_without_attacker"] += 1
@@ -303,6 +385,21 @@ def run_pool(
                     else:
                         _tr["ready_mega"] = _tr["ready_mega"] or ready_mega
 
+                    active_id = _si(((me.get("active") or [{}])[0] or {}).get("id"))
+                    if BUDEW in fid:
+                        _g["budew_on_field"] = True
+                    if active_id == BUDEW:
+                        _tr["budew_active_this_turn"] = True
+                    # OA-LOCK: Active Budew + 104 + Munk+dark
+                    if (
+                        active_id == BUDEW
+                        and FROSLASS_104 in fid
+                        and munk_dark
+                        and not _g["oa_lock_done"]
+                    ):
+                        _g["oa_lock_done"] = True
+                        _g["oa_lock_done_turn"] = max(1, mt)
+
                     if (
                         plan is not None
                         and plan.combat.mode == "DOUBLE_KO"
@@ -310,6 +407,7 @@ def run_pool(
                     ):
                         _g["double_ko_opportunity"] += 1
                         _tr["double_opp_seen_turn"] = mt
+                        _tr["dk_required"] = plan.combat.required_before_attack
 
                     if ctx == 0:
                         if any(_si(o.get("type")) == OPT_ATTACK for o in opts):
@@ -393,6 +491,8 @@ def run_pool(
                                     )
                             else:
                                 _g["other_atk"] += 1
+                            if aid == ITCHY_POLLEN:
+                                _tr["itchy_this_turn"] = True
                             if (
                                 aid == 1487
                                 and plan is not None
@@ -400,6 +500,7 @@ def run_pool(
                             ):
                                 _g["double_ko_attempt"] += 1
                                 _tr["double_attempt_prizes"] = len(me.get("prize") or [])
+                                _tr["dk_steps"].append("ATTACK")
                         elif t == OPT_PLAY:
                             idx = _si(o.get("index"), -1)
                             cid = (
@@ -412,6 +513,13 @@ def run_pool(
                             if cid == BOSS:
                                 _g["boss"] += 1
                                 _tr["boss_pending"] = True
+                                _tr["boss_played_this_turn"] = True
+                                _tr["boss_prizes_at_play"] = len(me.get("prize") or [])
+                                if plan is not None and plan.combat.mode == "DOUBLE_KO":
+                                    _tr["dk_steps"].append("BOSS")
+                            if cid == BUDEW:
+                                _g["budew_played"] = True
+                                _g["budew_dispatched"] = True
                             if cid == 1097:  # Night Stretcher
                                 _g["ns"] = _g.get("ns", 0) + 1
                         elif t == 9:  # EVOLVE
@@ -433,6 +541,8 @@ def run_pool(
                                 b = me.get("bench") or []
                                 if 0 <= idx < len(b):
                                     src = _si((b[idx] or {}).get("id"))
+                            if src == MUNKIDORI and plan is not None and plan.combat.mode == "DOUBLE_KO":
+                                _tr["dk_steps"].append("ADRENA")
                             if src == DUDUNSPARCE:
                                 _g["abil66"] += 1
                                 if (
@@ -447,12 +557,43 @@ def run_pool(
                             selected_cid = sp._card_option_id(
                                 obs_obj, obs_obj.select.option[d], mi,
                             )
-                            if _tr["boss_pending"] and _si(o.get("playerIndex"), mi) != mi:
+                            pi = _si(o.get("playerIndex"), mi)
+                            idx = _si(o.get("index"), -1)
+                            if (
+                                plan is not None
+                                and plan.combat.rider_target is not None
+                                and pi != mi
+                                and ctx in (
+                                    int(SelectContext.DAMAGE),
+                                    int(SelectContext.DAMAGE_COUNTER),
+                                )
+                            ):
+                                _g["rider_target_checks"] += 1
+                                if idx == plan.combat.rider_target.index:
+                                    _g["rider_target_matches_plan"] += 1
+                            if (
+                                pi == mi
+                                and selected_cid == BUDEW
+                                and ctx in (
+                                    int(SelectContext.TO_BENCH),
+                                    int(SelectContext.TO_FIELD),
+                                )
+                            ):
+                                _g["budew_dispatched"] = True
+                            if _tr["boss_pending"] and pi != mi:
                                 b = opp.get("bench") or []
-                                idx = _si(o.get("index"), -1)
                                 if 0 <= idx < len(b) and b[idx]:
                                     hp = _si(b[idx].get("hp"), 0)
                                     _g["boss_targets"].append((hp, hp <= 120))
+                                    if plan is not None and plan.combat.boss_target is not None:
+                                        _g["boss_target_checks"] += 1
+                                        if idx == plan.combat.boss_target.index:
+                                            _g["boss_target_matches_plan"] += 1
+                                        if (
+                                            plan.combat.rider_target is not None
+                                            and idx == plan.combat.rider_target.index
+                                        ):
+                                            _g["boss_grabs_rider"] += 1
                                 _tr["boss_pending"] = False
                         elif (
                             t == 14
@@ -480,6 +621,16 @@ def run_pool(
                 and tr["double_attempt_prizes"] - tr["last_prizes"] >= 2
             ):
                 g["double_ko_success"] += 1
+                tr["double_ko_success_this_turn"] = True
+            # Flush Boss effectiveness for the final turn (no next-turn boundary).
+            if tr["boss_played_this_turn"] and tr["boss_prizes_at_play"] is not None:
+                delta = tr["boss_prizes_at_play"] - tr["last_prizes"]
+                g["boss_prize_deltas"].append(delta)
+                if delta > 0 or tr["double_ko_success_this_turn"]:
+                    g["effective_boss"] += 1
+                else:
+                    g["ineffective_boss"] += 1
+                tr["boss_played_this_turn"] = False
             g["we_win"] = g["winner"] == (0 if g["we_are_a"] else 1)
 
             # prize_stuck: reached <=2 remaining then >=3 my-turns without
@@ -535,6 +686,14 @@ def run_pool(
         froslass_values = [
             value for g in gs for value in g["froslass_expected_prizes"]
         ]
+        role_seen = sum(g.get("opp_role_seen", 0) for g in gs)
+        boss_checks = sum(g.get("boss_target_checks", 0) for g in gs)
+        rider_checks = sum(g.get("rider_target_checks", 0) for g in gs)
+        prep_checks = sum(g.get("double_ko_prep_checks", 0) for g in gs)
+        boss_plays = sum(g.get("boss", 0) for g in gs)
+        boss_deltas = [d for g in gs for d in g.get("boss_prize_deltas", [])]
+        gs2 = [g for g in gs if g.get("going_second")]
+        gs1 = [g for g in gs if g.get("going_second") is False]
         return {
             "ready_mega_no_attack": sum(g["ready_mega_no_attack"] for g in gs),
             "base_attack_with_ready_mega": sum(
@@ -555,6 +714,62 @@ def run_pool(
             "froslass_expected_prizes": (
                 sum(froslass_values) / len(froslass_values)
                 if froslass_values else 0.0
+            ),
+            "opponent_role_coverage": (
+                sum(g.get("opp_role_known", 0) for g in gs) / max(1, role_seen)
+            ),
+            "effective_boss_rate": (
+                sum(g.get("effective_boss", 0) for g in gs) / max(1, boss_plays)
+            ),
+            "ineffective_boss_count": sum(g.get("ineffective_boss", 0) for g in gs),
+            "boss_prize_delta_avg": (
+                sum(boss_deltas) / len(boss_deltas) if boss_deltas else 0.0
+            ),
+            "boss_target_matches_plan": (
+                sum(g.get("boss_target_matches_plan", 0) for g in gs)
+                / max(1, boss_checks)
+            ),
+            "boss_target_checks": boss_checks,
+            "rider_target_matches_plan": (
+                sum(g.get("rider_target_matches_plan", 0) for g in gs)
+                / max(1, rider_checks)
+            ),
+            "rider_target_checks": rider_checks,
+            "boss_grabs_rider": sum(g.get("boss_grabs_rider", 0) for g in gs),
+            "double_ko_prep_order_ok": (
+                sum(g.get("double_ko_prep_order_ok", 0) for g in gs)
+                / max(1, prep_checks)
+            ),
+            "double_ko_prep_checks": prep_checks,
+            "win_rate_going_first": (
+                sum(1 for g in gs1 if g["we_win"]) / max(1, len(gs1))
+            ),
+            "win_rate_going_second": (
+                sum(1 for g in gs2 if g["we_win"]) / max(1, len(gs2))
+            ),
+            "budew_play_rate_going_second": (
+                sum(1 for g in gs2 if g.get("budew_played")) / max(1, len(gs2))
+            ),
+            "budew_dispatch_rate_going_second": (
+                sum(1 for g in gs2 if g.get("budew_dispatched") or g.get("budew_on_field"))
+                / max(1, len(gs2))
+            ),
+            "budew_itchy_turns_avg_going_second": (
+                sum(g.get("budew_itchy_turns", 0) for g in gs2) / max(1, len(gs2))
+            ),
+            "budew_lock_turns_avg_going_second": (
+                sum(g.get("budew_lock_turns", 0) for g in gs2) / max(1, len(gs2))
+            ),
+            "oa_lock_done_rate_going_second": (
+                sum(1 for g in gs2 if g.get("oa_lock_done")) / max(1, len(gs2))
+            ),
+            "oa_lock_by_t2_rate_going_second": (
+                sum(
+                    1
+                    for g in gs2
+                    if g.get("oa_lock_done") and g.get("oa_lock_done_turn", 99) <= 2
+                )
+                / max(1, len(gs2))
             ),
         }
 
@@ -581,6 +796,9 @@ def run_pool(
         "win_rate": sum(1 for g in all_games if g["we_win"]) / max(1, len(all_games)),
         "losses": len(losses),
         "loss_tags": dict(tagc.most_common()),
+        "no_effective_boss_share_of_losses": (
+            tagc.get("no_effective_boss", 0) / n_loss
+        ),
         "zero_boss_share_of_losses": tagc.get("zero_boss", 0) / n_loss,
         "dead_turns_per_game": sum(g["dead_turns"] for g in all_games)
         / max(1, len(all_games)),

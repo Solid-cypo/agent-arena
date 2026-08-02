@@ -415,12 +415,25 @@ def _bench_hand_basics(st: OpeningGameState) -> None:
     from opening_bench import can_play_to_bench
     from opening_cards import BUDEW, DUNSPARCE_A, DUNSPARCE_B, FAN_ROTOM, SNORUNT
 
-    for cid in (DUNSPARCE_A, DUNSPARCE_B, FAN_ROTOM, BUDEW, SNORUNT):
+    # Going second: dispatch Budew before draw engines when a seat remains.
+    going_second = not bool(getattr(st, "going_first", True))
+    order = (
+        (BUDEW, DUNSPARCE_A, DUNSPARCE_B, FAN_ROTOM, SNORUNT)
+        if going_second
+        else (DUNSPARCE_A, DUNSPARCE_B, FAN_ROTOM, BUDEW, SNORUNT)
+    )
+    for cid in order:
         while cid in st.hand and st.bench_open() > 0 and can_play_to_bench(st, cid):
             # Don't double Fan Rotom.
             if cid == FAN_ROTOM and (
                 (st.active and st.active.card_id == FAN_ROTOM)
                 or any(p.card_id == FAN_ROTOM for p in st.bench)
+            ):
+                break
+            # Don't double Budew.
+            if cid == BUDEW and (
+                (st.active and st.active.card_id == BUDEW)
+                or any(p.card_id == BUDEW for p in st.bench)
             ):
                 break
             st.play_pokemon_to_bench(cid)
