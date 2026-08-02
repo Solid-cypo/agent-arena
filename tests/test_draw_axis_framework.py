@@ -26,7 +26,9 @@ def _board(**kw) -> BoardSnapshot:
         bench_count=3, bench_open=2, active_id=1031,
         active_has_water=True, active_is_mega_starmie=True,
         active_is_mega_froslass=False, staryu_on_field=False,
-        mega_starmie_on_field=True, snorunt_line_on_bench=True,
+        mega_starmie_on_field=True, bench_mega_starmie_has_water=False,
+        snorunt_line_on_bench=True, snorunt_on_field=True,
+        mega_froslass_on_field=False,
         froslass_104_on_field=True, munkidori_on_bench=True,
         munkidori_on_field=True, munkidori_has_dark=True,
         bench_three_core_ready=True, fan_rotom_on_field=False,
@@ -74,20 +76,20 @@ def _obs_with_zones(hand_ids, discard_ids, deck_count=25):
     return NS(current=current)
 
 
-def test_p1_forbid_lillie_my_t2():
+def test_no_blanket_lillie_ban_my_t2():
     board = _board(my_turn_number=2)
     hand = _hand(hand_ids=[LILLIE], hand_size=1)
     res = _resources()
     forbidden, rule = lillie_forbidden(board, _phase(), hand, res)
-    assert forbidden and rule == "DR-5c"
+    assert not forbidden and rule == ""
 
 
-def test_p1_forbid_66_cycle_my_t2():
+def test_hand_starved_relaxes_cycle_tempo_ban_my_t2():
     board = _board(my_turn_number=2)
     hand = _hand(hand_ids=[65, 305], hand_size=2, has_lillie=False)
     res = _resources()
     forbidden, rule = should_forbid_cycle(board, _phase(), hand, res)
-    assert forbidden and rule == "DD-1"
+    assert not forbidden and rule == ""
 
 
 def test_dr2_lillie_low_hand():

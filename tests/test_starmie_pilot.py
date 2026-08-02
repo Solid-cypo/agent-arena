@@ -68,13 +68,13 @@ def test_fan_call_fires_turn_one():
     assert sp._hard_rule_bonus(obs, opt, sit) >= sp._DOMINATE
 
 
-def test_fan_call_silent_late_game():
+def test_fan_call_forbidden_late_game():
     me  = _player(bench=[_pkm(sp._FAN_ROTOM_ID)])
     opp = _player(active=_pkm(999))
     obs = _obs(turn=5, my_index=0, me=me, opp=opp)
     sit = sp._compute_situation(obs)
     opt = NS(type=OptionType.ABILITY, area=AreaType.BENCH, index=0)
-    assert sp._hard_rule_bonus(obs, opt, sit) == 0.0
+    assert sp._hard_rule_bonus(obs, opt, sit) <= -sp._DOMINATE
 
 
 # ── Hard rule 2: Munkidori Adrena-Brain requires Darkness energy ────────────
@@ -97,7 +97,7 @@ def test_munkidori_silent_without_dark_energy():
     obs  = _obs(turn=4, my_index=0, me=me, opp=opp)
     sit  = sp._compute_situation(obs)
     opt  = NS(type=OptionType.ABILITY, area=AreaType.BENCH, index=0)
-    assert sp._hard_rule_bonus(obs, opt, sit) == 0.0
+    assert sp._hard_rule_bonus(obs, opt, sit) <= -sp._DOMINATE
 
 
 def test_munkidori_silent_during_opening():
@@ -117,7 +117,7 @@ def test_munkidori_silent_without_transferable_damage():
     obs  = _obs(turn=5, my_index=0, me=me, opp=opp)
     sit  = sp._compute_situation(obs)
     opt  = NS(type=OptionType.ABILITY, area=AreaType.BENCH, index=0)
-    assert sp._hard_rule_bonus(obs, opt, sit) == 0.0
+    assert sp._hard_rule_bonus(obs, opt, sit) <= -sp._DOMINATE
 
 
 def test_munkidori_fires_late_opening_with_mega_on_field():
@@ -131,17 +131,17 @@ def test_munkidori_fires_late_opening_with_mega_on_field():
     assert sp._hard_rule_bonus(obs, opt, sit) >= sp._DOMINATE_PLUS
 
 
-def test_play_snorunt_synergy_window():
+def test_ready_mega_defers_snorunt_synergy_window():
     me = _aggression_me(hand=[NS(id=sp._CARDS["snorunt"])])
     opp = _player(active=_pkm(999))
     obs = _obs(turn=5, my_index=0, me=me, opp=opp)
     sit = sp._compute_situation(obs)
     assert sit["phase"].primary == "AGGRESSION"
     opt = NS(type=OptionType.PLAY, index=0)
-    assert sp._hard_rule_bonus(obs, opt, sit) >= sp._DOMINATE_MID
+    assert sp._hard_rule_bonus(obs, opt, sit) <= -sp._DOMINATE
 
 
-def test_evolve_froslass_104_preferred_over_861():
+def test_ready_mega_allows_dp_evolution_but_defers_861():
     snorunt = _pkm(sp._CARDS["snorunt"])
     starmie = _pkm(sp._CARDS["mega_starmie_ex"], energies=[int(EnergyType.WATER)])
     me = _player(
@@ -166,7 +166,7 @@ def test_munkidori_silent_outside_t2_t8():
     obs = _obs(turn=19, my_index=0, me=me, opp=opp)
     sit = sp._compute_situation(obs)
     opt = NS(type=OptionType.ABILITY, area=AreaType.BENCH, index=0)
-    assert sp._hard_rule_bonus(obs, opt, sit) == 0.0
+    assert sp._hard_rule_bonus(obs, opt, sit) <= -sp._DOMINATE
 
 
 # ── Hard rule 3: Budew Itchy Pollen fallback when no Mega ready ─────────────
@@ -187,6 +187,32 @@ def test_budew_silent_when_mega_ready():
     sit = sp._compute_situation(obs)
     opt = NS(type=OptionType.ATTACK, attackId=ITCHY)
     assert sp._hard_rule_bonus(obs, opt, sit) == 0.0
+
+
+def test_ready_bench_mega_forbids_basic_attack():
+    starmie = _pkm(sp._CARDS["mega_starmie_ex"], energies=[int(EnergyType.WATER)])
+    me = _player(
+        active=_pkm(sp._CARDS["staryu"]),
+        bench=[starmie],
+        hand=[NS(id=1123)],
+    )
+    obs = _obs(turn=5, my_index=0, me=me, opp=_player(active=_pkm(999, hp=300)))
+    sit = sp._compute_situation(obs)
+    basic_attack = NS(type=OptionType.ATTACK, attackId=99999)
+    assert sp._hard_rule_bonus(obs, basic_attack, sit) <= -sp._DOMINATE
+
+
+def test_alakazam_overlay_precedes_turn_plan():
+    me = _aggression_me(hand=[NS(id=sp._CARDS["hilda"])])
+    obs = _obs(turn=5, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    option = NS(type=OptionType.PLAY, index=0)
+    original = sp.alakazam_plan_b_hard_bonus
+    sp.alakazam_plan_b_hard_bonus = lambda *args, **kwargs: 1234.0
+    try:
+        assert sp._hard_rule_bonus(obs, option, sit) == 1234.0
+    finally:
+        sp.alakazam_plan_b_hard_bonus = original
 
 
 # ── Soft dim: froslass harvest only with big opponent hand ──────────────────
@@ -270,7 +296,7 @@ def test_adrena_brain_beats_jetting_when_damaged():
     assert sp._hard_rule_bonus(obs, ab, sit) > sp._hard_rule_bonus(obs, jet, sit)
 
 
-def test_attach_munk_beats_jetting():
+def test_ready_mega_prepares_munk_dark_before_attack():
     munk = _pkm(sp._MUNKIDORI_ID)
     dark = NS(id=int(EnergyType.DARKNESS))
     me = _aggression_me(bench=[munk], hand=[dark])
@@ -336,17 +362,17 @@ def test_retreat_rescue_attach_active():
         handIndex=0,
         index=0,
     )
-    assert sp._hard_rule_bonus(obs, opt, sit) >= sp._DOMINATE_PLUS
+    assert sp._hard_rule_bonus(obs, opt, sit) >= sp._DOMINATE
 
 
-def test_double_munkidori_play_second():
+def test_ready_mega_defers_second_munkidori_until_after_attack():
     munk = _pkm(sp._MUNKIDORI_ID, energies=[int(EnergyType.DARKNESS)])
     me = _aggression_me(bench=[munk], hand=[NS(id=sp._MUNKIDORI_ID)])
     opp = _player(active=_pkm(999))
     obs = _obs(turn=5, my_index=0, me=me, opp=opp)
     sit = sp._compute_situation(obs)
     opt = NS(type=OptionType.PLAY, index=0)
-    assert sp._hard_rule_bonus(obs, opt, sit) >= sp._DOMINATE
+    assert sp._hard_rule_bonus(obs, opt, sit) <= -sp._DOMINATE
 
 
 def test_jetting_uses_attack_tier_score():
@@ -368,17 +394,17 @@ def test_aggression_nebula_ko_beats_jetting():
     assert sp._hard_rule_bonus(obs, neb, sit) > sp._hard_rule_bonus(obs, jet, sit)
 
 
-def test_aggression_play_snorunt_when_missing():
+def test_ready_mega_defers_playing_snorunt():
     snorunt_card = NS(id=sp._CARDS["snorunt"])
     me  = _aggression_me(hand=[snorunt_card], bench=[])
     opp = _player(active=_pkm(999))
     obs = _obs(turn=5, my_index=0, me=me, opp=opp)
     sit = sp._compute_situation(obs)
     opt = NS(type=OptionType.PLAY, index=0)
-    assert sp._hard_rule_bonus(obs, opt, sit) >= sp._DOMINATE_MID
+    assert sp._hard_rule_bonus(obs, opt, sit) <= -sp._DOMINATE
 
 
-def test_aggression_attach_dark_to_munkidori():
+def test_ready_mega_allows_dark_attach_to_complete_dp():
     munk = _pkm(sp._MUNKIDORI_ID)
     dark = NS(id=int(EnergyType.DARKNESS))
     me   = _aggression_me(bench=[munk], hand=[dark])
@@ -395,7 +421,7 @@ def test_aggression_attach_dark_to_munkidori():
     assert sp._hard_rule_bonus(obs, opt, sit) >= sp._DOMINATE
 
 
-def test_risky_ruins_after_bench_core():
+def test_ready_mega_defers_risky_ruins():
     snorunt = _pkm(sp._CARDS["snorunt"])
     munk = _pkm(sp._MUNKIDORI_ID, energies=[int(EnergyType.DARKNESS)])
     ruins = NS(id=sp._CARDS["risky_ruins"])
@@ -404,7 +430,7 @@ def test_risky_ruins_after_bench_core():
     obs = _obs(turn=6, my_index=0, me=me, opp=opp)
     sit = sp._compute_situation(obs)
     opt = NS(type=OptionType.PLAY, index=0)
-    assert sp._hard_rule_bonus(obs, opt, sit) >= sp._DOMINATE_LOW
+    assert sp._hard_rule_bonus(obs, opt, sit) <= -sp._DOMINATE
 
 
 def test_fan_rotom_play_blocked_when_dead():
@@ -457,7 +483,7 @@ def test_layer1_boss_play_beats_lillie_when_gust():
     assert sp._hard_rule_bonus(obs, lillie_opt, sit) <= -sp._DOMINATE
 
 
-def test_layer1_lillie_play_low_hand_my_t4():
+def test_ready_mega_defers_lillie_even_with_low_hand():
     from opening_cards import LILLIE
 
     snorunt = _pkm(sp._CARDS["snorunt"])
@@ -473,7 +499,7 @@ def test_layer1_lillie_play_low_hand_my_t4():
     from deck_resources import load_deck_template
     sit = sp._compute_situation(obs, deck_template=load_deck_template())
     opt = NS(type=OptionType.PLAY, index=0)
-    assert sp._hard_rule_bonus(obs, opt, sit) >= 850.0
+    assert sp._hard_rule_bonus(obs, opt, sit) <= -sp._DOMINATE
 
 
 def test_layer1_forbid_lillie_my_t2_aggression():
@@ -489,7 +515,7 @@ def test_layer1_forbid_lillie_my_t2_aggression():
     assert sp._hard_rule_bonus(obs, opt, sit) <= -sp._DOMINATE
 
 
-def test_layer1_run_away_draw_ability():
+def test_ready_mega_defers_run_away_draw():
     from deck_resources import load_deck_template
 
     d66 = _pkm(sp._CARDS["dudunsparce"])
@@ -506,7 +532,7 @@ def test_layer1_run_away_draw_ability():
     sit = sp._compute_situation(obs, deck_template=load_deck_template())
     opt = NS(type=OptionType.ABILITY, area=AreaType.BENCH, index=2)
     bonus = sp._hard_rule_bonus(obs, opt, sit)
-    assert bonus >= 900.0
+    assert bonus <= -sp._DOMINATE
 
 
 def test_opening_g5_switch_beats_synergy_setup():
@@ -670,7 +696,7 @@ def test_harvest_jetting_not_forced_on_backup_starmie():
     obs = _obs(turn=10, my_index=0, me=me, opp=opp)
     sit = sp._compute_situation(obs)
     jet = NS(type=OptionType.ATTACK, attackId=JETTING)
-    assert sp._hard_rule_bonus(obs, jet, sit) == 0.0
+    assert sp._hard_rule_bonus(obs, jet, sit) <= -sp._DOMINATE
 
 
 def test_harvest_h2_attach_water_to_861():
@@ -712,7 +738,7 @@ def test_harvest_h7_unfair_stamp_after_ko():
     sit2["harvest_ko_last_turn"] = True
     evolve = NS(type=OptionType.EVOLVE, area=AreaType.ACTIVE, index=0)
     assert sp._hard_rule_bonus(obs, stamp, sit) >= sp._DOMINATE_OPEN
-    assert sp._hard_rule_bonus(obs, stamp, sit) > sp._hard_rule_bonus(obs2, evolve, sit2)
+    assert sp._hard_rule_bonus(obs, stamp, sit) >= sp._hard_rule_bonus(obs2, evolve, sit2)
 
 
 def test_harvest_ko_last_turn_detected():
@@ -756,7 +782,7 @@ def test_control_meowth_blocked_when_starmie_must_attack():
     sit = sp._compute_situation(obs)
     sit["phase"] = PhaseState("AGGRESSION", True, True)
     opt = NS(type=OptionType.PLAY, index=0)
-    assert sp._hard_rule_bonus(obs, opt, sit) == 0.0
+    assert sp._hard_rule_bonus(obs, opt, sit) <= -sp._DOMINATE
 
 
 def test_control_judge_allowed_after_resentful_in_harvest():

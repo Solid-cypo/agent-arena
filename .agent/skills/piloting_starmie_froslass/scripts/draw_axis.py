@@ -10,12 +10,29 @@ from typing import Literal
 
 from deck_resources import DeckResourceSnapshot, HandContext
 from hand_snapshot import BoardSnapshot
-from opening_cards import DUDUNSPARCE, DUDUNSPARCE_EX, DUNSPARCE_A, DUNSPARCE_B, LILLIE
+from opening_cards import (
+    BOSS_ORDERS,
+    CRISPIN,
+    DUDUNSPARCE,
+    DUDUNSPARCE_EX,
+    DUNSPARCE_A,
+    DUNSPARCE_B,
+    HILDA,
+    JUDGE,
+    LILLIE,
+    WALLYS_COMPASSION,
+)
 from phase_fsm import PhaseState
 
 DrawAction = Literal["EVOLVE_66", "ABILITY_DRAW", "PLAY_306", "HOLD", "FORBID"]
 
 _DUNSPARCE_BASIC = frozenset({DUNSPARCE_A, DUNSPARCE_B})
+_SUPPORTERS = frozenset({LILLIE, HILDA, CRISPIN, JUDGE, BOSS_ORDERS, WALLYS_COMPASSION})
+
+
+def _hand_starved(hand: HandContext) -> bool:
+    """C2b: hand nearly empty with no supporter — draw engine is the only out."""
+    return hand.hand_size <= 2 and not any(c in _SUPPORTERS for c in hand.hand_ids)
 
 
 @dataclass(frozen=True)
@@ -49,6 +66,15 @@ def should_forbid_cycle(
     if phase.primary == "OPENING" or not phase.opening_complete:
         return True, "DD-OPENING"
 
+    # C2b hand-starved relaxation: hand <=2 with no supporter — keep only the
+    # physical-feasibility bans, drop the tempo bans (DD-1/2/3/4/8).
+    if _hand_starved(hand):
+        if board.bench_open <= 0 and not on_bench_66:
+            return True, "DD-2b"
+        if not resources.can_run_away_cycle(hand, on_bench_66=on_bench_66):
+            return True, "DD-7"
+        return False, ""
+
     if _first_aggression_turn(phase, board):
         return True, "DD-1"
 
@@ -81,24 +107,8 @@ def should_play_306_ex(
     *,
     mega_starmie_hp_low: bool = False,
 ) -> DrawAxisDecision | None:
-    """P-3: 306 when backup needed, unseen copy exists, 1031 threatened."""
-    if DUDUNSPARCE_EX not in hand.hand_ids:
-        return None
-    if phase.primary not in ("AGGRESSION", "HARVEST"):
-        return None
-    if resources.exhausted(DUDUNSPARCE_EX) and hand.hand_ids.count(DUDUNSPARCE_EX) == 0:
-        return None
-    if not mega_starmie_hp_low and board.active_is_mega_starmie:
-        return None
-    if resources.staryu_line_left > 0 or board.staryu_on_field:
-        return None
-
-    return DrawAxisDecision(
-        action="PLAY_306",
-        rule_id="DD-6",
-        priority=850.0,
-        reason="Mega Starmie threatened, no backup Staryu unseen → Dudunsparce ex",
-    )
+    """Disabled: Dudunsparce ex (306) cut from deck — never propose PLAY_306."""
+    return None
 
 
 def pick_draw_axis_action(
@@ -115,11 +125,6 @@ def pick_draw_axis_action(
         board, phase, hand, resources, on_bench_66=dudunsparce_66_on_bench,
     )
     if forbidden and forbid_id:
-        ex = should_play_306_ex(
-            board, phase, hand, resources, mega_starmie_hp_low=mega_starmie_hp_low,
-        )
-        if ex:
-            return ex
         return DrawAxisDecision(
             action="FORBID",
             rule_id=forbid_id,

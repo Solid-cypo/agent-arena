@@ -402,6 +402,12 @@ def alakazam_plan_b_hard_bonus(
     if not sit.get("matchup_alakazam_confirmed"):
         return 0.0
 
+    # Matchup tactics may raise priorities, but never override the global
+    # ready-Mega attack/dispatch invariant owned by TurnPlan.
+    turn_plan = sit.get("turn_plan")
+    if turn_plan is not None and turn_plan.combat.attack_required:
+        return 0.0
+
     mi = sit["my_index"]
     board = sit.get("board")
     phase = sit.get("phase")

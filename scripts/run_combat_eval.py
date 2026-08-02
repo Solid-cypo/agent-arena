@@ -38,6 +38,8 @@ from arena.simulator import play_game  # noqa: E402
 import arena.policy as policy_mod  # noqa: E402
 import main as sub_main  # noqa: E402
 import starmie_pilot as sp  # noqa: E402
+from cg.api import AreaType, SelectContext  # noqa: E402
+from turn_planner import discard_value  # noqa: E402
 
 BOSS = 1182
 SUPPORTERS = {1182, 1198, 1213, 1225, 1227, 1229, 1189}
@@ -48,6 +50,7 @@ SNORUNT, STARYU = 860, 1030
 DARK_ENERGIES = {7, 16, 17}  # dark basic / prism / ignition
 ST_ATKS = {1487, 1488}
 MF_ATKS = {1240, 1241}
+SEARCH_EFFECTS = {1086, 1097, 1121, 1152, 1189, 1225}
 OPT_PLAY, OPT_ABILITY, OPT_ATTACK, OPT_CARD = 7, 10, 13, 3
 
 
@@ -64,6 +67,30 @@ def _field_ids(p: dict) -> list[int]:
         for x in (p.get("active") or []) + (p.get("bench") or [])
         if x
     ]
+
+
+def _selected_card_id(obs_dict: dict, option: dict, my_index: int) -> int:
+    idx = _si(option.get("index"), -1)
+    select_deck = (obs_dict.get("select") or {}).get("deck") or []
+    if 0 <= idx < len(select_deck) and select_deck[idx]:
+        return _si(select_deck[idx].get("id"))
+    players = (obs_dict.get("current") or {}).get("players") or [{}, {}]
+    pi = _si(option.get("playerIndex"), my_index)
+    player = players[pi] if 0 <= pi < len(players) else {}
+    area = _si(option.get("area"), -1)
+    zone = []
+    if area == int(AreaType.HAND):
+        zone = player.get("hand") or []
+    elif area == int(AreaType.DISCARD):
+        zone = player.get("discard") or []
+    elif area == int(AreaType.BENCH):
+        zone = player.get("bench") or []
+    elif area == int(AreaType.ACTIVE):
+        zone = player.get("active") or []
+        idx = 0
+    if 0 <= idx < len(zone) and zone[idx]:
+        return _si(zone[idx].get("id"))
+    return 0
 
 
 def reset_agent() -> None:
@@ -142,9 +169,11 @@ def run_pool(
                 "ever_861": False,
                 "ever_dun": False,
                 "ever_104": False,
+                "ever_risky_ruins": False,
+                "ever_damage_placer": False,
                 "ever_munk": False,
                 "ever_munk_dark": False,
-                "dp_turn": 0,      # first my-turn with 104(+861 ok) + munk + dark
+                "dp_turn": 0,      # first my-turn with damage placer + Munk + dark
                 "max_snorunt": 0,
                 "max_staryu": 0,
                 "h104": False,     # 104 ever seen in hand
@@ -154,6 +183,17 @@ def run_pool(
                 "dark_disc": 0,    # dark basics in discard (last frame)
                 "dark_att": 0,     # max dark attached on our field at once
                 "dead_turns": 0,
+                "ready_mega_no_attack": 0,
+                "base_attack_with_ready_mega": 0,
+                "double_ko_opportunity": 0,
+                "double_ko_attempt": 0,
+                "double_ko_success": 0,
+                "turns_without_attacker": 0,
+                "search_target_checks": 0,
+                "search_target_matches_goal": 0,
+                "bad_ultra_ball_discard": 0,
+                "dudunsparce_draw_good_hand": 0,
+                "froslass_expected_prizes": [],
                 "my_turns": 0,
                 "prize_timeline": [],  # (my_turn, self_remaining, opp_remaining)
                 "prize_stuck": False,
@@ -163,7 +203,11 @@ def run_pool(
                 "turn": -1,
                 "saw_attack": False,
                 "attacked": False,
+                "ready_mega": False,
                 "boss_pending": False,
+                "double_opp_seen_turn": -1,
+                "double_attempt_prizes": None,
+                "last_prizes": 6,
             }
 
             def our(obs_dict, _g=g, _tr=tr):
@@ -173,13 +217,21 @@ def run_pool(
                     mi = _si(cur.get("yourIndex"))
                     me = (cur.get("players") or [{}, {}])[mi]
                     opp = (cur.get("players") or [{}, {}])[1 - mi]
+                    _tr["last_prizes"] = len(me.get("prize") or [])
                     sel = obs_dict.get("select") or {}
                     opts = sel.get("option") or []
                     ctx = _si(sel.get("context"), -1)
                     st = sp._LIVE_AGENT_STATE or {}
                     mt = _si(st.get("max_my_turn"))
+                    plan = None
+                    try:
+                        obs_obj = sp.to_observation_class(obs_dict)
+                        plan = (sp._LIVE_AGENT_STATE or {}).get("last_turn_plan")
+                    except Exception:
+                        pass
 
                     fid = _field_ids(me)
+                    ready_mega = bool(plan and plan.combat.attack_required)
                     if MEGA_STARMIE in fid:
                         _g["ever_mega"] = True
                     if MEGA_FROSLASS in fid:
@@ -188,6 +240,18 @@ def run_pool(
                         _g["ever_dun"] = True
                     if FROSLASS_104 in fid:
                         _g["ever_104"] = True
+                    stadium_ids = {
+                        _si((card or {}).get("id"))
+                        for card in (cur.get("stadium") or [])
+                        if card
+                    }
+                    damage_placer = (
+                        FROSLASS_104 in fid or 1260 in stadium_ids
+                    )
+                    if 1260 in stadium_ids:
+                        _g["ever_risky_ruins"] = True
+                    if damage_placer:
+                        _g["ever_damage_placer"] = True
                     _g["max_snorunt"] = max(_g["max_snorunt"], fid.count(SNORUNT))
                     _g["max_staryu"] = max(_g["max_staryu"], fid.count(STARYU))
                     munk_dark = False
@@ -204,7 +268,7 @@ def run_pool(
                     _g["dark_att"] = max(_g["dark_att"], dark_att)
                     if munk_dark:
                         _g["ever_munk_dark"] = True
-                        if _g["dp_turn"] == 0 and FROSLASS_104 in fid:
+                        if _g["dp_turn"] == 0 and damage_placer:
                             _g["dp_turn"] = max(1, mt)
                     hand_ids = [_si((c or {}).get("id")) for c in (me.get("hand") or [])]
                     disc_ids = [_si((c or {}).get("id")) for c in (me.get("discard") or [])]
@@ -221,19 +285,93 @@ def run_pool(
                     if mt != _tr["turn"]:
                         if _tr["turn"] >= 1 and _tr["saw_attack"] and not _tr["attacked"]:
                             _g["dead_turns"] += 1
+                        if _tr["double_attempt_prizes"] is not None:
+                            prizes_now = len(me.get("prize") or [])
+                            if _tr["double_attempt_prizes"] - prizes_now >= 2:
+                                _g["double_ko_success"] += 1
+                            _tr["double_attempt_prizes"] = None
                         _tr["turn"] = mt
                         _tr["saw_attack"] = False
                         _tr["attacked"] = False
+                        _tr["ready_mega"] = ready_mega
                         _g["my_turns"] = max(_g["my_turns"], mt)
+                        if mt >= 1 and not ready_mega:
+                            _g["turns_without_attacker"] += 1
                         _g["prize_timeline"].append(
                             (mt, len(me.get("prize") or []), len(opp.get("prize") or []))
                         )
+                    else:
+                        _tr["ready_mega"] = _tr["ready_mega"] or ready_mega
+
+                    if (
+                        plan is not None
+                        and plan.combat.mode == "DOUBLE_KO"
+                        and _tr["double_opp_seen_turn"] != mt
+                    ):
+                        _g["double_ko_opportunity"] += 1
+                        _tr["double_opp_seen_turn"] = mt
 
                     if ctx == 0:
                         if any(_si(o.get("type")) == OPT_ATTACK for o in opts):
                             _tr["saw_attack"] = True
 
                     hand = me.get("hand") or []
+                    offered_goal_ids = set()
+                    if plan is not None and plan.acquire.targets:
+                        offered_goal_ids = {
+                            sp._card_option_id(obs_obj, oo, mi)
+                            for oo in obs_obj.select.option
+                        }.intersection(plan.acquire.targets)
+                    effect = sel.get("effect") or {}
+                    effect_id = _si(effect.get("id") or effect.get("cardId"))
+                    if offered_goal_ids and effect_id in SEARCH_EFFECTS and ctx in (
+                        int(SelectContext.TO_HAND),
+                        int(SelectContext.TO_BENCH),
+                        int(SelectContext.TO_FIELD),
+                    ):
+                        selected_ids = [
+                            sp._card_option_id(obs_obj, obs_obj.select.option[d], mi)
+                            for d in decision
+                            if isinstance(d, int) and 0 <= d < len(opts)
+                        ]
+                        check_slots = min(len(selected_ids), len(offered_goal_ids))
+                        _g["search_target_checks"] += check_slots
+                        _g["search_target_matches_goal"] += min(
+                            sum(
+                                cid in plan.acquire.targets
+                                or bool(
+                                    (sp._LIVE_AGENT_STATE or {}).get(
+                                        "last_turn_plan_matchup_override"
+                                    )
+                                )
+                                for cid in selected_ids
+                            ),
+                            check_slots,
+                        )
+                    if (
+                        plan is not None
+                        and ctx == int(SelectContext.DISCARD)
+                        and effect_id == 1121
+                    ):
+                        selected_ids = [
+                            sp._card_option_id(obs_obj, obs_obj.select.option[d], mi)
+                            for d in decision
+                            if isinstance(d, int) and 0 <= d < len(opts)
+                        ]
+                        safe_available = sum(
+                            discard_value(
+                                sp._card_option_id(obs_obj, oo, mi), plan,
+                            ) < 8_000
+                            for oo in obs_obj.select.option
+                        )
+                        unavoidable = max(0, len(selected_ids) - safe_available)
+                        protected_selected = sum(
+                            discard_value(cid, plan) >= 8_000
+                            for cid in selected_ids
+                        )
+                        _g["bad_ultra_ball_discard"] += max(
+                            0, protected_selected - unavoidable,
+                        )
                     for d in decision:
                         if not (isinstance(d, int) and 0 <= d < len(opts)):
                             continue
@@ -242,12 +380,26 @@ def run_pool(
                         if t == OPT_ATTACK:
                             _tr["attacked"] = True
                             aid = _si(o.get("attackId"))
+                            active_id = _si(((me.get("active") or [{}])[0] or {}).get("id"))
+                            if ready_mega and active_id not in (MEGA_STARMIE, MEGA_FROSLASS):
+                                _g["base_attack_with_ready_mega"] += 1
                             if aid in ST_ATKS:
                                 _g["st_atk"] += 1
                             elif aid in MF_ATKS:
                                 _g["mf_atk"] += 1
+                                if plan is not None:
+                                    _g["froslass_expected_prizes"].append(
+                                        plan.combat.expected_prizes
+                                    )
                             else:
                                 _g["other_atk"] += 1
+                            if (
+                                aid == 1487
+                                and plan is not None
+                                and plan.combat.mode == "DOUBLE_KO"
+                            ):
+                                _g["double_ko_attempt"] += 1
+                                _tr["double_attempt_prizes"] = len(me.get("prize") or [])
                         elif t == OPT_PLAY:
                             idx = _si(o.get("index"), -1)
                             cid = (
@@ -283,15 +435,33 @@ def run_pool(
                                     src = _si((b[idx] or {}).get("id"))
                             if src == DUDUNSPARCE:
                                 _g["abil66"] += 1
-                        elif t == OPT_CARD and _tr["boss_pending"]:
-                            # Boss gust target on opp side
-                            if _si(o.get("playerIndex"), mi) != mi:
+                                if (
+                                    plan is not None
+                                    and not plan.draw.allow_run_away_draw
+                                    and not (sp._LIVE_AGENT_STATE or {}).get(
+                                        "last_turn_plan_matchup_override"
+                                    )
+                                ):
+                                    _g["dudunsparce_draw_good_hand"] += 1
+                        elif t == OPT_CARD:
+                            selected_cid = sp._card_option_id(
+                                obs_obj, obs_obj.select.option[d], mi,
+                            )
+                            if _tr["boss_pending"] and _si(o.get("playerIndex"), mi) != mi:
                                 b = opp.get("bench") or []
                                 idx = _si(o.get("index"), -1)
                                 if 0 <= idx < len(b) and b[idx]:
                                     hp = _si(b[idx].get("hp"), 0)
                                     _g["boss_targets"].append((hp, hp <= 120))
                                 _tr["boss_pending"] = False
+                        elif (
+                            t == 14
+                            and plan is not None
+                            and plan.combat.attack_required
+                            and not _tr["attacked"]
+                            and any(_si(x.get("type")) == OPT_ATTACK for x in opts)
+                        ):
+                            _g["ready_mega_no_attack"] += 1
                 except Exception:
                     pass
                 return decision
@@ -305,6 +475,11 @@ def run_pool(
                 g["winner"] = getattr(gr, "winner", None)
             except Exception as e:
                 g["error"] = str(e)[:200]
+            if (
+                tr["double_attempt_prizes"] is not None
+                and tr["double_attempt_prizes"] - tr["last_prizes"] >= 2
+            ):
+                g["double_ko_success"] += 1
             g["we_win"] = g["winner"] == (0 if g["we_are_a"] else 1)
 
             # prize_stuck: reached <=2 remaining then >=3 my-turns without
@@ -339,6 +514,12 @@ def run_pool(
                 sum(g["dp_turn"] for g in done) / len(done) if done else 0.0
             ),
             "rate_104": sum(1 for g in gs if g["ever_104"]) / max(1, len(gs)),
+            "rate_damage_placer": sum(
+                1 for g in gs if g["ever_damage_placer"]
+            ) / max(1, len(gs)),
+            "rate_risky_ruins": sum(
+                1 for g in gs if g["ever_risky_ruins"]
+            ) / max(1, len(gs)),
             "rate_munk": sum(1 for g in gs if g["ever_munk"]) / max(1, len(gs)),
             "rate_munk_dark": sum(1 for g in gs if g["ever_munk_dark"])
             / max(1, len(gs)),
@@ -347,6 +528,34 @@ def run_pool(
             / max(1, len(gs)),
             "staryu_gt2_share": sum(1 for g in gs if g["max_staryu"] > 2)
             / max(1, len(gs)),
+        }
+
+    def _plan_stats(gs: list[dict]) -> dict:
+        searches = sum(g["search_target_checks"] for g in gs)
+        froslass_values = [
+            value for g in gs for value in g["froslass_expected_prizes"]
+        ]
+        return {
+            "ready_mega_no_attack": sum(g["ready_mega_no_attack"] for g in gs),
+            "base_attack_with_ready_mega": sum(
+                g["base_attack_with_ready_mega"] for g in gs
+            ),
+            "double_ko_opportunity": sum(g["double_ko_opportunity"] for g in gs),
+            "double_ko_attempt": sum(g["double_ko_attempt"] for g in gs),
+            "double_ko_success": sum(g["double_ko_success"] for g in gs),
+            "turns_without_attacker": sum(g["turns_without_attacker"] for g in gs),
+            "search_target_matches_goal": (
+                sum(g["search_target_matches_goal"] for g in gs) / max(1, searches)
+            ),
+            "search_target_checks": searches,
+            "bad_ultra_ball_discard": sum(g["bad_ultra_ball_discard"] for g in gs),
+            "dudunsparce_draw_good_hand": sum(
+                g["dudunsparce_draw_good_hand"] for g in gs
+            ),
+            "froslass_expected_prizes": (
+                sum(froslass_values) / len(froslass_values)
+                if froslass_values else 0.0
+            ),
         }
 
     by_deck = {}
@@ -362,6 +571,7 @@ def run_pool(
             "loss_tags": dict(tagc.most_common()),
             "losses": len(losses),
             **_dp_stats(gs),
+            **_plan_stats(gs),
         }
     losses = [g for g in all_games if not g["we_win"]]
     tagc = Counter(t for g in losses for t in g["tags"])
@@ -380,6 +590,7 @@ def run_pool(
             / max(1, sum(len(g["boss_targets"]) for g in all_games))
         ),
         **_dp_stats(all_games),
+        **_plan_stats(all_games),
         "by_deck": by_deck,
     }
     report = {
@@ -399,7 +610,9 @@ def run_pool(
         print(f"  [{dn}] win {v['win_rate']:.1%} boss/g {v['boss_per_game']:.2f} "
               f"dead/g {v['dead_turns_per_game']:.2f} "
               f"dp {v['dp_rate']:.1%}@T{v['dp_turn_avg']:.1f} "
-              f"(104 {v['rate_104']:.0%} munk+dark {v['rate_munk_dark']:.0%}) "
+              f"(placer {v['rate_damage_placer']:.0%} "
+              f"[104 {v['rate_104']:.0%}/ruins {v['rate_risky_ruins']:.0%}] "
+              f"munk+dark {v['rate_munk_dark']:.0%}) "
               f"tags {v['loss_tags']}")
     print(f"wrote {out}")
     return report

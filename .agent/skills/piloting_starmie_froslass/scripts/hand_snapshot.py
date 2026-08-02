@@ -12,6 +12,7 @@ from opening_cards import (
     MEGA_STARMIE,
     MUNKIDORI,
     PRISM,
+    RISKY_RUINS,
     SNORUNT,
     STARYU,
     WATER_BASIC,
@@ -91,14 +92,18 @@ class BoardSnapshot:
     active_is_mega_froslass: bool
     staryu_on_field: bool
     mega_starmie_on_field: bool
+    bench_mega_starmie_has_water: bool
     snorunt_line_on_bench: bool
+    snorunt_on_field: bool
     froslass_104_on_field: bool
+    mega_froslass_on_field: bool
     munkidori_on_bench: bool
     munkidori_on_field: bool
     munkidori_has_dark: bool
     bench_three_core_ready: bool
     fan_rotom_on_field: bool
     fan_rotom_dead: bool
+    risky_ruins_online: bool = False
 
 
 def build_board_snapshot(obs) -> BoardSnapshot:
@@ -113,8 +118,10 @@ def build_board_snapshot(obs) -> BoardSnapshot:
     bench = [p for p in (me.bench or []) if p]
     bench_ids = [_si(getattr(p, "id", None)) for p in bench]
 
-    snorunt_line = any(cid in _SNORUNT_LINE for cid in bench_ids)
+    # Active Snorunt counts — Mega Froslass evolves from Snorunt (not 104).
+    snorunt_line = any(cid in _SNORUNT_LINE for cid in field_ids)
     fro104_on = FROSLASS in field_ids
+    mega_f_on = MEGA_FROSLASS in field_ids
     munk_bench = _find_on_bench(me, MUNKIDORI)
     munk_on_bench = munk_bench is not None
     munk = munk_bench
@@ -130,6 +137,15 @@ def build_board_snapshot(obs) -> BoardSnapshot:
 
     my_t = my_turn_number(turn, fp, mi)
     fan_on = FAN_ROTOM in field_ids
+    bench_mega_water = any(
+        _si(getattr(p, "id", None)) == MEGA_STARMIE and _has_energy(p, _WATER_IDS)
+        for p in bench
+    )
+    stadium_ids = {
+        _si(getattr(card, "id", None))
+        for card in (getattr(obs.current, "stadium", None) or [])
+        if card
+    }
 
     return BoardSnapshot(
         turn=turn,
@@ -147,12 +163,16 @@ def build_board_snapshot(obs) -> BoardSnapshot:
         active_is_mega_froslass=active_id == MEGA_FROSLASS,
         staryu_on_field=STARYU in field_ids,
         mega_starmie_on_field=MEGA_STARMIE in field_ids,
+        bench_mega_starmie_has_water=bench_mega_water,
         snorunt_line_on_bench=snorunt_line,
+        snorunt_on_field=SNORUNT in field_ids,
         froslass_104_on_field=fro104_on,
+        mega_froslass_on_field=mega_f_on,
         munkidori_on_bench=munk_on_bench,
         munkidori_on_field=munk_on_field,
         munkidori_has_dark=munk_dark,
         bench_three_core_ready=snorunt_line and munk_on_field,
         fan_rotom_on_field=fan_on,
         fan_rotom_dead=my_t >= 2 and not fan_on,
+        risky_ruins_online=RISKY_RUINS in stadium_ids,
     )

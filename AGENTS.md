@@ -8,19 +8,29 @@
 
 ## 当前状态（每次会话结束时更新此节）
 
-- **更新日期**：2026-08-01（晚）
-- **分支**：`master`＝`origin/master` @ `4941e0e`（已 push；含正确卡组 5W+3D、无棱镜/引火）
-- **卡组**：`data/decks/starmie_froslass.csv` — 3×海星星、无 306、5 水 + 3 恶（事故后从 combat_v1 包恢复并入库）
+- **更新日期**：2026-08-02（夜）
+- **分支**：工作区有**未 commit** 的 TurnPlan 规划层、规则瘦身、测试与遥测改动
+- **卡组**：`data/decks/starmie_froslass.csv` — 3×海星星、无 306、5 水 + 3 恶
 - **近期工作**：
-  - Combat v1 → BF1 → DP-Boost → S 策略（MEGA 后 DP 优先；861 仅保险/富余 A/B）
-  - 卡组回滚事故修复；deck-fix 双版重交 Kaggle（收紧 55161062 / 富余 55161069）
-  - 全战专家审阅日志管线：`play_game(collect_engine_logs)` + `scripts/combat_log_renderer.py` + `export_combat_review_pack.py`；样包 `logs/combat_review_91000/`
-  - 行为续修（**未 commit**）：攻击置最后；对手空手时雪女切回海星；非胡地打手水能优先于愿增猿恶能
-- **本地压力 KPI（正确卡组复核）**：T-C 启发式 ~93–95%；T-C-BC ~68–75%（随 861 窗口松紧波动）；`dp_rate` ~25–32%
+  - 新增统一 `TurnFacts / TurnGap / TurnPlan`，由 `AcquirePlan / CombatPlan / DrawPlan` 接管检索、战斗和抽牌门
+  - Mega 必攻、普通底座攻击禁令、DoubleKO（Adrena→Boss→Jetting→rider）已统一进入 CombatPlan
+  - 高级球改为缺口驱动 UB-1..5；live/opening 共用动态 `discard_value`，夜之伸展器只回收唯一缺口
+  - 861 预计两奖门、土龙 bench budget、结构化坏手 Run Away Draw 已落地
+  - DP 目标已简化为“带恶能愿增猿 + 伤害生成器”；生成器可为雪妖女 104 或危险废墟
+  - 删除旧 `_synergy_search_bonus`、固定弃牌/担架表、全局 DP defer 和 legacy opening route
+  - **继续保留回退 C2b**：不要求每回合消耗支援者或贴能
+- **最终回归**：
+  - 单测：Pilot 56/56｜TurnPlan 16/16｜Draw axis 9/9｜Opening 20/20
+  - T-C 启发式 5×60：283/300 = 94.3%；T-C-BC 4×60：169/240 = 70.4%
+  - 简化 DP 12 局审阅：8/12
+  - `ready_mega_no_attack=0`、`base_attack_with_ready_mega=0`、`bad_ultra_ball_discard=0`
+  - 检索目标一致率：T-C 97.4%，T-C-BC 98.1%
+  - 简化 `dp_rate`：29.7% / 28.8%，达到 25% 门槛；伤害生成器上线率 69.7% / 72.1%
 - **OPENING KPI**（历史，500 seed）：CP1 78.8%｜Goal@T2 35.8%｜Goal@T5 58.0%｜勿用 Walrein 胜率当主 KPI
-- **工作区**：行为续修 + 审阅日志管线已入库（本提交）；`logs/` 与大量 opening review batch 仍未跟踪（体积大，按需另存）
-- **磁盘**：曾 95% 满→清理至约 86%；回放已压成 `data/kaggle_episodes/*.tar.gz`；改卡/规则务必立刻 commit，防再被 checkout 冲掉
-- **指标文档**：`references/rulebook/METRICS-CombatV1_20260801.md`
+- **延期 matchup**：铝钢桥龙专项、对手愿增猿专项、matchup 级 Boss 威胁表
+- **工作区**：TurnPlan 改动未入库；`logs/` 大体积未跟踪；skill↔submission 已对齐
+- **磁盘**：约 86%；改卡/规则务必立刻 commit
+- **指标文档**：`references/rulebook/METRICS-CombatV1_20260801.md`｜`TURN_PLAN_POLICY_20260802.md`｜`ULTRA_BALL_POLICY_20260801.md`｜专家讨论稿：`ULTRA_BALL_EXPERT_BRIEF_20260802.md`
 
 ---
 
@@ -60,7 +70,7 @@
 
 ```bash
 python3 -c "from cg.api import all_card_data; print(len(list(all_card_data())), 'cards OK')"
-python3 tests/test_starmie_pilot.py                    # 期望 54/54
+python3 tests/test_starmie_pilot.py                    # 期望 56/56
 python3 .agent/skills/piloting_starmie_froslass/scripts/simulate_opening.py --batch 10 --seed 42   # 期望 9/10
 python3 run_arena.py eval --games 20                   # 本地对战
 ```

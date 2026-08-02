@@ -35,7 +35,9 @@ from arena.simulator import play_game  # noqa: E402
 import arena.policy as policy_mod  # noqa: E402
 import main as sub_main  # noqa: E402
 import starmie_pilot as sp  # noqa: E402
+from cg.api import AreaType, SelectContext  # noqa: E402
 from combat_log_renderer import render_combat_log  # noqa: E402
+from turn_planner import discard_value  # noqa: E402
 
 # Minimal tag instrumentation (aligned with run_combat_eval taxonomy).
 BOSS = 1182
@@ -45,7 +47,8 @@ MEGA_STARMIE, MEGA_FROSLASS = 1031, 861
 FROSLASS_104, MUNKIDORI = 104, 112
 ST_ATKS = {1487, 1488}
 MF_ATKS = {1240, 1241}
-OPT_PLAY, OPT_ATTACK = 7, 13
+SEARCH_EFFECTS = {1086, 1097, 1121, 1152, 1189, 1225}
+OPT_CARD, OPT_PLAY, OPT_ABILITY, OPT_ATTACK = 3, 7, 10, 13
 DARK_ENERGIES = {7, 16, 17}
 
 
@@ -62,6 +65,26 @@ def _field_ids(p: dict) -> list[int]:
         for x in (p.get("active") or []) + (p.get("bench") or [])
         if x
     ]
+
+
+def _selected_card_id(obs_dict: dict, option: dict, my_index: int) -> int:
+    idx = _si(option.get("index"), -1)
+    select_deck = (obs_dict.get("select") or {}).get("deck") or []
+    if 0 <= idx < len(select_deck) and select_deck[idx]:
+        return _si(select_deck[idx].get("id"))
+    players = (obs_dict.get("current") or {}).get("players") or [{}, {}]
+    pi = _si(option.get("playerIndex"), my_index)
+    player = players[pi] if 0 <= pi < len(players) else {}
+    area = _si(option.get("area"), -1)
+    zones = {
+        int(AreaType.HAND): player.get("hand") or [],
+        int(AreaType.DISCARD): player.get("discard") or [],
+        int(AreaType.BENCH): player.get("bench") or [],
+    }
+    zone = zones.get(area, [])
+    if 0 <= idx < len(zone) and zone[idx]:
+        return _si(zone[idx].get("id"))
+    return 0
 
 
 def make_tags(g: dict) -> list[str]:
@@ -84,9 +107,13 @@ def make_tags(g: dict) -> list[str]:
         tags.append("dun_no_66")
     if g.get("prize_stuck"):
         tags.append("prize_stuck")
-    if g.get("ever_104") and g.get("ever_munk") and g.get("ever_munk_dark"):
+    if (
+        g.get("ever_damage_placer")
+        and g.get("ever_munk")
+        and g.get("ever_munk_dark")
+    ):
         tags.append("dp_ok")
-    elif not g.get("ever_104") or not g.get("ever_munk_dark"):
+    elif not g.get("ever_damage_placer") or not g.get("ever_munk_dark"):
         tags.append("dp_miss")
     return tags
 
@@ -159,12 +186,33 @@ def play_one(
         "ever_861": False,
         "ever_dun": False,
         "ever_104": False,
+        "ever_risky_ruins": False,
+        "ever_damage_placer": False,
         "ever_munk": False,
         "ever_munk_dark": False,
+        "ready_mega_no_attack": 0,
+        "base_attack_with_ready_mega": 0,
+        "turns_without_attacker": 0,
+        "double_ko_opportunity": 0,
+        "double_ko_attempt": 0,
+        "double_ko_success": 0,
+        "search_target_checks": 0,
+        "search_target_matches_goal": 0,
+        "bad_ultra_ball_discard": 0,
+        "dudunsparce_draw_good_hand": 0,
+        "froslass_expected_prizes": [],
         "prize_stuck": False,
         "prize_timeline": [],
     }
-    tr = {"turn": -1, "last_prize_self": None}
+    tr = {
+        "turn": -1,
+        "last_prize_self": None,
+        "current_prizes": 6,
+        "attacked": False,
+        "ready_mega": False,
+        "double_seen_turn": -1,
+        "double_attempt_prizes": None,
+    }
 
     def wrap_our(obs_dict, _gs=gstat, _tr=tr):
         decision = agent0(obs_dict)
@@ -173,10 +221,18 @@ def play_one(
             mi = _si(cur.get("yourIndex"))
             me = (cur.get("players") or [{}, {}])[mi]
             opp = (cur.get("players") or [{}, {}])[1 - mi]
+            _tr["current_prizes"] = len(me.get("prize") or [])
             sel = obs_dict.get("select") or {}
             opts = sel.get("option") or []
+            ctx = _si(sel.get("context"), -1)
             st = sp._LIVE_AGENT_STATE or {}
             mt = _si(st.get("max_my_turn"))
+            plan = None
+            try:
+                obs_obj = sp.to_observation_class(obs_dict)
+                plan = st.get("last_turn_plan")
+            except Exception:
+                pass
             fid = _field_ids(me)
             if MEGA_STARMIE in fid:
                 _gs["ever_mega"] = True
@@ -186,6 +242,15 @@ def play_one(
                 _gs["ever_dun"] = True
             if FROSLASS_104 in fid:
                 _gs["ever_104"] = True
+            stadium_ids = {
+                _si((card or {}).get("id"))
+                for card in (cur.get("stadium") or [])
+                if card
+            }
+            if 1260 in stadium_ids:
+                _gs["ever_risky_ruins"] = True
+            if FROSLASS_104 in fid or 1260 in stadium_ids:
+                _gs["ever_damage_placer"] = True
             for x in (me.get("active") or []) + (me.get("bench") or []):
                 if not x:
                     continue
@@ -195,8 +260,20 @@ def play_one(
                     if any(e in DARK_ENERGIES for e in ens):
                         _gs["ever_munk_dark"] = True
             if mt != _tr["turn"]:
-                _tr["turn"] = mt
                 ps = len(me.get("prize") or [])
+                if (
+                    _tr["double_attempt_prizes"] is not None
+                    and _tr["double_attempt_prizes"] - ps >= 2
+                ):
+                    _gs["double_ko_success"] += 1
+                _tr["double_attempt_prizes"] = None
+                _tr["turn"] = mt
+                _tr["attacked"] = False
+                _tr["ready_mega"] = bool(
+                    plan and plan.combat.attack_required
+                )
+                if mt >= 1 and not _tr["ready_mega"]:
+                    _gs["turns_without_attacker"] += 1
                 po = len(opp.get("prize") or [])
                 _gs["prize_timeline"].append((mt, ps, po))
                 if (
@@ -208,18 +285,93 @@ def play_one(
                     # crude stuck signal: no prize progress late
                     pass
                 _tr["last_prize_self"] = ps
+            elif plan is not None:
+                _tr["ready_mega"] = _tr["ready_mega"] or bool(
+                    plan.combat.attack_required
+                )
+            if (
+                plan is not None
+                and plan.combat.mode == "DOUBLE_KO"
+                and _tr["double_seen_turn"] != mt
+            ):
+                _gs["double_ko_opportunity"] += 1
+                _tr["double_seen_turn"] = mt
             hand = me.get("hand") or []
+            offered_goal_ids = set()
+            if plan is not None and plan.acquire.targets:
+                offered_goal_ids = {
+                    sp._card_option_id(obs_obj, oo, mi)
+                    for oo in obs_obj.select.option
+                }.intersection(plan.acquire.targets)
+            effect = sel.get("effect") or {}
+            effect_id = _si(effect.get("id") or effect.get("cardId"))
+            if offered_goal_ids and effect_id in SEARCH_EFFECTS and ctx in (
+                int(SelectContext.TO_HAND),
+                int(SelectContext.TO_BENCH),
+                int(SelectContext.TO_FIELD),
+            ):
+                selected_ids = [
+                    sp._card_option_id(obs_obj, obs_obj.select.option[d], mi)
+                    for d in decision
+                    if isinstance(d, int) and 0 <= d < len(opts)
+                ]
+                check_slots = min(len(selected_ids), len(offered_goal_ids))
+                _gs["search_target_checks"] += check_slots
+                _gs["search_target_matches_goal"] += min(
+                    sum(
+                        cid in plan.acquire.targets
+                        or bool(st.get("last_turn_plan_matchup_override"))
+                        for cid in selected_ids
+                    ),
+                    check_slots,
+                )
+            if (
+                plan is not None
+                and ctx == int(SelectContext.DISCARD)
+                and effect_id == 1121
+            ):
+                selected_ids = [
+                    sp._card_option_id(obs_obj, obs_obj.select.option[d], mi)
+                    for d in decision
+                    if isinstance(d, int) and 0 <= d < len(opts)
+                ]
+                safe_available = sum(
+                    discard_value(sp._card_option_id(obs_obj, oo, mi), plan) < 8_000
+                    for oo in obs_obj.select.option
+                )
+                unavoidable = max(0, len(selected_ids) - safe_available)
+                protected_selected = sum(
+                    discard_value(cid, plan) >= 8_000 for cid in selected_ids
+                )
+                _gs["bad_ultra_ball_discard"] += max(
+                    0, protected_selected - unavoidable,
+                )
             for d in decision:
                 if not (isinstance(d, int) and 0 <= d < len(opts)):
                     continue
                 o = opts[d]
                 t = _si(o.get("type"))
                 if t == OPT_ATTACK:
+                    _tr["attacked"] = True
                     aid = _si(o.get("attackId"))
+                    active_id = _si(((me.get("active") or [{}])[0] or {}).get("id"))
+                    if (
+                        plan is not None
+                        and plan.combat.attack_required
+                        and active_id not in (MEGA_STARMIE, MEGA_FROSLASS)
+                    ):
+                        _gs["base_attack_with_ready_mega"] += 1
                     if aid in ST_ATKS:
                         _gs["st_atk"] += 1
                     elif aid in MF_ATKS:
                         _gs["mf_atk"] += 1
+                        if plan is not None:
+                            _gs["froslass_expected_prizes"].append(
+                                plan.combat.expected_prizes
+                            )
+                    if aid == 1487 and plan is not None and plan.combat.mode == "DOUBLE_KO":
+                        _gs["double_ko_attempt"] += 1
+                        _tr["double_attempt_prizes"] = len(me.get("prize") or [])
                 elif t == OPT_PLAY:
                     idx = _si(o.get("index"), -1)
                     cid = (
@@ -242,6 +394,35 @@ def play_one(
                     )
                     if cid == DUDUNSPARCE:
                         _gs["evo66"] += 1
+                elif t == OPT_ABILITY:
+                    area = _si(o.get("area"), -1)
+                    idx = _si(o.get("index"), -1)
+                    src = 0
+                    if area == int(AreaType.ACTIVE):
+                        src = _si(((me.get("active") or [{}])[0] or {}).get("id"))
+                    elif area == int(AreaType.BENCH):
+                        bench = me.get("bench") or []
+                        if 0 <= idx < len(bench) and bench[idx]:
+                            src = _si(bench[idx].get("id"))
+                    if (
+                        src == DUDUNSPARCE
+                        and plan is not None
+                        and not plan.draw.allow_run_away_draw
+                        and not st.get("last_turn_plan_matchup_override")
+                    ):
+                        _gs["dudunsparce_draw_good_hand"] += 1
+                elif t == OPT_CARD and plan is not None:
+                    cid = sp._card_option_id(
+                        obs_obj, obs_obj.select.option[d], mi,
+                    )
+                elif (
+                    t == 14
+                    and plan is not None
+                    and plan.combat.attack_required
+                    and not _tr["attacked"]
+                    and any(_si(x.get("type")) == OPT_ATTACK for x in opts)
+                ):
+                    _gs["ready_mega_no_attack"] += 1
         except Exception:
             pass
         return decision
@@ -266,6 +447,12 @@ def play_one(
         )
         our_pi = 1
         reward_for_us = -result.reward_for_a
+
+    if (
+        tr["double_attempt_prizes"] is not None
+        and tr["double_attempt_prizes"] - tr["current_prizes"] >= 2
+    ):
+        gstat["double_ko_success"] += 1
 
     # prize stuck: last 3 my-turns same prize count > 0
     tl = gstat["prize_timeline"]
@@ -360,10 +547,23 @@ def main() -> int:
                 "n_engine_logs": len(result.engine_logs),
                 "ever_mega": gstat["ever_mega"],
                 "ever_104": gstat["ever_104"],
+                "ever_risky_ruins": gstat["ever_risky_ruins"],
+                "ever_damage_placer": gstat["ever_damage_placer"],
                 "ever_munk_dark": gstat["ever_munk_dark"],
                 "boss": gstat["boss"],
                 "st_atk": gstat["st_atk"],
                 "mf_atk": gstat["mf_atk"],
+                "ready_mega_no_attack": gstat["ready_mega_no_attack"],
+                "base_attack_with_ready_mega": gstat["base_attack_with_ready_mega"],
+                "turns_without_attacker": gstat["turns_without_attacker"],
+                "double_ko_opportunity": gstat["double_ko_opportunity"],
+                "double_ko_attempt": gstat["double_ko_attempt"],
+                "double_ko_success": gstat["double_ko_success"],
+                "search_target_checks": gstat["search_target_checks"],
+                "search_target_matches_goal": gstat["search_target_matches_goal"],
+                "bad_ultra_ball_discard": gstat["bad_ultra_ball_discard"],
+                "dudunsparce_draw_good_hand": gstat["dudunsparce_draw_good_hand"],
+                "froslass_expected_prizes": gstat["froslass_expected_prizes"],
             })
             print(f"  {fname}: us_reward={gstat['reward_for_us']} tags={tags}")
 

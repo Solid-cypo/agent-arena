@@ -12,6 +12,7 @@ from opening_cards import (
     MEGA_STARMIE,
     MUNKIDORI,
     PRISM,
+    RISKY_RUINS,
     SNORUNT,
     STARYU,
     WATER_BASIC,
@@ -102,6 +103,7 @@ class BoardSnapshot:
     bench_three_core_ready: bool
     fan_rotom_on_field: bool
     fan_rotom_dead: bool
+    risky_ruins_online: bool = False
 
 
 def build_board_snapshot(obs) -> BoardSnapshot:
@@ -139,6 +141,11 @@ def build_board_snapshot(obs) -> BoardSnapshot:
         _si(getattr(p, "id", None)) == MEGA_STARMIE and _has_energy(p, _WATER_IDS)
         for p in bench
     )
+    stadium_ids = {
+        _si(getattr(card, "id", None))
+        for card in (getattr(obs.current, "stadium", None) or [])
+        if card
+    }
 
     return BoardSnapshot(
         turn=turn,
@@ -167,4 +174,5 @@ def build_board_snapshot(obs) -> BoardSnapshot:
         bench_three_core_ready=snorunt_line and munk_on_field,
         fan_rotom_on_field=fan_on,
         fan_rotom_dead=my_t >= 2 and not fan_on,
+        risky_ruins_online=RISKY_RUINS in stadium_ids,
     )

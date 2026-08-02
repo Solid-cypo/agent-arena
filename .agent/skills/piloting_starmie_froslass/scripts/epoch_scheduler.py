@@ -79,6 +79,16 @@ KIND_DEMOTE_BOSS = "DEMOTE_BOSS"
 
 SF_GAP_ORDER: tuple[str, ...] = ("SF1", "SF2", "SF3", "SF_DONE")
 
+# S-strategy (2026-08-01): 861 is insurance/surplus. The pilot refreshes this
+# flag every decision (_mega_froslass_window_open); while False the scheduler
+# treats SF2 as cleared and drives SF3 (DP set) instead.
+_MEGA_FROSLASS_WINDOW_OPEN = True
+
+
+def set_mega_froslass_window(open_: bool) -> None:
+    global _MEGA_FROSLASS_WINDOW_OPEN
+    _MEGA_FROSLASS_WINDOW_OPEN = bool(open_)
+
 _SIDE_BASICS = frozenset({
     BUDEW,
     SNORUNT,
@@ -399,10 +409,15 @@ def compute_cleared_gaps(
     return cleared
 
 
-def compute_cleared_gaps_epoch2(board: Any) -> list[str]:
+def compute_cleared_gaps_epoch2(
+    board: Any, *, mega_froslass_window_open: bool = True,
+) -> list[str]:
     """SF gaps already satisfied (Froslass engine setup).
 
     SF2 clears on Mega Froslass (861) — engine evolves 861 from Snorunt, not 104.
+    S-strategy (2026-08-01, tightened): while the 861 window is closed (Mega
+    Starmie healthy — DP completion no longer opens it), SF2 is treated as
+    cleared so the scheduler drives SF3 (DP set) instead of digging 861.
     """
     snorunt_line = bool(getattr(board, "snorunt_line_on_bench", False))
     snorunt_on = bool(getattr(board, "snorunt_on_field", False))
@@ -420,8 +435,8 @@ def compute_cleared_gaps_epoch2(board: Any) -> list[str]:
     # SF1: any Snorunt-line piece on field (Snorunt / 104 / 861).
     if snorunt_line or fro104 or mega_f:
         cleared.append("SF1")
-    # SF2: Mega Froslass online (primary second attacker).
-    if mega_f:
+    # SF2: Mega Froslass online — or its window closed (insurance only).
+    if mega_f or not mega_froslass_window_open:
         cleared.append("SF2")
     if munk_on and munk_dark:
         cleared.append("SF3")
@@ -479,14 +494,19 @@ def refresh_epoch_memory(
     active_can_retreat: bool = True,
     line_has_water: bool = False,
     opening_complete_flag: bool = False,
+    mega_froslass_window_open: bool | None = None,
 ) -> dict[str, Any]:
     """Update cleared gaps + this_turn_task (advance-only within a my-turn)."""
     if not memory:
         memory = default_epoch_memory()
+    if mega_froslass_window_open is None:
+        mega_froslass_window_open = _MEGA_FROSLASS_WINDOW_OPEN
 
     if _opening_done(board, opening_complete_flag):
         memory["epoch_id"] = 2
-        cleared = compute_cleared_gaps_epoch2(board)
+        cleared = compute_cleared_gaps_epoch2(
+            board, mega_froslass_window_open=mega_froslass_window_open,
+        )
         memory["cleared_gaps"] = cleared
         task = next_sf_task(cleared)
         _sticky_advance_task(memory, board, task)

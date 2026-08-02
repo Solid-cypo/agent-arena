@@ -112,6 +112,7 @@ from matchup_alakazam import (
 )
 from phase_fsm import compute_phase, opening_complete
 from supporter_planner import lillie_forbidden, pick_supporter
+from turn_planner import build_turn_plan, discard_value, is_basic_attack_forbidden
 
 _MEGA_EX_IDS    = {_CARDS["mega_starmie_ex"], _CARDS["mega_froslass_ex"]}
 _STARMIE_LINE   = {_CARDS["staryu"], _CARDS["mega_starmie_ex"]}
@@ -302,120 +303,12 @@ def _harvest_promote_switch_needed(obs, my_index: int, board, phase) -> bool:
 
 
 def _synergy_core_ready(board) -> bool:
-    """Froslass 104 + Munkidori + dark all online."""
+    """Dark Munkidori plus either supported damage-counter generator."""
     return (
-        board.froslass_104_on_field
+        (board.froslass_104_on_field or board.risky_ruins_online)
         and board.munkidori_on_field
         and board.munkidori_has_dark
     )
-
-
-def _dp_engine_actions_available(
-    obs, my_index: int, board, hand=None, resources=None,
-) -> bool:
-    """True when a productive DP/engine action is still playable this turn.
-
-    Used to defer Jetting after Mega Starmie (运转大于一切): attacking ends
-    the turn, so benching/search/attach/draw-supporter must win the sort
-    while the DP core is incomplete.
-    """
-    if _synergy_core_ready(board):
-        return False
-    try:
-        me = obs.current.players[my_index]
-        hand_ids = [_si(getattr(c, "id", None)) for c in (me.hand or []) if c]
-    except Exception:
-        return False
-    hid = set(hand_ids)
-    bench_open = int(getattr(board, "bench_open", 0) or 0)
-
-    # Bench DP pieces.
-    if bench_open > 0:
-        if _OC_MUNKIDORI in hid and not board.munkidori_on_field:
-            return True
-        need_egg = not (
-            getattr(board, "mega_froslass_on_field", False)
-            and board.froslass_104_on_field
-        )
-        if _OC_SNORUNT in hid and need_egg and _snorunt_field_count(obs, my_index) < 2:
-            return True
-
-    # Evolve 104 onto a spare Snorunt.
-    if (
-        _OC_FROSLASS in hid
-        and not board.froslass_104_on_field
-        and (
-            getattr(board, "snorunt_on_field", False)
-            or _snorunt_on_bench(obs, my_index)
-            or board.active_id == _OC_SNORUNT
-        )
-    ):
-        return True
-
-    # Attach dark to Munkidori.
-    if (
-        board.munkidori_on_field
-        and not getattr(board, "munkidori_has_dark", False)
-        and (DARK_BASIC in hid or _OC_PRISM in hid)
-    ):
-        return True
-
-    # Search tools while DP pieces remain in deck.
-    copies = getattr(resources, "copies_left", None) if resources is not None else None
-    def _left(cid: int) -> int:
-        if copies is None:
-            return 1  # unknown — assume searchable
-        try:
-            return int(copies(cid))
-        except Exception:
-            return 0
-
-    if _OC_POKE_PAD in hid and (
-        _left(_OC_SNORUNT) > 0 or _left(_OC_FROSLASS) > 0 or _left(_MUNKIDORI_ID) > 0
-    ):
-        return True
-    if _OC_POFFIN in hid and bench_open > 0 and (
-        _left(_OC_SNORUNT) > 0 or _left(_MUNKIDORI_ID) > 0
-    ):
-        return True
-    if _OC_ULTRA_BALL in hid and (
-        _left(_OC_SNORUNT) > 0 or _left(_OC_FROSLASS) > 0 or _left(_MUNKIDORI_ID) > 0
-    ):
-        return True
-
-    # Draw supporters still available — dig for DP (Boss excluded by engine gate).
-    if hand is not None and not getattr(hand, "supporter_played", False):
-        if LILLIE in hid or HILDA in hid or CRISPIN in hid:
-            return True
-
-    # Night Stretcher for scarce dark while Munk lacks it.
-    if _OC_NIGHT_STRETCHER in hid and board.munkidori_on_field and not board.munkidori_has_dark:
-        try:
-            disc = {_si(getattr(c, "id", None)) for c in (me.discard or []) if c}
-            if DARK_BASIC in disc and DARK_BASIC not in hid:
-                return True
-        except Exception:
-            pass
-
-    return False
-
-
-def _should_defer_starmie_attack_for_engine(
-    obs, my_index: int, board, phase, hand=None, resources=None, *, nebula_ko: bool = False,
-) -> bool:
-    """运转大于一切: after Mega, finish DP before Jetting (except KO/closeout)."""
-    if nebula_ko:
-        return False
-    if int(getattr(board, "prize_self", 99) or 99) <= 2:
-        return False
-    if not getattr(phase, "opening_complete", False) and not board.mega_starmie_on_field:
-        return False
-    if _synergy_core_ready(board):
-        return False
-    # Only defer while Mega is the active attacker (otherwise HARVEST/other).
-    if not (board.active_is_mega_starmie and board.active_has_water):
-        return False
-    return _dp_engine_actions_available(obs, my_index, board, hand, resources)
 
 
 _MAIN_PHASE_TYPES = (
@@ -660,8 +553,6 @@ def _harvest_hard_rules(
     # HR-H1  Evolve Snorunt → Mega Froslass ex (861). Engine never offers 861 onto 104.
     if option.type == OptionType.EVOLVE:
         if _evolve_to_mega_froslass_ex(obs, option, mi):
-            if _block_mega_froslass_evolve(obs, mi, board, phase, option):
-                return -_DOMINATE
             if need_attacker or sit.get("harvest_ko_last_turn"):
                 return _DOMINATE_OPEN_PATH
             return _DOMINATE_OPEN
@@ -1109,53 +1000,6 @@ def _discard_option_card_id(obs, option, mi: int) -> int:
     return 0
 
 
-def _discard_recover_bonus(obs, option, mi: int, board) -> float:
-    """P5: Night Stretcher / Salvatore recovery from OUR discard — basic
-    energy is the scarce resource (5 water / 3 dark total); Pokémon recovery
-    only matters when an attacker line is actually dead."""
-    if option.type != OptionType.CARD:
-        return 0.0
-    try:
-        ctx = int(obs.select.context)
-    except Exception:
-        return 0.0
-    if ctx != int(SelectContext.TO_HAND):
-        return 0.0
-    if option.area != AreaType.DISCARD:
-        return 0.0
-    if _si(getattr(option, "playerIndex", None), mi) != mi:
-        return 0.0
-    cid = _discard_option_card_id(obs, option, mi)
-    if cid == 0:
-        return 0.0
-    if cid == DARK_BASIC:
-        if board.munkidori_on_field and not board.munkidori_has_dark:
-            return _DOMINATE_MID + 20.0
-        return _DOMINATE_MID - 20.0
-    if cid in (WATER_BASIC, int(EnergyType.WATER)):
-        if _dry_attacker_needs_water(obs, mi):
-            return _DOMINATE_MID + 15.0
-        return _DOMINATE_MID - 15.0
-    # Pokémon: recover a Mega only when that attacker line is gone.
-    if cid == _CARDS["mega_froslass_ex"]:
-        line_alive = (
-            getattr(board, "mega_froslass_on_field", False)
-            or getattr(board, "snorunt_on_field", False)
-            or _hand_has_id(obs, mi, _CARDS["mega_froslass_ex"])
-        )
-        return 400.0 if line_alive else _DOMINATE_MID - 40.0
-    if cid == _OC_MEGA_STARMIE:
-        line_alive = (
-            board.mega_starmie_on_field
-            or getattr(board, "staryu_on_field", False)
-            or _hand_has_id(obs, mi, _OC_MEGA_STARMIE)
-        )
-        return 400.0 if line_alive else _DOMINATE_MID - 40.0
-    if cid == _OC_SNORUNT and not getattr(board, "snorunt_on_field", False):
-        return _DOMINATE_MID - 60.0
-    return 300.0
-
-
 def _own_promote_fallback_bonus(obs, option, mi: int) -> float:
     """P4: fallback ranking for OUR SWITCH / TO_ACTIVE bench selects when no
     earlier rule fired (i.e. no ready attacker preference applied) — wall with
@@ -1255,30 +1099,6 @@ def _starmie_in_danger(obs, my_index: int) -> bool:
         return hp <= dmg
     except Exception:
         return False
-
-
-def _block_mega_froslass_evolve(obs, my_index: int, board, phase, option) -> bool:
-    """HR-8b — 861 is insurance ONLY, never the default second build.
-
-    Strategy (2026-08-01, tightened same day): after Mega Starmie the engine
-    develops the DP set (Munkidori + Froslass 104 + dark) with everything it
-    has — even surplus resources after DP completion do NOT go into 861.
-    The only 861 windows:
-      1. Mega Starmie gone / HARVEST (recovery attacker),
-      2. Mega Starmie likely dies next opponent turn (_starmie_in_danger).
-    Engine fact: EVOLVE 861 is offered onto Snorunt only (never onto 104).
-    """
-    starmie_gone = not board.mega_starmie_on_field
-    has_snorunt = bool(
-        getattr(board, "snorunt_on_field", False)
-        or _snorunt_on_bench(obs, my_index)
-        or board.active_id == _OC_SNORUNT
-    )
-    if not has_snorunt:
-        # Still allow if the concrete evolve option targets Snorunt (Active/bench).
-        if not _evolve_mega_froslass_targets_snorunt(obs, option, my_index):
-            return True
-    return not _mega_froslass_window_open(obs, my_index, board, phase)
 
 
 def _mega_froslass_window_open(obs, my_index: int, board, phase) -> bool:
@@ -1419,220 +1239,6 @@ def _card_option_id(obs, option, my_index: int) -> int:
     except Exception:
         pass
     return 0
-
-
-def _synergy_search_bonus(obs, option, board, phase, my_index: int) -> float:
-    """Prefer Snorunt / Froslass / Munk when searching deck (Pad, Hilda, Ball)."""
-    if option.type != OptionType.CARD:
-        return 0.0
-    try:
-        ctx = int(obs.select.context)
-    except Exception:
-        return 0.0
-    if ctx not in (
-        int(SelectContext.TO_HAND),
-        int(SelectContext.TO_FIELD),
-        int(SelectContext.TO_BENCH),
-    ):
-        return 0.0
-    cid = _card_option_id(obs, option, my_index)
-
-    # Hilda / Ball / Pad: never pick Dudunsparce ex (removed from deck / noise).
-    if cid == _CARDS["dudunsparce_ex"]:
-        return -_DOMINATE
-
-    # OPENING Poffin → bench: Staryu first, then Snorunt (dual-basic).
-    if phase.primary == "OPENING" and ctx == int(SelectContext.TO_BENCH):
-        if cid == _OC_STARYU and not getattr(board, "staryu_on_field", False) and not getattr(
-            board, "mega_starmie_on_field", False
-        ):
-            return _DOMINATE_OPEN_PATH
-        if (
-            cid == _OC_SNORUNT
-            and (board.staryu_on_field or board.mega_starmie_on_field)
-            and not board.snorunt_line_on_bench
-        ):
-            return _DOMINATE_OPEN_PATH - 15.0
-        try:
-            pri = {c: i for i, c in enumerate(POFFIN_OPENING_PRIORITY)}
-            if cid in pri:
-                return _DOMINATE_OPEN_PATH - 10.0 * float(pri[cid])
-        except Exception:
-            pass
-
-    # AGGRESSION Poffin → bench: Snorunt first (epoch-2 SF1), then Munk.
-    if phase.primary == "AGGRESSION" and ctx == int(SelectContext.TO_BENCH):
-        if cid == _OC_SNORUNT and not board.snorunt_line_on_bench:
-            return _DOMINATE_OPEN_PATH
-        if cid == _OC_MUNKIDORI and not board.munkidori_on_field:
-            return _DOMINATE_OPEN_PATH - 20.0
-        if cid == _OC_SNORUNT:
-            return _DOMINATE_OPEN_PATH - 40.0
-
-    # OPENING Ball/Hilda TO_HAND: Mega in hand/field → fetch Staryu base, not another Mega.
-    mega_owned = bool(
-        getattr(board, "mega_starmie_on_field", False)
-        or _hand_has_id(obs, my_index, _OC_MEGA_STARMIE)
-    )
-    need_staryu_base = not bool(
-        getattr(board, "staryu_on_field", False)
-        or getattr(board, "mega_starmie_on_field", False)
-    )
-    if ctx == int(SelectContext.TO_HAND) and phase.primary == "OPENING":
-        if cid == _OC_STARYU and need_staryu_base:
-            return _DOMINATE_OPEN_PATH
-        if cid == _OC_MEGA_STARMIE:
-            if mega_owned:
-                return -_DOMINATE_OPEN_PATH
-            return _DOMINATE_OPEN_PATH
-        if cid == _CARDS["mega_froslass_ex"]:
-            # S4: with Mega Starmie on field and the 861 window closed, DP
-            # pieces outrank the insurance Mega — drop 861 below them.
-            if getattr(
-                board, "mega_starmie_on_field", False
-            ) and not _mega_froslass_window_open(obs, my_index, board, phase):
-                return _DOMINATE_OPEN_PATH - 90.0
-            return _DOMINATE_OPEN_PATH - 20.0
-        if cid == _CARDS["dudunsparce"]:
-            return _DOMINATE_OPEN_PATH - 80.0
-        # DP boost: Mega already ON FIELD (OPENING tail) — start pulling DP
-        # pieces so 104/Munkidori arrive before mid-game (diagnosis: DP
-        # pieces reached hand too late to convert). Narrow gate: hand-Mega
-        # alone must not divert OPENING searches (frozen asset).
-        if getattr(board, "mega_starmie_on_field", False):
-            if cid == _OC_MUNKIDORI and not board.munkidori_on_field:
-                return _DOMINATE_OPEN_PATH - 50.0
-            if cid == _OC_FROSLASS and not board.froslass_104_on_field:
-                return _DOMINATE_OPEN_PATH - 60.0
-            if cid == _OC_SNORUNT and not getattr(board, "snorunt_line_on_bench", False):
-                return _DOMINATE_OPEN_PATH - 70.0
-        return 0.0
-
-    # HARVEST / post-KO: fetch 861 (from Snorunt) first; 104 is optional parallel.
-    if phase.primary == "HARVEST" and ctx == int(SelectContext.TO_HAND):
-        if cid == _CARDS["mega_froslass_ex"] and not getattr(
-            board, "mega_froslass_on_field", False
-        ):
-            return _DOMINATE_OPEN_PATH
-        if cid == _OC_SNORUNT and not getattr(board, "snorunt_on_field", False):
-            return _DOMINATE_OPEN_PATH - 10.0
-        if cid == _OC_FROSLASS and not board.froslass_104_on_field:
-            # DP boost: 861 in hand no longer blocks fetching 104 when a spare
-            # Snorunt exists (or 861 already online).
-            if (
-                not _hand_has_id(obs, my_index, _CARDS["mega_froslass_ex"])
-                or _snorunt_field_count(obs, my_index) >= 2
-                or getattr(board, "mega_froslass_on_field", False)
-            ):
-                return _DOMINATE_OPEN
-        if cid == _OC_MEGA_STARMIE and (
-            board.mega_starmie_on_field or _hand_has_id(obs, my_index, _OC_MEGA_STARMIE)
-        ):
-            return -_DOMINATE
-
-    if phase.primary == "OPENING" or not _synergy_window(board, phase):
-        return 0.0
-    if cid == _OC_SNORUNT and not board.snorunt_line_on_bench:
-        return _DOMINATE
-    # DP boost: 2nd Snorunt while 861 + 104 twin lines are not both online
-    # (overflow ban upstream keeps the field cap at 2).
-    if cid == _OC_SNORUNT and not (
-        getattr(board, "mega_froslass_on_field", False)
-        and board.froslass_104_on_field
-    ):
-        if (
-            _hand_has_id(obs, my_index, _OC_FROSLASS)
-            and not board.froslass_104_on_field
-        ):
-            return _DOMINATE  # 104 waiting in hand — the egg is the bottleneck
-        return _DOMINATE_MID - 30.0
-    if (
-        cid == _OC_FROSLASS
-        and not board.froslass_104_on_field
-        and (board.snorunt_line_on_bench or cid)
-    ):
-        return _DOMINATE
-    if cid == _OC_MUNKIDORI and not board.munkidori_on_field:
-        return _DOMINATE_MID
-    # S4: fetch the insurance 861 only when its window is open (Starmie
-    # dying / DP core done); otherwise DP pieces above keep the search.
-    if (
-        cid == _CARDS["mega_froslass_ex"]
-        and not getattr(board, "mega_froslass_on_field", False)
-        and not _hand_has_id(obs, my_index, _CARDS["mega_froslass_ex"])
-        and _mega_froslass_window_open(obs, my_index, board, phase)
-    ):
-        return _DOMINATE_MID - 50.0
-    return 0.0
-
-
-def _discard_select_bonus(obs, option, sit: dict[str, Any], my_index: int, board, phase) -> float:
-    """Ultra Ball / effect DISCARD: protect keys, prefer fodder (live ↔ planner)."""
-    if option.type != OptionType.CARD:
-        return 0.0
-    try:
-        ctx = int(obs.select.context)
-    except Exception:
-        return 0.0
-    if ctx != int(SelectContext.DISCARD):
-        return 0.0
-    cid = _card_option_id(obs, option, my_index)
-    if cid <= 0:
-        return 0.0
-
-    # Hard protect — never discard these while alternatives exist (score sort).
-    if cid in (
-        _OC_STARYU,
-        _OC_MEGA_STARMIE,
-        _CARDS["mega_froslass_ex"],
-        _OC_FROSLASS,
-        _MUNKIDORI_ID,
-        HILDA,
-        CRISPIN,
-        LILLIE,
-        SALVATOR,
-        _OC_ULTRA_BALL,
-        _OC_DUDUNSPARCE,
-    ):
-        return -_DOMINATE_PLUS
-    # DP boost: dark energy is scarce (3 copies) — protect while Munkidori
-    # still lacks dark.
-    if cid == DARK_BASIC and not getattr(board, "munkidori_has_dark", False):
-        return -_DOMINATE
-    # Matchup-ALAK: last Unfair Stamp protected while confirmed.
-    if sit.get("matchup_alakazam_confirmed") and cid == UNFAIR_STAMP:
-        return -_DOMINATE_PLUS
-    if cid == _OC_SNORUNT and not getattr(board, "snorunt_line_on_bench", False):
-        return -_DOMINATE
-    # Keep retreat/water tools when Active cannot free-retreat (OPENING).
-    if phase is not None and phase.primary == "OPENING" and board is not None:
-        try:
-            can_ret = _active_can_retreat(obs, my_index)
-        except Exception:
-            can_ret = True
-        if (
-            getattr(board, "active_id", 0) != _OC_MEGA_STARMIE
-            and not can_ret
-            and cid in (IGNITION, DARK_BASIC, _OC_SWITCH, WATER_BASIC, _OC_PRISM)
-        ):
-            return -_DOMINATE
-
-    fodder_rank = {
-        _RISKY_RUINS: 0,
-        _OC_WALLYS: 1,
-        _OC_BOSS: 2,
-        UNFAIR_STAMP: 3,
-        _OC_POKE_PAD: 4,
-        _OC_POFFIN: 5,
-        _OC_NIGHT_STRETCHER: 6,
-        JUDGE: 7,
-        IGNITION: 8,
-        DARK_BASIC: 9,
-        _OC_SWITCH: 10,
-    }
-    if cid in fodder_rank:
-        return _DOMINATE - 5.0 * float(fodder_rank[cid])
-    return 0.0
 
 
 def _select_pick_count(obs, n_options: int) -> int:
@@ -2141,6 +1747,15 @@ def _compute_situation(
         else:
             sit["epoch_memory"] = None
 
+        # Build the immutable source of truth before migration aliases.  A
+        # legacy planner exception must never leave a decision without TurnPlan.
+        sit["turn_plan"] = build_turn_plan(
+            obs, board, phase=phase, resources=resources,
+        )
+        sit["doublekill_ready"] = (
+            sit["turn_plan"].combat.mode == "DOUBLE_KO"
+        )
+
         d66_bench = _bench_has_id(obs, mi, _CARDS["dudunsparce"])
         dun_evolve = _dunsparce_on_bench_can_evolve(obs, mi)
         hp_low = _mega_starmie_hp_low(obs, mi)
@@ -2159,8 +1774,8 @@ def _compute_situation(
             sit["opening_route"] = compute_opening_route(
                 obs, board, hand, resources, mi,
             )
-
-    except Exception: pass
+    except Exception as exc:
+        sit["compute_error"] = repr(exc)
     return sit
 
 
@@ -2233,11 +1848,9 @@ def _layer1_supporter_draw_axis(
                 and _resentful_damage(int(sit.get("opp_hand_count") or 0)) >= 200
             ):
                 return -_DOMINATE
-            # Post-usable-Mega: never lose to HR-6 Jetting Blow (975).
-            score = _planner_score(sup.priority)
-            if phase.opening_complete and not hand.supporter_played:
-                return max(score, _DOMINATE_ATTACK + 30.0)
-            return score
+            # Gap-driven planner score only — do NOT force supporters above attack
+            # just because the slot is still open this turn.
+            return _planner_score(sup.priority)
 
     draw = sit.get("draw_axis_dec")
     if draw and draw.action == "ABILITY_DRAW" and option.type == OptionType.ABILITY:
@@ -2386,7 +1999,7 @@ def _dry_attacker_needs_water(obs, my_index: int) -> bool:
 def _attach_priority_bonus(
     obs, option, mi: int, board, phase, hand, *, alak_matchup: bool = False,
 ) -> float:
-    """Every turn: prefer a productive ATTACH.
+    """Prefer productive ATTACH when it closes a real gap (not every-turn fill).
 
     Default (non-Alakazam): dry attacker water FIRST (Mega / Staryu that can
     come online this turn), then Munk dark. Alakazam matchup is the exception
@@ -2395,18 +2008,10 @@ def _attach_priority_bonus(
     if option.type == OptionType.END:
         if hand and getattr(hand, "energy_attached", False):
             return 0.0
+        # Only hard-block blank END when a dry attacker would otherwise fire unfueled.
         if _hand_has_water_energy(obs, mi) and _dry_attacker_needs_water(obs, mi):
             return _ATTACH_ILLEGAL  # deeper than -DOMINATE so END never ties illegal attaches
-        # Dark left + Munk dry: still a productive attach this turn.
-        if (
-            (_hand_has_id(obs, mi, DARK_BASIC) or _hand_has_id(obs, mi, _OC_PRISM))
-            and board.munkidori_on_field
-            and not board.munkidori_has_dark
-        ):
-            return -_DOMINATE_MID
-        # Dudunsparce Run Away Draw available — don't blank-end the turn.
-        if _bench_has_id(obs, mi, _CARDS["dudunsparce"]):
-            return -_DOMINATE_MID
+        # Munk dark / Run Away no longer force the turn open — holding is fine.
         return 0.0
 
     if option.type != OptionType.ATTACH:
@@ -2664,6 +2269,222 @@ def _crispin_attach_select_bonus(obs, option, sit: dict[str, Any]) -> float:
     return 0.0
 
 
+def _turn_plan_required_option(obs, option, sit: dict[str, Any], requirement: str) -> bool:
+    """Whether an option performs the planner's next pre-attack action."""
+    mi = sit["my_index"]
+    if requirement == "ADRENA":
+        return (
+            option.type == OptionType.ABILITY
+            and _ability_source_id(obs, option, mi) == _MUNKIDORI_ID
+        )
+    if requirement == "BOSS":
+        return (
+            option.type == OptionType.PLAY
+            and _hand_card_id(obs, option, mi) == _BOSS_ID
+        )
+    if requirement == "EVOLVE_104":
+        return (
+            option.type == OptionType.EVOLVE
+            and _evolve_to_froslass_104(obs, option, mi)
+        )
+    if requirement == "ATTACH_DARK":
+        target = _attach_target_pokemon(obs, option, mi)
+        return (
+            option.type == OptionType.ATTACH
+            and _attach_energy_id(obs, option, mi) == DARK_BASIC
+            and target is not None
+            and _si(getattr(target, "id", None)) == _MUNKIDORI_ID
+        )
+    if requirement == "DISPATCH":
+        if option.type == OptionType.RETREAT:
+            return True
+        if option.type == OptionType.PLAY:
+            return _hand_card_id(obs, option, mi) == _OC_SWITCH
+        if option.type == OptionType.ATTACH:
+            return _attach_energy_to_active(obs, option, mi)
+        if option.type == OptionType.CARD:
+            try:
+                ctx = int(obs.select.context)
+            except Exception:
+                return False
+            if ctx in (int(SelectContext.SWITCH), int(SelectContext.TO_ACTIVE)):
+                return _card_option_id(obs, option, mi) in _MEGA_EX_IDS
+    return False
+
+
+def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
+    """Translate TurnPlan into the small hard overlay that legacy rules consume."""
+    plan = sit.get("turn_plan")
+    if plan is None:
+        return 0.0
+    mi = sit["my_index"]
+
+    # Nested search/recovery/discard choices all use AcquirePlan.targets.
+    if option.type == OptionType.CARD:
+        try:
+            ctx = int(obs.select.context)
+        except Exception:
+            ctx = -1
+        cid = (
+            _discard_option_card_id(obs, option, mi)
+            if getattr(option, "area", None) == AreaType.DISCARD
+            else _card_option_id(obs, option, mi)
+        )
+        pi = _si(getattr(option, "playerIndex", None), mi)
+        index = _si(getattr(option, "index", None), -1)
+        boss_target = plan.combat.boss_target
+        if (
+            boss_target is not None
+            and pi != mi
+            and ctx in (int(SelectContext.SWITCH), int(SelectContext.TO_ACTIVE))
+        ):
+            return (
+                _DOMINATE_OPEN_PATH
+                if index == boss_target.index
+                else -_DOMINATE
+            )
+        rider = plan.combat.rider_target
+        if rider is not None and pi != mi and ctx in (
+            int(SelectContext.DAMAGE_COUNTER),
+            int(SelectContext.DAMAGE),
+        ):
+            return (
+                _DOMINATE_OPEN_PATH
+                if index == rider.index
+                else -_DOMINATE
+            )
+        if ctx == int(SelectContext.DISCARD):
+            value = discard_value(cid, plan)
+            if value >= 8_000:
+                return -_DOMINATE_OPEN_PATH
+            if value <= 30:
+                return _DOMINATE_OPEN_PATH
+            if value <= 100:
+                return _DOMINATE
+        if (
+            ctx == int(SelectContext.TO_HAND)
+            and getattr(option, "area", None) == AreaType.DISCARD
+            and plan.acquire.recover_target is not None
+        ):
+            return (
+                _DOMINATE_OPEN_PATH
+                if cid == plan.acquire.recover_target
+                else -_DOMINATE
+            )
+        if ctx in (
+            int(SelectContext.TO_HAND),
+            int(SelectContext.TO_BENCH),
+            int(SelectContext.TO_FIELD),
+        ) and plan.acquire.targets:
+            if cid in plan.acquire.targets:
+                return _DOMINATE_OPEN_PATH - plan.acquire.targets.index(cid)
+            return -_DOMINATE
+
+    # Gap-driven search source and Ultra Ball gate.
+    if option.type == OptionType.PLAY:
+        cid = _hand_card_id(obs, option, mi)
+        if cid == _OC_ULTRA_BALL:
+            return _DOMINATE if plan.acquire.ball_allowed else -_DOMINATE_OPEN_PATH
+        if cid in plan.acquire.targets:
+            return _DOMINATE_OPEN_PATH
+        if cid in plan.acquire.sources:
+            return _DOMINATE_OPEN_PATH
+        if cid in (DUNSPARCE_A, DUNSPARCE_B):
+            duns_n = sum(
+                x in (DUNSPARCE_A, DUNSPARCE_B, _CARDS["dudunsparce"])
+                for x in (plan.facts.bench_ids + (plan.facts.active_id,))
+            )
+            if (duns_n == 0 and not plan.draw.allow_first_dunsparce) or (
+                duns_n == 1 and not plan.draw.allow_second_dunsparce
+            ) or duns_n >= 2:
+                return -_DOMINATE
+
+    if (
+        option.type == OptionType.ABILITY
+        and _ability_source_id(obs, option, mi) == _CARDS["dudunsparce"]
+        and not plan.draw.allow_run_away_draw
+    ):
+        return -_DOMINATE
+
+    if (
+        option.type == OptionType.EVOLVE
+        and _evolve_to_mega_froslass_ex(obs, option, mi)
+        and "BUILD_861" in plan.forbidden_actions
+    ):
+        return -_DOMINATE_OPEN_PATH
+
+    combat = plan.combat
+    if not combat.attack_required:
+        return 0.0
+
+    # Enforce only requirements that are currently actionable.  This prevents
+    # stale facts (e.g. Adrena already used) from blocking the attack.
+    options = sit.get("select_options") or ()
+    actionable = tuple(
+        req for req in combat.required_before_attack
+        if not options or any(_turn_plan_required_option(obs, o, sit, req) for o in options)
+    )
+    if actionable:
+        wanted = actionable[0]
+        if _turn_plan_required_option(obs, option, sit, wanted):
+            return _DOMINATE_OPEN_PATH
+        if option.type in (
+            OptionType.ATTACK,
+            OptionType.END,
+            OptionType.PLAY,
+            OptionType.ATTACH,
+            OptionType.EVOLVE,
+            OptionType.ABILITY,
+            OptionType.RETREAT,
+        ):
+            return -_DOMINATE_OPEN_PATH
+
+    if option.type == OptionType.END:
+        return -_DOMINATE_OPEN_PATH
+    if option.type == OptionType.ATTACK:
+        attack_id = _attack_id(option)
+        if plan.facts.active_id == _OC_MEGA_STARMIE:
+            if combat.mode == "DOUBLE_KO":
+                return (
+                    _DOMINATE_OPEN_PATH
+                    if attack_id == _ATK_JETTING_BLOW
+                    else -_DOMINATE
+                )
+            if (
+                attack_id == _ATK_NEBULA_BEAM
+                and plan.facts.opp_active
+                and 0 < plan.facts.opp_active.hp <= 210
+            ):
+                return _DOMINATE_OPEN_PATH
+            if attack_id in (_ATK_JETTING_BLOW, _ATK_NEBULA_BEAM):
+                return _DOMINATE_ATTACK
+            return -_DOMINATE
+        if plan.facts.active_id == _CARDS["mega_froslass_ex"]:
+            if attack_id in (_ATK_RESENTFUL, _ATK_ABS_SNOW):
+                return _DOMINATE_ATTACK
+            return -_DOMINATE
+        if is_basic_attack_forbidden(plan.facts.active_id, plan):
+            opp = plan.facts.opp_active
+            direct_win = bool(
+                opp
+                and plan.facts.prize_self <= opp.prizes
+                and opp.hp <= _card_max_printed_damage(plan.facts.active_id)
+            )
+            return _DOMINATE_ATTACK if direct_win else -_DOMINATE_OPEN_PATH
+
+    # A ready attacker leaves no room for generic construction.  The allowed
+    # Adrena/Boss/dispatch steps were handled above.
+    if option.type in (
+        OptionType.PLAY,
+        OptionType.ATTACH,
+        OptionType.EVOLVE,
+        OptionType.ABILITY,
+        OptionType.RETREAT,
+    ):
+        return -_DOMINATE_OPEN_PATH
+    return 0.0
+
+
 def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
     """Return dominate score if a hard rule fires; 0 otherwise."""
     mi = sit["my_index"]
@@ -2732,6 +2553,10 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
     if alak_bonus != 0.0:
         return alak_bonus
 
+    turn_plan_bonus = _turn_plan_hard_bonus(obs, option, sit)
+    if turn_plan_bonus != 0.0:
+        return turn_plan_bonus
+
     stamp_prot = protect_unfair_stamp_discard(
         obs, option, mi, bool(sit.get("matchup_alakazam_confirmed")), _DOMINATE_PLUS,
     )
@@ -2746,16 +2571,15 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
 
     # Evolve Snorunt→861 early in ops block (Active+water = next-turn Resentful).
     if option.type == OptionType.EVOLVE and _evolve_to_mega_froslass_ex(obs, option, mi):
-        if not _block_mega_froslass_evolve(obs, mi, board, phase, option):
-            active = _active_pokemon(obs, mi)
-            if (
-                active
-                and _si(getattr(active, "id", None)) == _OC_SNORUNT
-                and _has_water_energy(active)
-                and _evolve_mega_froslass_targets_snorunt(obs, option, mi)
-            ):
-                return _DOMINATE_OPEN_PATH
-            return _DOMINATE_OPEN
+        active = _active_pokemon(obs, mi)
+        if (
+            active
+            and _si(getattr(active, "id", None)) == _OC_SNORUNT
+            and _has_water_energy(active)
+            and _evolve_mega_froslass_targets_snorunt(obs, option, mi)
+        ):
+            return _DOMINATE_OPEN_PATH
+        return _DOMINATE_OPEN
 
     # Dual-attacker: Active 861 + dead/weak Resentful + bench Mega Starmie
     # → cut back to Starmie (Resentful=0 must not Absolute-Snow stall).
@@ -2975,11 +2799,6 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
     if axis_bonus != 0.0:
         return axis_bonus
 
-    # Ultra Ball / effect discard — protect keys before OPENING path scoring.
-    disc_bonus = _discard_select_bonus(obs, option, sit, mi, board, phase)
-    if disc_bonus != 0.0:
-        return disc_bonus
-
     # Attach/retreat fuel gates (before OPENING path so bans always apply).
     fuel_bonus = _attach_retreat_fuel_bonus(obs, option, mi, board, phase)
     if fuel_bonus != 0.0:
@@ -2998,13 +2817,6 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
     if staryu_ban != 0.0:
         return staryu_ban
 
-    # P5 — discard recovery (Night Stretcher / Salvatore): energy first.
-    # Must run before _synergy_search_bonus, which otherwise treats discard
-    # picks like deck searches and grabs Pokémon over scarce basic energy.
-    recover_bonus = _discard_recover_bonus(obs, option, mi, board)
-    if recover_bonus != 0.0:
-        return recover_bonus
-
     # P7 — non-attacker Active (Meowth ex / Fan Rotom / basics) while a ready
     # Mega waits on the bench: promote the attacker, never stall with utility
     # attacks in the Active Spot.
@@ -3020,12 +2832,6 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
             return _DOMINATE_RESCUE
         if option.type == OptionType.PLAY and _hand_card_id(obs, option, mi) == _OC_SWITCH:
             return _DOMINATE_RESCUE
-
-    # HR-O Main — epoch_scheduler path (G1→RETREAT→G2→G3→EVOLVE→DONE).
-    # Runs before legacy Early* so preferred/demote dominate OPENING choices.
-    search_bonus = _synergy_search_bonus(obs, option, board, phase, mi)
-    if search_bonus != 0.0:
-        return search_bonus
 
     # Epoch1 OPENING (G*) + Epoch2 AGGRESSION / post-Mega HARVEST (SF*).
     if phase.primary in ("OPENING", "AGGRESSION", "HARVEST"):
@@ -3066,15 +2872,6 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
         if cid == _FAN_ROTOM_ID and board.fan_rotom_dead:
             return -_DOMINATE
 
-    # HR-1  Fan Call — My-T1 force if Fan on field; ban T2+ Call
-    if option.type == OptionType.ABILITY:
-        src_id = _ability_source_id(obs, option, mi)
-        if src_id == _FAN_ROTOM_ID:
-            if board.my_turn_number <= 1 and board.fan_rotom_on_field:
-                return _DOMINATE_OPEN_PATH
-            if board.my_turn_number >= 2:
-                return -_DOMINATE
-
     # Ignition already on Active → force retreat this turn (don't EOT-discard).
     # Also retreat when bench Mega+water is waiting (usable-Mega promote).
     if option.type == OptionType.RETREAT and _active_has_ignition(obs, mi):
@@ -3085,69 +2882,6 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
     synergy = _synergy_window(board, phase)
     post_opening = board.my_turn_number >= 2
     retreat_rescue = _needs_retreat_rescue(obs, mi, board, phase)
-
-    # HR-O5  OPENING G5 — Switch bench Mega Starmie (+water) to Active
-    if option.type == OptionType.PLAY and phase.primary == "OPENING":
-        cid = _hand_card_id(obs, option, mi)
-        if cid == _OC_SWITCH and _opening_g5_switch_needed(phase, board, obs, mi):
-            return _DOMINATE_OPEN_PATH
-
-    # HR-O4  OPENING — evolve Staryu → Mega Starmie ex (after synergy core in T2–T8)
-    if option.type == OptionType.EVOLVE and phase.primary == "OPENING" and post_opening:
-        if _evolve_to_mega_starmie(obs, option, mi):
-            if _defer_mega_promotion(board, phase):
-                return 0.0
-            return _DOMINATE
-
-    # HR-O3  OPENING — attach Water Basic only to Staryu / Mega missing water
-    if option.type == OptionType.ATTACH and phase.primary == "OPENING" and post_opening:
-        target = _attach_target_pokemon(obs, option, mi)
-        eid = _attach_energy_id(obs, option, mi)
-        if target and eid == WATER_BASIC:
-            tid = _si(getattr(target, "id", None))
-            if tid == _CARDS["mega_starmie_ex"] and not _has_water_energy(target):
-                if board.active_is_mega_starmie:
-                    return _DOMINATE_OPEN_PATH
-                return _DOMINATE_PLUS
-            if tid == _OC_STARYU and not _has_water_energy(target):
-                return _DOMINATE_PLUS
-
-    # HR-O2  OPENING — bench Staryu when attack line absent
-    if (
-        option.type == OptionType.PLAY
-        and phase.primary == "OPENING"
-        and board.bench_open > 0
-        and not board.staryu_on_field
-        and not board.mega_starmie_on_field
-    ):
-        if _hand_card_id(obs, option, mi) == _OC_STARYU:
-            return _DOMINATE_MID
-
-    # HR-O2b  OPENING dual-basic — after Staryu/Mega online, bench Snorunt for T2 options.
-    # Does not outrank water attach / Mega evolve (those stay at higher dominate bands).
-    if (
-        option.type == OptionType.PLAY
-        and phase.primary == "OPENING"
-        and board.bench_open > 0
-        and (board.staryu_on_field or board.mega_starmie_on_field)
-        and not board.snorunt_line_on_bench
-        and not board.froslass_104_on_field
-    ):
-        if _hand_card_id(obs, option, mi) == _OC_SNORUNT:
-            return _DOMINATE_MID
-
-    # HR-O2c  Bench Dunsparce immediately when hand has it (free-retreat / protect Active).
-    if (
-        option.type == OptionType.PLAY
-        and phase.primary == "OPENING"
-        and board.bench_open > 0
-        and _hand_card_id(obs, option, mi) in (DUNSPARCE_A, DUNSPARCE_B, _CARDS["dunsparce_a"], _CARDS["dunsparce_b"])
-        and _obs_can_bench_card(obs, mi, _hand_card_id(obs, option, mi))
-    ):
-        # Higher when Active is unevolved Staryu — get a Switch/retreat partner out.
-        if board.active_id == _OC_STARYU and not board.mega_starmie_on_field:
-            return _DOMINATE
-        return _DOMINATE_MID
 
     # HR-O6c  OPENING — if Active is unevolved Staryu, Mega not in hand/field, and a
     # non-Staryu bench mate exists, Switch/Retreat Staryu off Active (don't expose base).
@@ -3272,13 +3006,29 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
                 or resources.copies_left(_MUNKIDORI_ID) > 0
             ):
                 return _DOMINATE_PLUS
-        # Ultra Ball dig for DP pieces — same urgency as Pad post-Mega.
+        # Ultra Ball dig for DP pieces — below Pad; UB-3 skips when free search covers.
         if cid == _OC_ULTRA_BALL and dp_urgent:
+            has_free = _hand_has_id(obs, mi, _OC_POFFIN) or _hand_has_id(
+                obs, mi, _OC_POKE_PAD
+            )
+            need_stage = resources.copies_left(_OC_FROSLASS) > 0 and not board.froslass_104_on_field
+            if has_free and not need_stage:
+                return -_DOMINATE
             if (
                 resources.copies_left(_OC_SNORUNT) > 0
                 or resources.copies_left(_OC_FROSLASS) > 0
                 or resources.copies_left(_MUNKIDORI_ID) > 0
             ):
+                # UB-5: don't dig a name already in hand.
+                if (
+                    (_hand_has_id(obs, mi, _OC_SNORUNT) or board.snorunt_line_on_bench)
+                    and (_hand_has_id(obs, mi, _OC_MUNKIDORI) or board.munkidori_on_field)
+                    and (
+                        _hand_has_id(obs, mi, _OC_FROSLASS)
+                        or board.froslass_104_on_field
+                    )
+                ):
+                    return -_DOMINATE
                 return _DOMINATE_PLUS - 30.0
 
     # HR-10  Double Munkidori — second copy on bench (AGGRESSION/HARVEST)
@@ -3319,35 +3069,6 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
                 return _DOMINATE_OPEN_PATH
             return _DOMINATE
 
-    # HR-NS (DP boost)  Night Stretcher — actively recover scarce basic
-    # energy from the discard (3 dark / 5 water total; selection handled by
-    # _discard_recover_bonus).
-    if option.type == OptionType.PLAY and post_opening:
-        if _hand_card_id(obs, option, mi) == _OC_NIGHT_STRETCHER:
-            try:
-                me = obs.current.players[mi]
-                hand_ids = {
-                    _si(getattr(c, "id", None)) for c in (me.hand or []) if c
-                }
-                disc_ids = [
-                    _si(getattr(c, "id", None)) for c in (me.discard or []) if c
-                ]
-            except Exception:
-                hand_ids, disc_ids = set(), []
-            need_dark = (
-                board.munkidori_on_field
-                and not board.munkidori_has_dark
-                and DARK_BASIC not in hand_ids
-                and DARK_BASIC in disc_ids
-            )
-            need_water = (
-                _dry_attacker_needs_water(obs, mi)
-                and WATER_BASIC not in hand_ids
-                and WATER_BASIC in disc_ids
-            )
-            if need_dark or need_water:
-                return _DOMINATE_MID
-
     # HR-5  Risky Ruins — only after Snorunt line + Munkidori on bench
     if option.type == OptionType.PLAY and synergy:
         if _hand_card_id(obs, option, mi) == _RISKY_RUINS and board.bench_three_core_ready:
@@ -3370,8 +3091,6 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
                     return -_DOMINATE_OPEN  # lone egg held for insurance 861
                 return _DOMINATE_OPEN
         if _evolve_to_mega_froslass_ex(obs, option, mi):
-            if _block_mega_froslass_evolve(obs, mi, board, phase, option):
-                return -_DOMINATE
             # PATH when recovering / setting up second attacker.
             if phase.primary == "HARVEST" or not board.mega_starmie_on_field:
                 return _DOMINATE_OPEN_PATH
@@ -3404,15 +3123,7 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
                 and not getattr(board, "mega_froslass_on_field", False)
                 and _mega_froslass_window_open(obs, mi, board, phase)
             )
-            sup = sit.get("supporter_dec")
-            if (
-                hand
-                and not hand.supporter_played
-                and sup
-                and getattr(sup, "action", None) == "PLAY"
-                and phase.opening_complete
-            ):
-                return _DOMINATE_MID
+            # No longer demote attack just because a supporter is still unspent.
             if atk_id == _ATK_JETTING_BLOW:
                 if can_setup_861:
                     return _DOMINATE_MID
@@ -3428,15 +3139,6 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
             phase.primary == "OPENING" and board.my_turn_number >= 2
         ):
             return -_DOMINATE
-    if (
-        option.type == OptionType.END
-        and getattr(board, "mega_starmie_on_field", False)
-        and not _synergy_core_ready(board)
-        and _dp_engine_actions_available(obs, mi, board, hand, resources)
-        and phase.primary == "AGGRESSION"
-    ):
-        return -_DOMINATE
-
     # HR-7  Budew Itchy Pollen — OPENING stall when no Mega ex ready
     if option.type == OptionType.ATTACK and phase.primary == "OPENING" and turn >= 3:
         if not sit["mega_ready"]:
@@ -3872,6 +3574,10 @@ def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None)
             if not options:
                 return []
             sit   = _compute_situation(obs, deck_template=deck, agent_state=agent_state)
+            agent_state["last_turn_plan"] = sit.get("turn_plan")
+            agent_state["last_turn_plan_matchup_override"] = bool(
+                sit.get("matchup_alakazam_confirmed")
+            )
             # Per-game OPENING-completion flag (set once when the opening is
             # completed). The local harness resets this before each game via
             # `reset_for_new_game()` and reads it after, since the harness — not

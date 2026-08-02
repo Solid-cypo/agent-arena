@@ -296,16 +296,15 @@ def pick_supporter(
             "Crispin water gap over Lillie dig",
         )
 
-    # Post-Mega: try to spend a Supporter every turn.
-    # Priorities sit above HR-6 attack (975) so the agent plays before Jetting Blow.
-    # Only after usable Mega (opening_complete). Bare HARVEST without ever opening
-    # must not steal the OPENING supporter/path window.
+    # Post-Mega: gap-driven supporters only (no "spend the slot every turn").
+    # Priorities sit below HR-6 attack (975) unless the card closes a real gap.
+    # Bare HARVEST without ever opening must not steal the OPENING path window.
     post_mega = bool(phase.opening_complete)
     if post_mega:
         need_froslass_engine = not board.froslass_104_on_field or not board.active_is_mega_froslass
         if _in_hand(hand, HILDA) and need_froslass_engine:
             return SupporterDecision(
-                "PLAY", HILDA, "SP-HILDA-SF", 1005.0,
+                "PLAY", HILDA, "SP-HILDA-SF", 960.0,
                 "Hilda — Mega Froslass / 104 after Starmie online",
             )
         if (
@@ -314,7 +313,7 @@ def pick_supporter(
             and not board.munkidori_has_dark
         ):
             return SupporterDecision(
-                "PLAY", CRISPIN, "SP-CRIS-SF", 1000.0,
+                "PLAY", CRISPIN, "SP-CRIS-SF", 955.0,
                 "Crispin — dark for Munkidori engine",
             )
         if (
@@ -327,34 +326,15 @@ def pick_supporter(
             )
         ):
             return SupporterDecision(
-                "PLAY", CRISPIN, "SP-CRIS-SF2", 990.0,
+                "PLAY", CRISPIN, "SP-CRIS-SF2", 940.0,
                 "Crispin — energy while Froslass engine builds",
             )
 
     lillie = lillie_priority(board, phase, hand, resources)
     if lillie and lillie.action == "PLAY":
-        # Keep Lillie PLAY above Jetting Blow when post-Mega.
-        if post_mega and lillie.priority < 990.0:
-            return SupporterDecision(
-                "PLAY", LILLIE, lillie.rule_id, 990.0, lillie.reason,
-            )
         return lillie
-    # FORBID Lillie must NOT early-return — Judge/Crispin may still spend the slot.
+    # FORBID Lillie must NOT early-return — other supporters may still play.
     # Layer1 still hard-bans the Lillie card itself via lillie_forbidden.
-
-    if post_mega and _in_hand(hand, LILLIE) and lillie_should_play(
-        board, phase, hand, resources
-    ):
-        return SupporterDecision(
-            "PLAY", LILLIE, "SP-LILLIE-SF", 990.0,
-            "Lillie dig — keep spending Supporter post-Mega",
-        )
-
-    if post_mega and _in_hand(hand, JUDGE):
-        return SupporterDecision(
-            "PLAY", JUDGE, "SP-JUDGE-SF", 985.0,
-            "Judge available — prefer spending Supporter (HR may still gate)",
-        )
 
     if (
         resources.need_lillie_for_missing(hand, want_boss=True, want_pad=False)
@@ -367,20 +347,7 @@ def pick_supporter(
             f"Boss still in deck ({resources.likely_in_deck(BOSS_ORDERS)} likely) — hold supporter",
         )
 
-    # SP-FALLBACK (C2b): post-Mega with no better plan — spend any supporter
-    # in hand rather than banking it all game (no_supporter loss driver).
-    # Boss excluded (reserved for gust windows); Wally excluded (strips energy
-    # off an undamaged Mega).
-    if post_mega:
-        for cid, label in (
-            (HILDA, "Hilda"),
-            (CRISPIN, "Crispin"),
-        ):
-            if _in_hand(hand, cid):
-                return SupporterDecision(
-                    "PLAY", cid, "SP-FALLBACK", 820.0,
-                    f"{label} fallback — spend the supporter slot",
-                )
+    # No SP-FALLBACK / SP-JUDGE-SF / forced post-Mega Lillie — holding is fine.
 
     return SupporterDecision(
         "HOLD", None, "SP-HOLD", 0.0,

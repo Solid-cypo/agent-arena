@@ -20,6 +20,8 @@ PILOT_MODULES = (
     "deck_resources.py",
     "draw_axis.py",
     "supporter_planner.py",
+    "turn_planner.py",
+    "matchup_alakazam.py",
 )
 
 

@@ -358,31 +358,6 @@ def _card_option_id(obs, option, my_index: int) -> int:
     return 0
 
 
-def _route_play_card(route: str) -> int | None:
-    """Map planner route → preferred PLAY card id.
-
-    R5-T1 / R4-REC are attach-water routes (energy already in hand or via
-    Hilda/Crispin) — they must NOT map to Poké Pad (E-PAD-1 / historical bug).
-    Pad PLAY is only R3-T1 (T1 Staryu search) and R5-REC (recovery Pad search).
-    """
-    mapping = {
-        "R2-T1": POFFIN,
-        "R3-T1": POKE_PAD,
-        "R3b-T1": ULTRA_BALL,
-        "R5-REC": POKE_PAD,
-        "R6-T1": HILDA,
-        "R7-T1": HILDA,
-        "R7c-T1": CRISPIN,
-        "R8-T1": SALVATOR,
-        "R-Meowth-T1": MEOWTH_EX,
-        "R3-REC": ULTRA_BALL,
-        "R3b-REC": HILDA,
-        "R4b-REC": HILDA,
-        "R4c-REC": CRISPIN,
-    }
-    return mapping.get(route)
-
-
 def _line_has_water(obs, my_index: int) -> bool:
     try:
         me = obs.current.players[my_index]
@@ -724,6 +699,11 @@ def score_opening_option(
             return -_DOMINATE_OPEN_PATH
         if cid == BOSS_ORDERS:
             return -_DOMINATE_OPEN_PATH
+        # UB-3: never path-dominate Ultra Ball while free search remains.
+        if cid == ULTRA_BALL and (
+            POFFIN in hand.hand_ids or POKE_PAD in hand.hand_ids
+        ):
+            return -_DOMINATE_OPEN_PATH
 
     # T2–T3 legal Evolve → Mega always dominates (before any demote).
     if (
@@ -846,23 +826,6 @@ def score_opening_option(
                 return _DOMINATE_OPEN_PATH - 45.0
             if plan.priority_gap == "G2" and cid in _WATER_IDS:
                 return _DOMINATE_OPEN_PATH - 10.0
-
-    # Legacy route fallback (soft) when epoch tags missed a mapped supporter.
-    if option.type == OptionType.PLAY:
-        cid = _hand_card_id(obs, option, my_index)
-        want = _route_play_card(route or "")
-        if want and cid == want and plan.preferred_kinds:
-            # Only if route card is still on epoch preferred set.
-            route_tag_ok = (
-                (cid == HILDA and KIND_PLAY_HILDA in plan.preferred_kinds)
-                or (cid == CRISPIN and KIND_PLAY_CRISPIN in plan.preferred_kinds)
-                or (cid == POFFIN and KIND_PLAY_POFFIN in plan.preferred_kinds)
-                or (cid == POKE_PAD and KIND_PLAY_PAD in plan.preferred_kinds)
-                or (cid == ULTRA_BALL and KIND_PLAY_UB in plan.preferred_kinds)
-                or (cid == MEOWTH_EX and KIND_PLAY_MEOWTH in plan.preferred_kinds)
-            )
-            if route_tag_ok:
-                return _DOMINATE_OPEN_PATH
 
     if option.type == OptionType.ATTACK and adapter.opening_complete():
         return _DOMINATE_OPEN_PATH - 175.0

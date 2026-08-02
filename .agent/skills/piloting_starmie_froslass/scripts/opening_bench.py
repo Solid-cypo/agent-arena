@@ -1,7 +1,7 @@
-"""OPENING bench slot budgeting (5 slots).
+"""OPENING / live bench slot budgeting (5 slots).
 
 Targets: Staryu line <=2 . Dunsparce 1-2 . Snorunt 0-1 . utility 1-2.
-Reconstructed from bytecode salvage (original .py was lost in a working-tree wipe).
+Works with OpeningGameState (sim) and live obs field id lists.
 """
 from __future__ import annotations
 
@@ -40,6 +40,42 @@ def bench_role_for(card_id: int) -> str | None:
     if card_id in UTILITY_LINE:
         return "utility"
     return None
+
+
+def role_counts_from_ids(active_id: int | None, bench_ids: list[int] | tuple[int, ...]) -> dict[str, int]:
+    counts = {role: 0 for role in BENCH_ROLE_CAPS}
+    if active_id:
+        role = bench_role_for(int(active_id))
+        if role:
+            counts[role] += 1
+    for pid in bench_ids:
+        role = bench_role_for(int(pid))
+        if role:
+            counts[role] += 1
+    return counts
+
+
+def can_bench_card(
+    active_id: int | None,
+    bench_ids: list[int] | tuple[int, ...],
+    bench_open: int,
+    card_id: int,
+) -> bool:
+    """Live-obs gate: True if playing card_id to bench respects role caps."""
+    if bench_open <= 0:
+        return False
+    role = bench_role_for(int(card_id))
+    if role is None:
+        return True
+    return role_counts_from_ids(active_id, bench_ids)[role] < BENCH_ROLE_CAPS[role]
+
+
+def dunsparce_quota_open(
+    active_id: int | None,
+    bench_ids: list[int] | tuple[int, ...],
+) -> bool:
+    """True while dunsparce-line count is under cap (allow SF1 soft-pass)."""
+    return role_counts_from_ids(active_id, bench_ids)["dunsparce"] < BENCH_ROLE_CAPS["dunsparce"]
 
 
 def bench_role_counts(st) -> dict[str, int]:

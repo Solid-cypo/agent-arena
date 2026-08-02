@@ -39,6 +39,7 @@ from opening_cards import (
     retreat_cost_for,
 )
 from opening_state import OpeningGameState, Pokemon
+from turn_planner import AcquirePlan, discard_value
 
 
 @dataclass
@@ -524,68 +525,58 @@ def _hilda_can_setup_chain(st: OpeningGameState, gaps: GapFlags) -> bool:
 
 
 def _pick_ultra_ball_discards(st: OpeningGameState, *, exclude: frozenset[int] = frozenset()) -> list[int]:
-    """Pick 2 discards for Ultra Ball. Prefer fodder; keep Lillie / Dudunsparce / Judge.
-
-    Keep Ignition/Dark/Switch when Active still needs retreat fuel for Mega promote.
-    """
-    protect = frozenset({
-        LILLIE, STARYU, MEGA_STARMIE, HILDA, CRISPIN, SALVATOR, ULTRA_BALL, DUDUNSPARCE,
-    }) | exclude
-    # Keep Judge only when Mega already secured (post-goal Run Away depth).
-    if MEGA_STARMIE in st.hand or _mega_ready_on_bench(st) or MEGA_STARMIE not in st.deck:
-        protect = protect | frozenset({JUDGE})
-    # Preserve retreat tools when Active cannot free-retreat.
+    """Pick two lowest-value cards using the live AcquirePlan value scale."""
+    if not st.staryu_on_field() and STARYU not in st.hand:
+        targets = (STARYU,)
+    elif MEGA_STARMIE not in st.hand and not _mega_ready_on_bench(st):
+        targets = (MEGA_STARMIE,)
+    else:
+        targets = ()
+    protect = {
+        STARYU, MEGA_STARMIE, WATER_BASIC, HILDA, POKE_PAD, POFFIN,
+        NIGHT_STRETCHER, PRISM,
+    } | set(exclude) | set(targets)
     if (
         st.active
         and st.active.card_id != MEGA_STARMIE
         and not can_retreat_pokemon(st.active.card_id, st.active.energies)
     ):
-        protect = protect | frozenset({IGNITION, DARK_BASIC, SWITCH, WATER_BASIC, PRISM})
-    fodder_order = (
-        RISKY_RUINS,
-        WALLYS_COMPASSION,
-        BOSS_ORDERS,
-        UNFAIR_STAMP,
-        POKE_PAD,
-        POFFIN,
-        FAN_ROTOM if fan_rotom_dead(st) else -1,
-        NIGHT_STRETCHER,
-        # Judge is post-goal depth; discard it to fetch Mega when Goal unfinished.
-        JUDGE if (MEGA_STARMIE not in st.hand and MEGA_STARMIE in st.deck) else -1,
-    )
-    # Only discard Ignition/Dark/Switch after other fodder if Active already retreat-ready.
+        protect.update({IGNITION, DARK_BASIC, SWITCH})
+    release = {RISKY_RUINS, WALLYS_COMPASSION, BOSS_ORDERS, UNFAIR_STAMP}
+    if fan_rotom_dead(st):
+        release.add(FAN_ROTOM)
+    if targets == (MEGA_STARMIE,):
+        release.add(JUDGE)
     if st.active and can_retreat_pokemon(st.active.card_id, st.active.energies):
-        fodder_order = fodder_order + (IGNITION, DARK_BASIC, SWITCH)
-    disc: list[int] = []
+        release.update({IGNITION, DARK_BASIC, SWITCH})
 
-    def _take(cid: int) -> None:
-        if cid < 0 or cid in exclude or cid in disc:
-            return
-        if cid not in st.hand:
-            return
-        disc.append(cid)
-
-    for cid in fodder_order:
-        _take(cid)
-        if len(disc) >= 2:
-            return disc[:2]
-
-    # Remaining non-protected hand cards (still avoid Lillie).
-    for cid in list(st.hand):
-        if cid in protect or cid in disc:
-            continue
-        disc.append(cid)
-        if len(disc) >= 2:
-            return disc[:2]
-
-    # Last resort: may discard Lillie only if nothing else remains.
-    for cid in list(st.hand):
-        if cid in exclude or cid == ULTRA_BALL or cid in disc:
-            continue
-        disc.append(cid)
-        if len(disc) >= 2:
-            break
-    return disc[:2]
+    values: dict[int, int] = {}
+    for cid in set(st.hand):
+        if cid == ULTRA_BALL:
+            values[cid] = 10_000
+        elif cid in protect:
+            values[cid] = 9_000
+        elif cid in release:
+            values[cid] = 20
+        elif cid in (LILLIE, CRISPIN, SALVATOR, DUDUNSPARCE):
+            values[cid] = 500
+        else:
+            values[cid] = 100
+    plan = AcquirePlan(
+        targets=targets,
+        sources=(ULTRA_BALL,),
+        ball_allowed=True,
+        ball_reason="opening gap",
+        discard_values=tuple(values.items()),
+        recover_target=None,
+    )
+    candidates = [
+        (discard_value(cid, plan), index, cid)
+        for index, cid in enumerate(st.hand)
+        if cid not in exclude and cid != ULTRA_BALL and discard_value(cid, plan) < 8_000
+    ]
+    candidates.sort()
+    return [cid for _, _, cid in candidates[:2]]
 
 
 def _play_hilda(st: OpeningGameState, detail: str, *, need_evolution: bool, need_energy: bool) -> bool:
