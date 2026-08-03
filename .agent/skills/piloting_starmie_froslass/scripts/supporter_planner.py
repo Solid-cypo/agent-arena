@@ -86,6 +86,39 @@ def _boss_ok(
     return False
 
 
+def _plan_missing_n(turn_plan) -> int:
+    if turn_plan is None:
+        return 0
+    try:
+        from turn_planner import count_missing_types
+
+        return count_missing_types(turn_plan.facts, turn_plan.gap)
+    except Exception:
+        return 0
+
+
+def _plan_force_draw(turn_plan) -> bool:
+    if turn_plan is None:
+        return False
+    try:
+        from turn_planner import must_prioritize_draw
+
+        return must_prioritize_draw(turn_plan.facts, turn_plan.gap, turn_plan.combat)
+    except Exception:
+        return False
+
+
+def _plan_uncoverable(turn_plan) -> tuple[str, ...]:
+    if turn_plan is None:
+        return ()
+    try:
+        from turn_planner import item_uncoverable_gaps
+
+        return item_uncoverable_gaps(turn_plan.facts, turn_plan.gap)
+    except Exception:
+        return ()
+
+
 def _fix_now_supporter(
     hand: HandContext,
     board: BoardSnapshot,
@@ -93,7 +126,12 @@ def _fix_now_supporter(
     *,
     turn_plan=None,
 ) -> int | None:
-    """Return a supporter that immediately advances the board (prefer over Lillie)."""
+    """Return a supporter that immediately advances the board (prefer over Lillie).
+
+    When TurnPlan forces dig (n≥3 missing types), only Boss (effective) or a
+    supporter that clearly closes one typed gap beats Lillie.
+    """
+    force_dig = _plan_force_draw(turn_plan)
     if (
         hand.has_boss
         and hand.gust_target_on_opp_bench
@@ -109,12 +147,16 @@ def _fix_now_supporter(
         if _in_hand(hand, HILDA) and (
             not board.mega_starmie_on_field or not board.staryu_on_field
         ):
+            # Under forced dig, Hilda still closes EVOLUTION/BASE — allowed.
             return HILDA
         if _in_hand(hand, CRISPIN) and (
             (board.staryu_on_field and not board.active_has_water)
             or (board.munkidori_on_bench and not board.munkidori_has_dark)
         ):
             return CRISPIN
+    if force_dig:
+        # No misc supporter beats the dig mandate.
+        return None
     return None
 
 
@@ -135,8 +177,10 @@ def lillie_forbidden(
     ):
         return True, "DR-5"
 
-    # Soft-prefer fix-now tools (Hilda/Crispin/Boss) over Lillie dig.
-    if _fix_now_supporter(hand, board, phase, turn_plan=turn_plan) is not None:
+    # Typed fix-now (Hilda/Crispin/Boss) beats dig. Under n≥3 forced dig, only
+    # those typed closers still suppress Lillie; otherwise dig wins.
+    fix = _fix_now_supporter(hand, board, phase, turn_plan=turn_plan)
+    if fix is not None:
         return True, "DR-FIX-NOW"
 
     if resources.exhausted(LILLIE) and LILLIE not in hand.hand_ids:
@@ -150,11 +194,17 @@ def lillie_should_play(
     phase: PhaseState,
     hand: HandContext,
     resources: DeckResourceSnapshot,
+    *,
+    turn_plan=None,
 ) -> bool:
-    """Gap-driven PLAY gate (positive path)."""
+    """Gap-driven PLAY gate (positive path).
+
+    Draw-7 ≈ two typed targets. n≥3 → must dig; n==1 allowed when items cannot
+    close the last element; prefer uncoverable gaps.
+    """
     if not _in_hand(hand, LILLIE):
         return False
-    forbidden, _ = lillie_forbidden(board, phase, hand, resources)
+    forbidden, _ = lillie_forbidden(board, phase, hand, resources, turn_plan=turn_plan)
     if forbidden:
         return False
     if hand.supporter_played:
@@ -167,6 +217,17 @@ def lillie_should_play(
 
     # hs≤2 — always dig.
     if hand.hand_size <= 2:
+        return True
+
+    n_miss = _plan_missing_n(turn_plan)
+    if _plan_force_draw(turn_plan) or n_miss >= 3:
+        return True
+    if n_miss == 1 and _plan_uncoverable(turn_plan):
+        return True
+    if n_miss == 1:
+        # One element shy of the goal — dig allowed even if item-coverable.
+        return True
+    if n_miss == 2 and _plan_uncoverable(turn_plan):
         return True
 
     # OPENING dig: still missing attack line / water / mega promote tools.
@@ -206,18 +267,30 @@ def lillie_priority(
     phase: PhaseState,
     hand: HandContext,
     resources: DeckResourceSnapshot,
+    *,
+    turn_plan=None,
 ) -> SupporterDecision | None:
     if not _in_hand(hand, LILLIE):
         return None
 
-    forbidden, rule = lillie_forbidden(board, phase, hand, resources)
+    forbidden, rule = lillie_forbidden(
+        board, phase, hand, resources, turn_plan=turn_plan,
+    )
     if forbidden:
         return SupporterDecision("FORBID", LILLIE, rule, 0.0, f"Lillie forbidden ({rule})")
 
-    if not lillie_should_play(board, phase, hand, resources):
+    if not lillie_should_play(
+        board, phase, hand, resources, turn_plan=turn_plan,
+    ):
         return None
 
     priority = 800.0
+    n_miss = _plan_missing_n(turn_plan)
+    if _plan_force_draw(turn_plan) or n_miss >= 3:
+        return SupporterDecision(
+            "PLAY", LILLIE, "DR-3GAP", priority + 80.0,
+            f"n_missing_types={n_miss}≥3 → dig first (draw-7≈2 types)",
+        )
     if hand.hand_size <= 2:
         return SupporterDecision(
             "PLAY", LILLIE, "DR-2", priority + 50.0,
@@ -279,8 +352,18 @@ def pick_supporter(
     if harvest_ko_last_turn and _in_hand(hand, UNFAIR_STAMP) and phase.primary == "HARVEST":
         return SupporterDecision(
             "PLAY", UNFAIR_STAMP, "DR-6", 920.0,
-            "Unfair Stamp after Mega Starmie KO",
+            "Unfair Stamp after KO — refill us to 5 / opp to 2",
         )
+
+    # n≥3 missing types: dig before soft openers, unless a typed closer is in hand.
+    force_dig = _plan_force_draw(turn_plan)
+    typed_closer = _fix_now_supporter(hand, board, phase, turn_plan=turn_plan)
+    if force_dig and typed_closer is None and _in_hand(hand, LILLIE):
+        lillie_forced = lillie_priority(
+            board, phase, hand, resources, turn_plan=turn_plan,
+        )
+        if lillie_forced and lillie_forced.action == "PLAY":
+            return lillie_forced
 
     # Judge in HARVEST+CONTROL: handled by HR-C3 + harvest_resentful_fired in starmie_pilot
 
@@ -305,6 +388,7 @@ def pick_supporter(
         (phase.primary == "OPENING" or not phase.opening_complete)
         and _in_hand(hand, HILDA)
         and (not board.mega_starmie_on_field or not board.staryu_on_field)
+        and not (force_dig and typed_closer is None)
     ):
         return SupporterDecision(
             "PLAY", HILDA, "SP-HILDA-OPEN", 900.0,
@@ -316,6 +400,7 @@ def pick_supporter(
         and _in_hand(hand, CRISPIN)
         and board.staryu_on_field
         and not board.active_has_water
+        and not (force_dig and typed_closer is None)
     ):
         return SupporterDecision(
             "PLAY", CRISPIN, "SP-CRIS-OPEN", 890.0,
@@ -326,7 +411,7 @@ def pick_supporter(
     # Priorities sit below HR-6 attack (975) unless the card closes a real gap.
     # Bare HARVEST without ever opening must not steal the OPENING path window.
     post_mega = bool(phase.opening_complete)
-    if post_mega:
+    if post_mega and not (force_dig and typed_closer is None):
         need_froslass_engine = not board.froslass_104_on_field or not board.active_is_mega_froslass
         if _in_hand(hand, HILDA) and need_froslass_engine:
             return SupporterDecision(
@@ -356,7 +441,7 @@ def pick_supporter(
                 "Crispin — energy while Froslass engine builds",
             )
 
-    lillie = lillie_priority(board, phase, hand, resources)
+    lillie = lillie_priority(board, phase, hand, resources, turn_plan=turn_plan)
     if lillie and lillie.action == "PLAY":
         return lillie
     # FORBID Lillie must NOT early-return — other supporters may still play.

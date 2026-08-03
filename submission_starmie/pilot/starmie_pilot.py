@@ -350,24 +350,77 @@ def _resentful_worthless(opp_hand: int) -> bool:
     return _resentful_damage(opp_hand) == 0
 
 
-def _starmie_promote_over_froslass(obs, my_index: int, board, sit: dict[str, Any]) -> bool:
-    """Active 861 but Resentful is dead/weak and Mega Starmie sits on the bench.
+def _hand_has_water_energy(obs, my_index: int) -> bool:
+    try:
+        for c in obs.current.players[my_index].hand or []:
+            if c and _si(getattr(c, "id", None)) in _WATER_ENERGY_IDS:
+                return True
+    except Exception:
+        pass
+    return False
 
-    Dual-attacker rule: cut back to Starmie when opp hand is empty (Resentful=0).
-    Do NOT require water on the bench Starmie — oil it after the cut-in.
-    Also cut in when Resentful < Absolute Snow (150) and a fueled Starmie is ready
-    (Jetting line is the primary attacker).
+
+def _can_fuel_mega_same_turn(obs, my_index: int, pokemon) -> bool:
+    """True when pokemon lacks water but hand holds a water attach this turn."""
+    if pokemon is None or _has_water_energy(pokemon):
+        return False
+    return _hand_has_water_energy(obs, my_index)
+
+
+def _mega_active_fuel_ok(obs, my_index: int, pokemon) -> bool:
+    """Mega may stand Active only if already watered or same-turn attach exists."""
+    if pokemon is None:
+        return False
+    return _has_water_energy(pokemon) or _can_fuel_mega_same_turn(obs, my_index, pokemon)
+
+
+def _froslass_line_worth(obs, my_index: int, board, sit: dict[str, Any]) -> bool:
+    """861 line is worth keeping/promoting when it advances prizes.
+
+    Absolute Snow (150) counts as advancing if it can KO the opp Active.
+    Unfair Stamp is NOT a buff — it shrinks opp hand (draw 2).
+    """
+    opp_hand = int(sit.get("opp_hand_count") or 0)
+    if _resentful_worthless(opp_hand):
+        return False
+    plan = sit.get("turn_plan")
+    if plan is not None:
+        try:
+            from turn_planner import _expected_froslass_prizes
+
+            if _expected_froslass_prizes(plan.facts) >= 2:
+                return True
+        except Exception:
+            pass
+    # Absolute Snow 150 can still advance a KO-able Active.
+    try:
+        opp = obs.current.players[1 - my_index]
+        active = (opp.active or [None])[0]
+        if active and 0 < _si(getattr(active, "hp", None)) <= 150:
+            return True
+    except Exception:
+        pass
+    # Fat hand Resentful (≥200) is the classic harvest window.
+    return _resentful_damage(opp_hand) >= 200
+
+
+def _starmie_promote_over_froslass(obs, my_index: int, board, sit: dict[str, Any]) -> bool:
+    """Active 861 but Resentful is dead/weak — cut to a *fueled* bench Starmie.
+
+    Never cut to an unfueled Mega (that gifts 2–3 prizes). Unfair Stamp shrinks
+    opp hand and must not be treated as a Resentful buff.
     """
     if not board.active_is_mega_froslass:
         return False
-    opp_hand = int(sit.get("opp_hand_count") or 0)
-    has_starmie = _bench_has_id(obs, my_index, _CARDS["mega_starmie_ex"])
-    if not has_starmie:
+    _, fueled = _bench_mega_starmie_with_water(obs, my_index)
+    if fueled is None:
         return False
+    opp_hand = int(sit.get("opp_hand_count") or 0)
     if _resentful_worthless(opp_hand):
         return True
-    _, fueled = _bench_mega_starmie_with_water(obs, my_index)
-    if fueled is not None and _resentful_damage(opp_hand) < 150:
+    if _resentful_damage(opp_hand) < 150:
+        return True
+    if not _froslass_line_worth(obs, my_index, board, sit):
         return True
     return False
 
@@ -414,18 +467,22 @@ def _mega_froslass_should_attack(board) -> bool:
     return board.active_is_mega_froslass and board.active_has_water
 
 
+def _fueled_mega_must_attack(board, plan=None) -> bool:
+    """Board-level must-attack: fueled Active Mega, independent of TurnPlan gaps.
+
+    Online fade showed Boss/Poffin/66/Switch eating turns when attack_required
+    failed to latch; board water on 1031/861 is the source of truth.
+    """
+    if _starmie_should_attack(board) or _mega_froslass_should_attack(board):
+        return True
+    if plan is not None and getattr(plan.combat, "attack_required", False):
+        if getattr(plan.facts, "active_ready_mega", False):
+            return True
+    return False
+
+
 def _mega_froslass_needs_water(board) -> bool:
     return board.active_is_mega_froslass and not board.active_has_water
-
-
-def _hand_has_water_energy(obs, my_index: int) -> bool:
-    try:
-        for c in obs.current.players[my_index].hand or []:
-            if c and _si(getattr(c, "id", None)) in _WATER_ENERGY_IDS:
-                return True
-    except Exception:
-        pass
-    return False
 
 
 def _hand_has_dark_energy(obs, my_index: int) -> bool:
@@ -462,7 +519,7 @@ def _harvest_hard_rules(
     need_attacker = _harvest_needs_froslass_attacker(board, phase)
 
     # HR-H0  After Mega Starmie KO / absent — promote Froslass attacker to Active.
-    # Prefer 861 > 104 (then evolve) on SWITCH / TO_ACTIVE selects.
+    # Fuel gate: never force unfueled 861 Active (gifts 2–3 prizes).
     if option.type == OptionType.CARD:
         try:
             ctx = int(obs.select.context)
@@ -477,11 +534,18 @@ def _harvest_hard_rules(
                 if pkm:
                     pid = _si(getattr(pkm, "id", None))
                     if pid == _CARDS["mega_froslass_ex"]:
-                        return (
-                            _DOMINATE_OPEN_PATH
-                            if _has_water_energy(pkm)
-                            else _DOMINATE_OPEN
-                        )
+                        if not _mega_active_fuel_ok(obs, mi, pkm):
+                            return -_DOMINATE_OPEN_PATH
+                        if not _froslass_line_worth(obs, mi, board, sit):
+                            # Contested hand — prefer fueled Starmie if present.
+                            _, fueled_st = _bench_mega_starmie_with_water(obs, mi)
+                            if fueled_st is not None:
+                                return -_DOMINATE
+                        return _DOMINATE_OPEN_PATH
+                    if pid == _CARDS["mega_starmie_ex"]:
+                        if not _mega_active_fuel_ok(obs, mi, pkm):
+                            return -_DOMINATE_OPEN_PATH
+                        return _DOMINATE_OPEN_PATH
                     if pid == _OC_FROSLASS:
                         return _DOMINATE_OPEN - 10.0
                     if pid == _OC_SNORUNT and not board.froslass_104_on_field:
@@ -502,17 +566,36 @@ def _harvest_hard_rules(
             return -_DOMINATE_OPEN_PATH
 
     if need_attacker and _harvest_promote_switch_needed(obs, mi, board, phase):
-        if option.type == OptionType.PLAY and _hand_card_id(obs, option, mi) == _OC_SWITCH:
-            return _DOMINATE_OPEN
-        if option.type == OptionType.RETREAT:
-            try:
-                _hand = obs.current.players[mi].hand or []
-            except Exception:
-                _hand = []
-            if not any(_si(getattr(c, "id", None)) == _OC_SWITCH for c in _hand if c):
-                return _DOMINATE_RESCUE
+        # Only rush Switch when a fueled (or same-turn-fuelable) 861 is on bench.
+        try:
+            bench_861 = next(
+                (
+                    p
+                    for p in (obs.current.players[mi].bench or [])
+                    if p and _si(getattr(p, "id", None)) == _CARDS["mega_froslass_ex"]
+                ),
+                None,
+            )
+        except Exception:
+            bench_861 = None
+        fueled_ok = bench_861 is not None and _mega_active_fuel_ok(obs, mi, bench_861)
+        snorunt_evo = (
+            _hand_has_id(obs, mi, _CARDS["mega_froslass_ex"])
+            and _bench_has_id(obs, mi, _OC_SNORUNT)
+        )
+        if fueled_ok or snorunt_evo:
+            if option.type == OptionType.PLAY and _hand_card_id(obs, option, mi) == _OC_SWITCH:
+                return _DOMINATE_OPEN
+            if option.type == OptionType.RETREAT:
+                try:
+                    _hand = obs.current.players[mi].hand or []
+                except Exception:
+                    _hand = []
+                if not any(_si(getattr(c, "id", None)) == _OC_SWITCH for c in _hand if c):
+                    return _DOMINATE_RESCUE
 
-    # HR-H7  Unfair Stamp right after Mega Starmie ex KO (beats evolve on that turn)
+    # HR-H7  Unfair Stamp after our Active KO: refill us to 5 / opp to 2.
+    # Shrinks opp hand — never treat as a Resentful buff.
     if option.type == OptionType.PLAY:
         cid = _hand_card_id(obs, option, mi)
         if cid == UNFAIR_STAMP and sit.get("harvest_ko_last_turn"):
@@ -604,8 +687,9 @@ def _harvest_hard_rules(
                 return last if last is not None else _DOMINATE_ATTACK
             return -_DOMINATE
 
-    # HR-H3b  When Resentful is LIVE (opp hand ≥ 1), don't spend on supporters.
-    # Allow Switch when cutting back to Starmie on empty-hand boards.
+    # HR-H3b  When Resentful is LIVE, don't spend on supporters.
+    # Stamp shrinks opp hand to 2 — ban before Resentful unless KO-refill window
+    # where Resentful is already weak (<200).
     if (
         _mega_froslass_should_attack(board)
         and not sit.get("harvest_resentful_fired")
@@ -614,8 +698,11 @@ def _harvest_hard_rules(
     ):
         if option.type == OptionType.PLAY:
             cid = _hand_card_id(obs, option, mi)
-            if cid == UNFAIR_STAMP and sit.get("harvest_ko_last_turn"):
-                pass  # HR-H7 may still want Stamp
+            if cid == UNFAIR_STAMP:
+                if sit.get("harvest_ko_last_turn") and _resentful_damage(opp_hand) < 200:
+                    pass  # refill us / deny opp resources
+                else:
+                    return -_DOMINATE
             elif cid == _OC_SWITCH:
                 pass  # never ban the cut-back tool
             elif cid in _SUPPORTER_IDS or cid == _BOSS_ID:
@@ -1995,10 +2082,12 @@ def _layer1_supporter_draw_axis(
 ) -> float:
     """supporter_planner + draw_axis → DOMINATE scores (02_draw_axis.md)."""
     cid = _hand_card_id(obs, option, mi) if option.type == OptionType.PLAY else 0
+    plan = sit.get("turn_plan")
+    must_attack = _fueled_mega_must_attack(board, plan)
 
     if option.type == OptionType.PLAY and cid == LILLIE:
         forbidden, _rule = lillie_forbidden(
-            board, phase, hand, resources, turn_plan=sit.get("turn_plan"),
+            board, phase, hand, resources, turn_plan=plan,
         )
         if forbidden:
             return -_DOMINATE
@@ -2007,6 +2096,24 @@ def _layer1_supporter_draw_axis(
     if option.type == OptionType.PLAY and cid == SALVATOR:
         if hand and _OC_MEGA_STARMIE in hand.hand_ids:
             return -_DOMINATE
+
+    # Fueled Mega owes an attack: only a still-needed Boss prep may claim the
+    # supporter slot; dig/66/Poffin never outrank Jetting.
+    if must_attack:
+        actionable = (
+            _actionable_pre_attack(obs, sit, plan.combat) if plan is not None else ()
+        )
+        if option.type == OptionType.PLAY and cid == _BOSS_ID and "BOSS" in actionable:
+            return _DOMINATE_OPEN_PATH
+        if option.type in (
+            OptionType.PLAY, OptionType.EVOLVE, OptionType.ABILITY,
+        ):
+            return -_DOMINATE_OPEN_PATH
+        if (
+            option.type == OptionType.ABILITY
+            and _ability_source_id(obs, option, mi) == _CARDS["dudunsparce"]
+        ):
+            return -_DOMINATE_OPEN_PATH
 
     sup = sit.get("supporter_dec")
     if sup and sup.action == "PLAY" and option.type == OptionType.PLAY:
@@ -2304,11 +2411,10 @@ def _munk_needs_dark(obs, my_index: int) -> bool:
 
 
 def _froslass_promote_needed(obs, my_index: int, board, sit: dict[str, Any]) -> bool:
-    """Bench 861+water should come Active to fire Resentful.
+    """Bench 861+water should come Active only when the 861 line is worth it.
 
-    Once Resentful has fired this game, only promote when Active cannot attack
-    as Mega Starmie+water. Until then, always cut over so 861 actually fires.
-    Never cut Starmie for 861 when opp hand is empty (Resentful = 0).
+    Value gate: contested / tiny opp hands do not force a promote when a fueled
+    Starmie is already attacking. Never cut for empty-hand Resentful.
     """
     if board.active_is_mega_froslass:
         return False
@@ -2317,7 +2423,12 @@ def _froslass_promote_needed(obs, my_index: int, board, sit: dict[str, Any]) -> 
     _, bench_mf = _bench_mega_froslass_with_water(obs, my_index)
     if bench_mf is None:
         return False
+    if not _froslass_line_worth(obs, my_index, board, sit):
+        return False
     if not sit.get("harvest_resentful_fired"):
+        # Do not yank a ready Starmie attacker for a mediocre 861 window.
+        if board.active_is_mega_starmie and board.active_has_water:
+            return _resentful_damage(int(sit.get("opp_hand_count") or 0)) >= 200
         return True
     return not (board.active_is_mega_starmie and board.active_has_water)
 
@@ -2485,12 +2596,98 @@ def _turn_plan_required_option(obs, option, sit: dict[str, Any], requirement: st
     return False
 
 
+def _munk_can_adrena(obs, my_index: int) -> bool:
+    """Dark Munkidori on field with transferable damage — Adrena is live."""
+    try:
+        me = obs.current.players[my_index]
+        field = [*(me.active or []), *(me.bench or [])]
+        has_dark_munk = any(
+            p
+            and _si(getattr(p, "id", None)) == _MUNKIDORI_ID
+            and any(_si(e) == DARK_BASIC for e in (getattr(p, "energies", None) or []))
+            for p in field
+            if p
+        )
+        if not has_dark_munk:
+            return False
+        return any(
+            p
+            and _si(getattr(p, "maxHp", None), 0) - _si(getattr(p, "hp", None), 0) >= 10
+            for p in field
+            if p
+        )
+    except Exception:
+        return False
+
+
+def _pre_attack_req_still_needed(obs, sit: dict[str, Any], requirement: str) -> bool:
+    """Board/hand truth for whether a required_before_attack step is still open.
+
+    Unlike scanning select_options (often empty during unit tests / partial
+    selects), this never treats every requirement as actionable by default.
+    """
+    mi = sit["my_index"]
+    plan = sit.get("turn_plan")
+    board = sit.get("board")
+    try:
+        me = obs.current.players[mi]
+        supporter_played = bool(getattr(me, "supporterPlayed", False))
+        energy_attached = bool(getattr(me, "energyAttached", False))
+    except Exception:
+        supporter_played, energy_attached = False, False
+
+    if requirement == "BOSS":
+        return (
+            not supporter_played
+            and _hand_has_id(obs, mi, _BOSS_ID)
+            and plan is not None
+            and plan.combat.boss_target is not None
+        )
+    if requirement == "ADRENA":
+        return _munk_can_adrena(obs, mi)
+    if requirement == "EVOLVE_104":
+        return _hand_has_id(obs, mi, _OC_FROSLASS) and bool(
+            getattr(board, "snorunt_on_field", False)
+        )
+    if requirement == "ATTACH_DARK":
+        return (
+            not energy_attached
+            and _hand_has_dark_energy(obs, mi)
+            and bool(getattr(board, "munkidori_on_field", False))
+            and not bool(getattr(board, "munkidori_has_dark", False))
+        )
+    if requirement == "DISPATCH":
+        if board is None or board.active_is_mega_starmie or plan is None:
+            return False
+        return bool(getattr(plan.facts, "can_dispatch_bench_mega", False))
+    return False
+
+
+def _actionable_pre_attack(obs, sit: dict[str, Any], combat) -> tuple[str, ...]:
+    """Requirements that remain needed; prefer live options when listed."""
+    reqs = getattr(combat, "required_before_attack", ()) or ()
+    if not reqs:
+        return ()
+    options = sit.get("select_options") or ()
+    out: list[str] = []
+    for req in reqs:
+        if not _pre_attack_req_still_needed(obs, sit, req):
+            continue
+        if options and not any(
+            _turn_plan_required_option(obs, o, sit, req) for o in options
+        ):
+            continue
+        out.append(req)
+    return tuple(out)
+
+
 def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
     """Translate TurnPlan into the small hard overlay that legacy rules consume."""
     plan = sit.get("turn_plan")
     if plan is None:
         return 0.0
     mi = sit["my_index"]
+    board = sit.get("board")
 
     # Nested search/recovery/discard choices all use AcquirePlan.targets.
     if option.type == OptionType.CARD:
@@ -2553,7 +2750,149 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
                 return _DOMINATE_OPEN_PATH - plan.acquire.targets.index(cid)
             return -_DOMINATE
 
-    # Gap-driven search source and Ultra Ball gate.
+    combat = plan.combat
+    must_attack = _fueled_mega_must_attack(board, plan)
+
+    # Must-attack closeout runs BEFORE acquire PLAY boosts — otherwise Poffin /
+    # Pad sources at OPEN_PATH outrank Jetting and recreate online empty turns.
+    if must_attack:
+        # 861 value-cut: allow Switch/Retreat onto a fueled bench Starmie.
+        cut_to_starmie = (
+            board is not None
+            and board.active_is_mega_froslass
+            and _starmie_promote_over_froslass(obs, mi, board, sit)
+        )
+        # Always allow a still-needed prep option that THIS choice performs
+        # (Adrena / Boss / DP), even when select_options is empty in tests.
+        for req in combat.required_before_attack or ():
+            if (
+                _pre_attack_req_still_needed(obs, sit, req)
+                and _turn_plan_required_option(obs, option, sit, req)
+            ):
+                return _DOMINATE_OPEN_PATH
+
+        actionable = _actionable_pre_attack(obs, sit, combat)
+        if actionable:
+            # A different prep is still open — do not attack/END/misc yet.
+            if option.type in (
+                OptionType.ATTACK,
+                OptionType.END,
+                OptionType.PLAY,
+                OptionType.ATTACH,
+                OptionType.EVOLVE,
+                OptionType.ABILITY,
+                OptionType.RETREAT,
+            ):
+                return -_DOMINATE_OPEN_PATH
+
+        if option.type == OptionType.END:
+            return -_DOMINATE_OPEN_PATH
+
+        if option.type == OptionType.ATTACK:
+            attack_id = _attack_id(option)
+            if plan.facts.active_id == _OC_MEGA_STARMIE or (
+                board is not None and board.active_is_mega_starmie
+            ):
+                if combat.mode == "DOUBLE_KO":
+                    return (
+                        _DOMINATE_OPEN_PATH
+                        if attack_id == _ATK_JETTING_BLOW
+                        else -_DOMINATE
+                    )
+                # Nebula KO outranks Jetting; non-KO Nebula stays below Jetting.
+                if (
+                    attack_id == _ATK_NEBULA_BEAM
+                    and plan.facts.opp_active
+                    and 0 < plan.facts.opp_active.hp <= 210
+                ):
+                    return _DOMINATE_OPEN_PATH + 20.0
+                if attack_id == _ATK_JETTING_BLOW:
+                    return _DOMINATE_OPEN_PATH
+                if attack_id == _ATK_NEBULA_BEAM:
+                    return _DOMINATE_OPEN_PATH - 10.0
+                return -_DOMINATE
+            if plan.facts.active_id == _CARDS["mega_froslass_ex"] or (
+                board is not None and board.active_is_mega_froslass
+            ):
+                if attack_id in (_ATK_RESENTFUL, _ATK_ABS_SNOW):
+                    return _DOMINATE_OPEN_PATH
+                return -_DOMINATE
+            if is_basic_attack_forbidden(plan.facts.active_id, plan):
+                opp = plan.facts.opp_active
+                direct_win = bool(
+                    opp
+                    and plan.facts.prize_self <= opp.prizes
+                    and opp.hp <= _card_max_printed_damage(plan.facts.active_id)
+                )
+                return _DOMINATE_ATTACK if direct_win else -_DOMINATE_OPEN_PATH
+
+        # Ban switching off a fueled Starmie that still owes an attack.
+        if (
+            board is not None
+            and board.active_is_mega_starmie
+            and board.active_has_water
+            and not cut_to_starmie
+        ):
+            if option.type == OptionType.RETREAT:
+                return -_DOMINATE_OPEN_PATH
+            if option.type == OptionType.PLAY and _hand_card_id(obs, option, mi) == _OC_SWITCH:
+                return -_DOMINATE_OPEN_PATH
+
+        if cut_to_starmie:
+            if option.type == OptionType.PLAY and _hand_card_id(obs, option, mi) == _OC_SWITCH:
+                return _DOMINATE_OPEN_PATH
+            if option.type == OptionType.RETREAT and _active_can_retreat(obs, mi):
+                return _DOMINATE_OPEN_PATH
+
+        # Generic construction is illegal once the Mega can fire.
+        if option.type in (
+            OptionType.PLAY,
+            OptionType.ATTACH,
+            OptionType.EVOLVE,
+            OptionType.ABILITY,
+            OptionType.RETREAT,
+        ):
+            return -_DOMINATE_OPEN_PATH
+
+    # DISPATCH / pre-promote: attack_required but Active is not yet the fueled Mega.
+    elif combat.attack_required:
+        actionable = _actionable_pre_attack(obs, sit, combat)
+        if actionable:
+            wanted = actionable[0]
+            if _turn_plan_required_option(obs, option, sit, wanted):
+                return _DOMINATE_OPEN_PATH
+            if option.type in (
+                OptionType.ATTACK,
+                OptionType.END,
+                OptionType.PLAY,
+                OptionType.ATTACH,
+                OptionType.EVOLVE,
+                OptionType.ABILITY,
+                OptionType.RETREAT,
+            ):
+                return -_DOMINATE_OPEN_PATH
+        if option.type == OptionType.END:
+            return -_DOMINATE_OPEN_PATH
+        if option.type == OptionType.ATTACK:
+            if is_basic_attack_forbidden(plan.facts.active_id, plan):
+                opp = plan.facts.opp_active
+                direct_win = bool(
+                    opp
+                    and plan.facts.prize_self <= opp.prizes
+                    and opp.hp <= _card_max_printed_damage(plan.facts.active_id)
+                )
+                return _DOMINATE_ATTACK if direct_win else -_DOMINATE_OPEN_PATH
+            return -_DOMINATE_OPEN_PATH
+        if option.type in (
+            OptionType.PLAY,
+            OptionType.ATTACH,
+            OptionType.EVOLVE,
+            OptionType.ABILITY,
+            OptionType.RETREAT,
+        ):
+            return -_DOMINATE_OPEN_PATH
+
+    # Gap-driven search source and Ultra Ball gate (non-must-attack turns).
     if option.type == OptionType.PLAY:
         cid = _hand_card_id(obs, option, mi)
         if cid == _OC_ULTRA_BALL:
@@ -2586,75 +2925,6 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
     ):
         return -_DOMINATE_OPEN_PATH
 
-    combat = plan.combat
-    if not combat.attack_required:
-        return 0.0
-
-    # Enforce only requirements that are currently actionable.  This prevents
-    # stale facts (e.g. Adrena already used) from blocking the attack.
-    options = sit.get("select_options") or ()
-    actionable = tuple(
-        req for req in combat.required_before_attack
-        if not options or any(_turn_plan_required_option(obs, o, sit, req) for o in options)
-    )
-    if actionable:
-        wanted = actionable[0]
-        if _turn_plan_required_option(obs, option, sit, wanted):
-            return _DOMINATE_OPEN_PATH
-        if option.type in (
-            OptionType.ATTACK,
-            OptionType.END,
-            OptionType.PLAY,
-            OptionType.ATTACH,
-            OptionType.EVOLVE,
-            OptionType.ABILITY,
-            OptionType.RETREAT,
-        ):
-            return -_DOMINATE_OPEN_PATH
-
-    if option.type == OptionType.END:
-        return -_DOMINATE_OPEN_PATH
-    if option.type == OptionType.ATTACK:
-        attack_id = _attack_id(option)
-        if plan.facts.active_id == _OC_MEGA_STARMIE:
-            if combat.mode == "DOUBLE_KO":
-                return (
-                    _DOMINATE_OPEN_PATH
-                    if attack_id == _ATK_JETTING_BLOW
-                    else -_DOMINATE
-                )
-            if (
-                attack_id == _ATK_NEBULA_BEAM
-                and plan.facts.opp_active
-                and 0 < plan.facts.opp_active.hp <= 210
-            ):
-                return _DOMINATE_OPEN_PATH
-            if attack_id in (_ATK_JETTING_BLOW, _ATK_NEBULA_BEAM):
-                return _DOMINATE_ATTACK
-            return -_DOMINATE
-        if plan.facts.active_id == _CARDS["mega_froslass_ex"]:
-            if attack_id in (_ATK_RESENTFUL, _ATK_ABS_SNOW):
-                return _DOMINATE_ATTACK
-            return -_DOMINATE
-        if is_basic_attack_forbidden(plan.facts.active_id, plan):
-            opp = plan.facts.opp_active
-            direct_win = bool(
-                opp
-                and plan.facts.prize_self <= opp.prizes
-                and opp.hp <= _card_max_printed_damage(plan.facts.active_id)
-            )
-            return _DOMINATE_ATTACK if direct_win else -_DOMINATE_OPEN_PATH
-
-    # A ready attacker leaves no room for generic construction.  The allowed
-    # Adrena/Boss/dispatch steps were handled above.
-    if option.type in (
-        OptionType.PLAY,
-        OptionType.ATTACH,
-        OptionType.EVOLVE,
-        OptionType.ABILITY,
-        OptionType.RETREAT,
-    ):
-        return -_DOMINATE_OPEN_PATH
     return 0.0
 
 
@@ -2885,9 +3155,9 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
                         obs, option.area, _si(getattr(option, "index", None)), mi,
                     )
                     if pkm and _si(getattr(pkm, "id", None)) == _CARDS["mega_froslass_ex"]:
-                        if _has_water_energy(pkm):
+                        if _mega_active_fuel_ok(obs, mi, pkm):
                             return _DOMINATE_OPEN_PATH
-                        return _DOMINATE_OPEN
+                        return -_DOMINATE_OPEN_PATH
                     # Must not promote the wrong bench Pokémon.
                     return -_DOMINATE
         if option.type == OptionType.RETREAT and _active_can_retreat(obs, mi):
@@ -2902,7 +3172,7 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
             if cid != _OC_SWITCH:
                 return -_DOMINATE_MID
 
-    # Legacy: bench 861 with water when Active cannot fire (narrower path kept).
+    # Legacy: bench 861 when Active cannot fire — still fuel-gated.
     if (
         option.type == OptionType.CARD
         and getattr(board, "mega_froslass_on_field", False)
@@ -2920,9 +3190,9 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
                     obs, option.area, _si(getattr(option, "index", None)), mi,
                 )
                 if pkm and _si(getattr(pkm, "id", None)) == _CARDS["mega_froslass_ex"]:
-                    if _has_water_energy(pkm):
+                    if _mega_active_fuel_ok(obs, mi, pkm):
                         return _DOMINATE_OPEN_PATH
-                    return _DOMINATE_OPEN
+                    return -_DOMINATE_OPEN_PATH
 
     # Dudunsparce engine: evolve 66 / Run Away Draw — hard PATH all phases.
     if option.type == OptionType.EVOLVE and _evolve_to_dudunsparce(obs, option, mi):
@@ -3284,9 +3554,8 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
                 return _DOMINATE_OPEN_PATH
             return _DOMINATE_OPEN  # post-Mega setup while Starmie still Active
 
-    # HR-6  Mega Starmie attack — ALWAYS last among main-phase actions.
-    # Exceptions: Nebula KO, prize ≤ 2 closeout. Otherwise soft-trail (5.0)
-    # while PLAY/ATTACH/EVOLVE/ABILITY/RETREAT remain, then fire Jetting.
+    # HR-6  Mega Starmie attack — fueled Active must close with Jetting/Nebula.
+    # Do NOT soft-trail behind main-phase setup (online empty-turn failure mode).
     if option.type == OptionType.ATTACK and _starmie_should_attack(board):
         if phase.primary == "AGGRESSION" or (
             phase.primary == "OPENING" and board.my_turn_number >= 2
@@ -3298,35 +3567,21 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
             )
             if nebula_ko:
                 return _DOMINATE_PLUS
-            last = _attack_last_score(sit, force_now=False)
-            if last is not None:
-                return last  # main-phase still open → attack trails
-            can_setup_861 = (
-                phase.opening_complete
-                and _hand_has_id(obs, mi, _CARDS["mega_froslass_ex"])
-                and (
-                    getattr(board, "snorunt_on_field", False)
-                    or board.active_id == _OC_SNORUNT
-                )
-                and not getattr(board, "mega_froslass_on_field", False)
-                and _mega_froslass_window_open(obs, mi, board, phase)
-            )
-            # No longer demote attack just because a supporter is still unspent.
-            if atk_id == _ATK_JETTING_BLOW:
-                if can_setup_861:
-                    return _DOMINATE_MID
-                return _DOMINATE_ATTACK
-            if atk_id == _ATK_NEBULA_BEAM:
-                return _DOMINATE_ATTACK
+            # Pre-attack prep still open (Boss/Adrena/DP) → trail; else dominate.
+            plan = sit.get("turn_plan")
+            if plan is not None and _actionable_pre_attack(obs, sit, plan.combat):
+                last = _attack_last_score(sit, force_now=False)
+                if last is not None:
+                    return last
+            if atk_id in (_ATK_JETTING_BLOW, _ATK_NEBULA_BEAM):
+                return _DOMINATE_OPEN_PATH
 
-    # HR-6b  Penalize END when Mega Starmie should attack — but if DP engine
-    # work is still pending, END is also wrong (should do setup). Keep END
-    # banned whenever we still owe an attack OR owe engine work post-Mega.
+    # HR-6b  Penalize END when Mega Starmie should attack.
     if option.type == OptionType.END and _starmie_should_attack(board):
         if phase.primary == "AGGRESSION" or (
             phase.primary == "OPENING" and board.my_turn_number >= 2
         ):
-            return -_DOMINATE
+            return -_DOMINATE_OPEN_PATH
     # HR-7  Budew Itchy Pollen — OPENING stall when no Mega ex ready.
     # Going second: allow from engine turn 2 (My-T1); going first keeps turn>=3.
     if option.type == OptionType.ATTACK and phase.primary == "OPENING":
@@ -3355,7 +3610,11 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
                 if pkm:
                     pid = _si(getattr(pkm, "id", None))
                     if pid == _CARDS["mega_starmie_ex"]:
-                        return _DOMINATE_PLUS if _has_water_energy(pkm) else _DOMINATE
+                        if _mega_active_fuel_ok(obs, mi, pkm):
+                            return (
+                                _DOMINATE_PLUS if _has_water_energy(pkm) else _DOMINATE
+                            )
+                        return -_DOMINATE_OPEN_PATH
                     if pid == _OC_STARYU:
                         if board.mega_starmie_on_field or _bench_has_non_staryu(obs, mi):
                             return -_DOMINATE_OPEN_PATH

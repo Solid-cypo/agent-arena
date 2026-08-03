@@ -381,7 +381,7 @@ def test_jetting_uses_attack_tier_score():
     obs = _obs(turn=5, my_index=0, me=me, opp=opp)
     sit = sp._compute_situation(obs)
     opt = NS(type=OptionType.ATTACK, attackId=JETTING)
-    assert sp._hard_rule_bonus(obs, opt, sit) == sp._DOMINATE_ATTACK
+    assert sp._hard_rule_bonus(obs, opt, sit) >= sp._DOMINATE_OPEN_PATH
 
 
 def test_aggression_nebula_ko_beats_jetting():

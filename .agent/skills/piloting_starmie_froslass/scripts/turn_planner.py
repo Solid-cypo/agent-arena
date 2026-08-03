@@ -13,6 +13,7 @@ from typing import Any, Literal
 from opening_cards import (
     BOSS_ORDERS,
     BUDEW,
+    CRISPIN,
     DARK_BASIC,
     DUDUNSPARCE,
     DUNSPARCE_A,
@@ -365,6 +366,90 @@ def _turn_gap(facts: TurnFacts) -> TurnGap:
         dp_gaps=tuple(dp),
         need_second_attacker=facts.mega_starmie_on_field and not facts.mega_froslass_on_field,
     )
+
+
+# Item effects that can close a typed gap (Poffin/Pad/Hilda/Crispin/UB/NS).
+_ITEM_COVERABLE = frozenset({
+    "BASE", "EVOLUTION", "ENERGY", "MUNKIDORI", "DARK_ENERGY",
+    "DAMAGE_PLACER", "SECOND_ATTACKER",
+})
+
+
+def missing_gap_types(facts: TurnFacts, gap: TurnGap) -> tuple[str, ...]:
+    """Distinct missing resource types for draw-vs-item valuation.
+
+    A draw-7 dig is modeled as covering ~2 distinct types. Types already held
+    in hand (evolution / energy pieces) are not counted as missing.
+    """
+    hand = set(facts.hand_ids)
+    types: list[str] = []
+    if gap.need_base and STARYU not in hand:
+        types.append("BASE")
+    if gap.need_evolution and MEGA_STARMIE not in hand:
+        types.append("EVOLUTION")
+    if gap.need_energy and not hand.intersection(_WATER_IDS):
+        types.append("ENERGY")
+    for g in gap.dp_gaps:
+        if g == "MUNKIDORI" and MUNKIDORI not in hand:
+            types.append("MUNKIDORI")
+        elif g == "DARK_ENERGY" and DARK_BASIC not in hand:
+            types.append("DARK_ENERGY")
+        elif g == "DAMAGE_PLACER":
+            has_placer = (
+                RISKY_RUINS in hand
+                or FROSLASS in hand
+                or facts.snorunt_on_field
+                or SNORUNT in hand
+            )
+            if not has_placer:
+                types.append("DAMAGE_PLACER")
+    if gap.need_second_attacker and MEGA_FROSLASS not in hand and (
+        not facts.snorunt_on_field and SNORUNT not in hand
+    ):
+        types.append("SECOND_ATTACKER")
+    return tuple(dict.fromkeys(types))
+
+
+def count_missing_types(facts: TurnFacts, gap: TurnGap) -> int:
+    return len(missing_gap_types(facts, gap))
+
+
+def item_uncoverable_gaps(facts: TurnFacts, gap: TurnGap) -> tuple[str, ...]:
+    """Gaps that current hand items cannot close (draw-preferred)."""
+    hand = set(facts.hand_ids)
+    missing = missing_gap_types(facts, gap)
+    uncoverable: list[str] = []
+    for t in missing:
+        if t == "BASE" and POFFIN not in hand and POKE_PAD not in hand and ULTRA_BALL not in hand:
+            uncoverable.append(t)
+        elif t == "EVOLUTION" and HILDA not in hand and ULTRA_BALL not in hand and POKE_PAD not in hand:
+            uncoverable.append(t)
+        elif t == "ENERGY" and CRISPIN not in hand and HILDA not in hand and NIGHT_STRETCHER not in hand:
+            uncoverable.append(t)
+        elif t == "MUNKIDORI" and POFFIN not in hand and ULTRA_BALL not in hand and POKE_PAD not in hand:
+            uncoverable.append(t)
+        elif t == "DARK_ENERGY" and CRISPIN not in hand and NIGHT_STRETCHER not in hand:
+            uncoverable.append(t)
+        elif t == "DAMAGE_PLACER" and (
+            POFFIN not in hand and POKE_PAD not in hand and ULTRA_BALL not in hand and HILDA not in hand
+        ):
+            uncoverable.append(t)
+        elif t == "SECOND_ATTACKER" and HILDA not in hand and ULTRA_BALL not in hand and POFFIN not in hand:
+            uncoverable.append(t)
+        elif t not in _ITEM_COVERABLE:
+            uncoverable.append(t)
+    return tuple(uncoverable)
+
+
+def must_prioritize_draw(facts: TurnFacts, gap: TurnGap, combat: CombatPlan) -> bool:
+    """n≥3 missing types → create and resolve a dig before misc setup.
+
+    Mandatory attack turns (active ready Mega, or DISPATCH then attack) still
+    yield — dig never blocks a required attack sequence.
+    """
+    if combat.attack_required:
+        return False
+    return count_missing_types(facts, gap) >= 3
 
 
 def _expected_froslass_prizes(facts: TurnFacts) -> int:
@@ -793,10 +878,16 @@ def build_turn_plan(
     facts = build_turn_facts(obs, board, matchup=matchup)
     gap = _turn_gap(facts)
     combat = _combat_plan(facts)
+    n_miss = count_missing_types(facts, gap)
+    force_draw = must_prioritize_draw(facts, gap, combat)
     if combat.attack_required and facts.active_ready_mega:
         objective: Objective = "ATTACK"
     elif combat.attack_required:
+        # DISPATCH / pre-attack setup beats dig — Layer1 yields to attack turns.
         objective = "MAKE_ATTACKER"
+    elif force_draw:
+        # Draw-7 ≈ two typed searches; three+ gaps → dig first.
+        objective = "DRAW"
     elif gap.need_base or gap.need_evolution or gap.need_energy:
         objective = "MAKE_ATTACKER"
     elif gap.dp_gaps:
@@ -829,6 +920,8 @@ def build_turn_plan(
     if not acquire.ball_allowed:
         forbidden.append("ULTRA_BALL")
         reasons.append(acquire.ball_reason)
+    if force_draw:
+        reasons.append(f"n_missing_types={n_miss}≥3 → prioritize dig")
     return TurnPlan(
         facts=facts,
         gap=gap,
