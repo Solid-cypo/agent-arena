@@ -203,7 +203,11 @@ def test_ready_bench_mega_forbids_basic_attack():
 
 
 def test_alakazam_overlay_precedes_turn_plan():
-    me = _aggression_me(hand=[NS(id=sp._CARDS["hilda"])])
+    # Non-fueled Active so must-attack closeout does not preempt the overlay.
+    me = _player(
+        active=_pkm(sp._CARDS["staryu"]),
+        hand=[NS(id=sp._CARDS["hilda"])],
+    )
     obs = _obs(turn=5, my_index=0, me=me, opp=_player(active=_pkm(999)))
     sit = sp._compute_situation(obs)
     option = NS(type=OptionType.PLAY, index=0)
@@ -867,6 +871,93 @@ def test_poffin_reorder_follows_acquire_targets_dual_pick():
     # Staryu (idx 2) then Dunsparce (idx 1) before Fan (idx 0).
     assert reordered[0] == 2
     assert reordered[1] == 1
+
+
+# ── Must-attack plug (online 55202093 leaks) ────────────────────────────────
+
+def test_fueled_starmie_poffin_loses_to_jetting():
+    """89651017 — Poffin must not outrank Jetting on a fueled Active Mega."""
+    from opening_cards import POFFIN
+
+    me = _aggression_me(hand=[NS(id=POFFIN)])
+    opp = _player(active=_pkm(999, hp=300))
+    obs = _obs(turn=10, my_index=0, me=me, opp=opp)
+    sit = sp._compute_situation(obs)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    poffin = NS(type=OptionType.PLAY, index=0)
+    end = NS(type=OptionType.END)
+    sit["select_options"] = [jet, poffin, end]
+    assert sp._hard_rule_bonus(obs, jet, sit) >= sp._DOMINATE_OPEN_PATH
+    assert sp._hard_rule_bonus(obs, poffin, sit) <= -sp._DOMINATE_OPEN_PATH
+    assert sp._hard_rule_bonus(obs, end, sit) <= -sp._DOMINATE_OPEN_PATH
+
+
+def test_fueled_861_bans_lillie_after_water():
+    """89660767 — after 861 has water, supporters cannot eat the turn."""
+    from opening_cards import LILLIE
+
+    fro = _pkm(sp._CARDS["mega_froslass_ex"], energies=[int(EnergyType.WATER)])
+    me = _player(active=fro, hand=[NS(id=LILLIE)])
+    opp = _player(active=_pkm(999, hp=200), hand_n=4)
+    obs = _obs(turn=6, my_index=0, me=me, opp=opp)
+    sit = sp._compute_situation(obs)
+    resentful = NS(type=OptionType.ATTACK, attackId=RESENTFUL)
+    lillie = NS(type=OptionType.PLAY, index=0)
+    sit["select_options"] = [resentful, lillie]
+    assert sp._hard_rule_bonus(obs, resentful, sit) >= sp._DOMINATE_OPEN_PATH
+    assert sp._hard_rule_bonus(obs, lillie, sit) <= -sp._DOMINATE_OPEN_PATH
+
+
+def test_fueled_starmie_bans_retreat_non_rescue():
+    """89655562 — fueled Starmie must not Retreat instead of Jetting."""
+    me = _aggression_me()
+    opp = _player(active=_pkm(999, hp=300))
+    obs = _obs(turn=8, my_index=0, me=me, opp=opp)
+    sit = sp._compute_situation(obs)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    retreat = NS(type=OptionType.RETREAT)
+    sit["select_options"] = [jet, retreat]
+    assert sp._hard_rule_bonus(obs, jet, sit) >= sp._DOMINATE_OPEN_PATH
+    assert sp._hard_rule_bonus(obs, retreat, sit) <= -sp._DOMINATE_OPEN_PATH
+
+
+def test_ghost_adrena_prep_does_not_block_jetting():
+    """ADRENA listed as required but not in options must not ban Jetting."""
+    from dataclasses import replace
+    from turn_planner import CombatPlan
+
+    # Damaged Active + dark Munk → ADRENA still_needed, but omit ability option.
+    active = _pkm(
+        sp._CARDS["mega_starmie_ex"],
+        hp=200,
+        maxHp=330,
+        energies=[int(EnergyType.WATER)],
+    )
+    munk = _pkm(sp._MUNKIDORI_ID, energies=[int(EnergyType.DARKNESS)])
+    me = _aggression_me(active=active, bench=[munk])
+    opp = _player(active=_pkm(999, hp=300))
+    obs = _obs(turn=8, my_index=0, me=me, opp=opp)
+    sit = sp._compute_situation(obs)
+    assert sp._pre_attack_req_still_needed(obs, sit, "ADRENA")
+    old = sit["turn_plan"].combat
+    ghost = CombatPlan(
+        mode="MEGA_MUST_ATTACK",
+        attack_required=True,
+        required_before_attack=("ADRENA",),
+        next_action="ADRENA",
+        rider_target=old.rider_target,
+        boss_target=old.boss_target,
+        expected_prizes=old.expected_prizes,
+        expected_prize_delta=old.expected_prize_delta,
+        froslass_build_allowed=old.froslass_build_allowed,
+    )
+    sit["turn_plan"] = replace(sit["turn_plan"], combat=ghost)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    poffin = NS(type=OptionType.PLAY, index=0)
+    sit["select_options"] = [jet, poffin]  # no Adrena ability offered
+    assert "ADRENA" not in sp._actionable_pre_attack(obs, sit, sit["turn_plan"].combat)
+    assert sp._hard_rule_bonus(obs, jet, sit) >= sp._DOMINATE_OPEN_PATH
+    assert sp._hard_rule_bonus(obs, poffin, sit) <= -sp._DOMINATE_OPEN_PATH
 
 
 if __name__ == "__main__":

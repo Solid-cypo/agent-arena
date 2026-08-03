@@ -9,25 +9,22 @@
 ## 当前状态（每次会话结束时更新此节）
 
 - **更新日期**：2026-08-03
-- **分支**：有效 Boss + 手牌组件动态检索（工作区改动，待 commit）
+- **线上提交**：**`55209165`**（PENDING）— plug must-attack leaks（Poffin/861 贴水后支援/Retreat；ghost prep 修复）
+- **对照**：`55202093` 公开分 **455.7**（公局约 41%；有油空转仍漏）｜更早 `55196958` ~421
 - **卡组**：`data/decks/starmie_froslass.csv` — 3×海星星、无 306、5 水 + 3 恶
-- **近期工作**：
-  - **有效 Boss**：仅 `expected_prize_delta>0` 或 DoubleKO 必需时强制 Boss；去掉 sole-supporter 放宽
-  - 遥测主 KPI：`effective_boss_rate` / `ineffective_boss_count` / `boss_prize_delta_avg`；败因 `no_effective_boss`；`zero_boss` 降为参考
-  - **AcquirePlan**：手牌进化体/DP 组件驱动最小激活集（66→海星星+土龙弟弟；愿增猿在线→恶能）
-  - Poffin 选牌严格服从 `acquire.targets`
-  - DP 目标保持“带恶能愿增猿 + 伤害生成器（104 或危险废墟）”
-  - **继续保留回退 C2b**：不要求每回合消耗支援者或贴能
-- **最终回归**：
-  - 单测：Pilot 57/57｜TurnPlan 26/26｜Combat 5/5｜Draw 9/9｜Budew GS 7/7｜Alak 7/7
-  - 启发式 5×20：92/100 = 92%；检索 100%；硬行为 0；`boss_grabs_rider=0`
-  - BC 4×20：56/80 = 70%；`effective_boss_rate` 54%；无效 Boss 11；检索 100%
-  - 产物：`logs/combat_eval_effboss_5x20/`、`logs/combat_eval_effboss_bc_4x20/`
-- **OPENING KPI**（历史，500 seed）：CP1 78.8%｜Goal@T2 35.8%｜Goal@T5 58.0%｜勿用 Walrein 胜率当主 KPI
-- **延期 matchup**：铝钢桥龙专项、对手愿增猿专项
-- **工作区**：有效 Boss / 动态检索改动未入库；`logs/` 大体积未跟踪；skill↔submission 已 sync
-- **磁盘**：约 86%；改卡/规则务必立刻 commit
-- **指标文档**：`references/rulebook/METRICS-CombatV1_20260801.md`｜`TURN_PLAN_POLICY_20260802.md`｜`ULTRA_BALL_POLICY_20260801.md`｜专家讨论稿：`ULTRA_BALL_EXPERT_BRIEF_20260802.md`
+- **本包内容**：
+  - 从 `submission_starmie.tar.gz` **恢复**被清盘的 Must-attack/Fuel/861 包（commit `f07e541`）
+  - **Must-attack 堵漏**：早期 closeout 闸（先于 Alak/acquire/ignition-retreat）；ghost `required_before_attack` 不挡 Jetting；禁有油 Poffin/支援/Retreat
+  - 保留：有效 Boss、Fuel gate、861 控手、AcquirePlan、C2b
+- **本地回归**：
+  - 单测：Pilot 61/61｜TurnPlan 26/26｜Combat 5/5｜Draw 9/9｜Alak 7/7
+  - BC 4×20：**71.25%**（Alak 65%｜Lucario 60%｜DP 95%｜Marnie 65%）；`ready_mega_no_attack=0`
+  - 对照堵漏前 BC 58.8%；产物 `logs/combat_eval_must_attack_plug_bc_4x20/`
+  - 线上复盘：`data/kaggle_episodes/review_must_attack_55202093/`
+- **下一刀决策闸**：公开分回来后若空转消失 → **861 成型**；若仍漏 → 再盯回放新路径
+- **OPENING KPI**（历史）：CP1 78.8%｜Goal@T2 35.8%｜Goal@T5 58.0%
+- **磁盘**：约 88%；改规则务必立刻 commit（本次清盘教训）
+- **指标文档**：`references/rulebook/METRICS-CombatV1_20260801.md`｜`TURN_PLAN_POLICY_20260802.md`｜`ULTRA_BALL_POLICY_20260801.md`
 
 ---
 

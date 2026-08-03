@@ -2664,7 +2664,13 @@ def _pre_attack_req_still_needed(obs, sit: dict[str, Any], requirement: str) -> 
 
 
 def _actionable_pre_attack(obs, sit: dict[str, Any], combat) -> tuple[str, ...]:
-    """Requirements that remain needed; prefer live options when listed."""
+    """Requirements that remain needed AND are live in the current option list.
+
+    Critical: when select_options is non-empty, ghost preps (e.g. ADRENA marked
+    needed but ability not offered) must NOT block Jetting — that leak let
+    Poffin/supporters win soft-score ties online (55202093).
+    When select_options is empty (unit tests), fall back to board/hand need.
+    """
     reqs = getattr(combat, "required_before_attack", ()) or ()
     if not reqs:
         return ()
@@ -2673,12 +2679,96 @@ def _actionable_pre_attack(obs, sit: dict[str, Any], combat) -> tuple[str, ...]:
     for req in reqs:
         if not _pre_attack_req_still_needed(obs, sit, req):
             continue
-        if options and not any(
-            _turn_plan_required_option(obs, o, sit, req) for o in options
-        ):
-            continue
+        if options:
+            if not any(_turn_plan_required_option(obs, o, sit, req) for o in options):
+                continue
         out.append(req)
     return tuple(out)
+
+
+def _must_attack_closeout_bonus(obs, option, sit: dict[str, Any]) -> float:
+    """Early hard gate: fueled Active Mega must close with an attack.
+
+    Runs before Alak/ignition-retreat/acquire so construction never outranks
+    Jetting/Resentful. Ghost pre-attack reqs do not block the attack.
+    """
+    board = sit.get("board")
+    plan = sit.get("turn_plan")
+    if board is None or not _fueled_mega_must_attack(board, plan):
+        return 0.0
+
+    mi = sit["my_index"]
+    cut_to_starmie = (
+        board.active_is_mega_froslass
+        and _starmie_promote_over_froslass(obs, mi, board, sit)
+    )
+    combat = getattr(plan, "combat", None) if plan is not None else None
+    live_prep = (
+        _actionable_pre_attack(obs, sit, combat) if combat is not None else ()
+    )
+
+    if live_prep:
+        for req in live_prep:
+            if _turn_plan_required_option(obs, option, sit, req):
+                return _DOMINATE_OPEN_PATH
+        if option.type in (
+            OptionType.ATTACK,
+            OptionType.END,
+            OptionType.PLAY,
+            OptionType.ATTACH,
+            OptionType.EVOLVE,
+            OptionType.ABILITY,
+            OptionType.RETREAT,
+        ):
+            return -_DOMINATE_OPEN_PATH
+        return 0.0
+
+    if option.type == OptionType.END:
+        return -_DOMINATE_OPEN_PATH
+
+    if option.type == OptionType.ATTACK:
+        attack_id = _attack_id(option)
+        if board.active_is_mega_starmie:
+            if (
+                attack_id == _ATK_NEBULA_BEAM
+                and plan is not None
+                and plan.facts.opp_active
+                and 0 < plan.facts.opp_active.hp <= 210
+            ):
+                return _DOMINATE_OPEN_PATH + 20.0
+            if attack_id == _ATK_JETTING_BLOW:
+                return _DOMINATE_OPEN_PATH
+            if attack_id == _ATK_NEBULA_BEAM:
+                return _DOMINATE_OPEN_PATH - 10.0
+            return -_DOMINATE
+        if board.active_is_mega_froslass:
+            if attack_id in (_ATK_RESENTFUL, _ATK_ABS_SNOW):
+                return _DOMINATE_OPEN_PATH
+            return -_DOMINATE
+        return 0.0
+
+    if cut_to_starmie:
+        if option.type == OptionType.PLAY and _hand_card_id(obs, option, mi) == _OC_SWITCH:
+            return _DOMINATE_OPEN_PATH
+        if option.type == OptionType.RETREAT and _active_can_retreat(obs, mi):
+            return _DOMINATE_OPEN_PATH
+
+    # Fueled Starmie: never Switch/Retreat away from the attack.
+    if board.active_is_mega_starmie and board.active_has_water and not cut_to_starmie:
+        if option.type == OptionType.RETREAT:
+            return -_DOMINATE_OPEN_PATH
+        if option.type == OptionType.PLAY and _hand_card_id(obs, option, mi) == _OC_SWITCH:
+            return -_DOMINATE_OPEN_PATH
+
+    if option.type in (
+        OptionType.PLAY,
+        OptionType.ATTACH,
+        OptionType.EVOLVE,
+        OptionType.ABILITY,
+        OptionType.RETREAT,
+    ):
+        return -_DOMINATE_OPEN_PATH
+    return 0.0
 
 
 def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
@@ -2952,6 +3042,12 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
     crispin_ban = _crispin_attach_select_bonus(obs, option, sit)
     if crispin_ban != 0.0:
         return crispin_ban
+
+    # Fueled Mega closeout — before Alak / acquire / ignition-retreat so
+    # Poffin and supporters cannot soft-tie past Jetting (online 55202093).
+    must_close = _must_attack_closeout_bonus(obs, option, sit)
+    if must_close != 0.0:
+        return must_close
 
     # When TurnPlan already named a rider/boss target, legacy selectors must
     # not preempt it (especially 51–80 HP riders that old DAMAGE scoring ranks
@@ -3332,7 +3428,12 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
 
     # Ignition already on Active → force retreat this turn (don't EOT-discard).
     # Also retreat when bench Mega+water is waiting (usable-Mega promote).
-    if option.type == OptionType.RETREAT and _active_has_ignition(obs, mi):
+    # Never yank a fueled Mega that still owes an attack (online empty Retreat).
+    if (
+        option.type == OptionType.RETREAT
+        and _active_has_ignition(obs, mi)
+        and not _fueled_mega_must_attack(board, plan)
+    ):
         _, _bmw = _bench_mega_starmie_with_water(obs, mi)
         if _bmw is not None or _bench_has_free_retreat(obs, mi):
             return _DOMINATE_OPEN_PATH if _bmw is not None else _DOMINATE_PLUS
