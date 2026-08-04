@@ -92,6 +92,23 @@ def test_g2_tracks_evolution_energy_and_summoning_wait():
 
 
 def test_held_attacker_path_uses_free_search_window_for_dp():
+    """Summoning-sick Staryu + held Mega: free DP dig (cannot evolve yet)."""
+    staryu = _pkm(STARYU, turnPlayed=5)
+    plan = _plan(
+        _player(
+            active=staryu,
+            hand=(MEGA_STARMIE, WATER_BASIC, POFFIN, ULTRA_BALL),
+        ),
+        turn=5,
+    )
+    assert not plan.facts.staryu_can_evolve
+    assert SNORUNT in plan.acquire.targets
+    assert POFFIN in plan.acquire.sources
+    assert not plan.acquire.ball_allowed
+
+
+def test_held_mega_evolvable_skips_snorunt_acquire():
+    """Evolvable Staryu + held Mega: evolve this turn — empty acquire targets."""
     staryu = _pkm(STARYU, turnPlayed=3)
     plan = _plan(
         _player(
@@ -100,9 +117,8 @@ def test_held_attacker_path_uses_free_search_window_for_dp():
         ),
         turn=5,
     )
-    assert SNORUNT in plan.acquire.targets
-    assert POFFIN in plan.acquire.sources
-    assert not plan.acquire.ball_allowed
+    assert plan.facts.staryu_can_evolve
+    assert plan.acquire.targets == ()
 
 
 def test_dp_goal_accepts_risky_ruins_as_damage_placer():
@@ -194,11 +210,22 @@ def test_ub3_free_search_only_blocks_when_it_closes_gap():
     assert not missing_base.acquire.ball_allowed
     assert "UB-3" in missing_base.acquire.ball_reason
 
+    # Watered base → Mega land gate open → lock Mega Starmie as sole target.
     missing_mega = _plan(
-        _player(active=_pkm(STARYU), hand=(POFFIN, ULTRA_BALL))
+        _player(
+            active=_pkm(STARYU, energies=(WATER_BASIC,)),
+            hand=(POFFIN, ULTRA_BALL),
+        )
     )
     assert missing_mega.acquire.targets[0] == MEGA_STARMIE
     assert missing_mega.acquire.ball_allowed
+
+    # Dry base + no water-fetch tools → dig water / non-Mega before locking Mega.
+    dry_mega = _plan(
+        _player(active=_pkm(STARYU), hand=(POFFIN, ULTRA_BALL))
+    )
+    assert dry_mega.acquire.targets[0] == WATER_BASIC
+    assert MEGA_STARMIE in dry_mega.acquire.targets
 
 
 def test_dynamic_discard_protects_path_and_releases_dead_poffin():
@@ -280,17 +307,56 @@ def test_held_dudunsparce_poffin_targets_staryu_and_dunsparce():
     assert plan.acquire.targets[:2] == (STARYU, DUNSPARCE_A)
 
 
-def test_held_munkidori_with_field_mega_targets_dark_not_basics():
-    """Mega on field (attacker line online) + held Munk → fetch Dark, not basics."""
+def test_held_munkidori_with_field_mega_targets_seat_first():
+    """Mega on field + held Munk → seat Munk first (not dig side basics)."""
     plan = _plan(
         _player(
             active=_pkm(MEGA_STARMIE),  # no water → not attack_required
             hand=(MUNKIDORI, WATER_BASIC, POFFIN),
         )
     )
-    assert plan.acquire.targets == (DARK_BASIC,)
+    assert plan.acquire.targets == (MUNKIDORI,)
     assert STARYU not in plan.acquire.targets
     assert SNORUNT not in plan.acquire.targets
+
+
+def test_field_munk_missing_dark_targets_dark():
+    """Munk on field without Dark → fetch Dark once line is online."""
+    plan = _plan(
+        _player(
+            active=_pkm(MEGA_STARMIE),
+            bench=(_pkm(MUNKIDORI),),
+            hand=(WATER_BASIC, POFFIN),
+        )
+    )
+    assert plan.acquire.targets == (DARK_BASIC,)
+
+
+def test_staryu_line_held_munk_targets_munk():
+    """Staryu online + Mega held (sick) + water in hand + Munk → seat Munk."""
+    staryu = _pkm(STARYU, energies=(WATER_BASIC,), turnPlayed=5)
+    plan = _plan(
+        _player(
+            active=staryu,
+            hand=(MUNKIDORI, MEGA_STARMIE, WATER_BASIC, POFFIN),
+        ),
+        turn=5,
+    )
+    assert not plan.facts.staryu_can_evolve
+    # Mega held → evolution gap not a search target; seat Munk next.
+    assert MEGA_STARMIE not in plan.acquire.targets
+    assert plan.acquire.targets == (MUNKIDORI,)
+
+
+def test_staryu_line_held_munk_waits_without_mega():
+    """Staryu online + Munk held but Mega not secured → do not seat-target Munk."""
+    plan = _plan(
+        _player(
+            active=_pkm(STARYU, energies=(WATER_BASIC,)),
+            hand=(MUNKIDORI, WATER_BASIC, POFFIN),
+        )
+    )
+    assert MUNKIDORI not in plan.acquire.targets
 
 
 def test_double_ko_80_orders_adrena_then_boss_and_preserves_rider():

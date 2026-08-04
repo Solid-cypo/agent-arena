@@ -92,6 +92,57 @@ HILDA_EVOLUTION_IDS = frozenset({MEGA_STARMIE, MEGA_FROSLASS, FROSLASS, DUDUNSPA
 HILDA_EVOLUTION_PRIORITY = (
     MEGA_STARMIE, MEGA_FROSLASS, FROSLASS, DUDUNSPARCE, DUDUNSPARCE_EX,
 )
+# When mega_ready_to_land is false: dig non-Mega first; Mega only as fallback.
+HILDA_EVOLUTION_PRIORITY_NOT_READY = (
+    MEGA_FROSLASS, FROSLASS, DUDUNSPARCE, DUDUNSPARCE_EX, MEGA_STARMIE,
+)
+
+_WATER_FETCH_SUPPORTERS = frozenset({HILDA, CRISPIN})
+
+
+def water_path_ok(
+    *,
+    line_has_water: bool,
+    hand_ids: list[int] | tuple[int, ...] | set[int] | frozenset[int],
+    supporter_played: bool,
+    hilda_resolving: bool = False,
+) -> bool:
+    """Water already on the Staryu/Mega line, or attachable this/next turn."""
+    if line_has_water or hilda_resolving:
+        return True
+    ids = set(hand_ids)
+    if ids & WATER_ENERGY_IDS:
+        return True
+    if not supporter_played and ids & _WATER_FETCH_SUPPORTERS:
+        return True
+    return False
+
+
+def mega_ready_to_land(
+    *,
+    staryu_on_field: bool,
+    mega_starmie_on_field: bool,
+    line_has_water: bool,
+    hand_ids: list[int] | tuple[int, ...] | set[int] | frozenset[int],
+    supporter_played: bool,
+    hilda_resolving: bool = False,
+) -> bool:
+    """Base online, Mega not yet landed, and water path is (or will be) ready."""
+    if not staryu_on_field or mega_starmie_on_field:
+        return False
+    return water_path_ok(
+        line_has_water=line_has_water,
+        hand_ids=hand_ids,
+        supporter_played=supporter_played,
+        hilda_resolving=hilda_resolving,
+    )
+
+
+def hilda_evolution_priority(*, mega_ready: bool) -> tuple[int, ...]:
+    """Hilda evo pick order — lock Mega Starmie only when mega_ready_to_land."""
+    if mega_ready:
+        return HILDA_EVOLUTION_PRIORITY
+    return HILDA_EVOLUTION_PRIORITY_NOT_READY
 
 # Retreat cost in {C} energy cards required to retreat (card_db retreatCost).
 # DUNSPARCE_A (65) is free retreat; DUNSPARCE_B (305) costs 1.

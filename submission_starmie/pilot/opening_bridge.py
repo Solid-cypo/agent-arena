@@ -699,16 +699,31 @@ def score_opening_option(
             return -_DOMINATE_OPEN_PATH
         if cid == BOSS_ORDERS:
             return -_DOMINATE_OPEN_PATH
-        # UB-3: never path-dominate Ultra Ball while free search remains.
+        # UB-3: demote Ball only when free search can close the *current* gap.
+        # Poffin/Pad cannot fetch Mega ex — do not block Ball on G3/EVOLUTION.
         if cid == ULTRA_BALL and (
             POFFIN in hand.hand_ids or POKE_PAD in hand.hand_ids
         ):
-            return -_DOMINATE_OPEN_PATH
+            gap = plan.priority_gap
+            free_closes = False
+            if gap == "G1":
+                free_closes = True  # Poffin/Pad seat Staryu
+            elif gap in ("G2",):
+                # Pad cannot fetch energy; Poffin irrelevant — Ball may dig energy
+                # supporters are preferred separately. Keep Ball legal here.
+                free_closes = False
+            elif gap in ("G3", "EVOLVE"):
+                free_closes = False  # need Hilda/Ball for Mega Rule Box
+            else:
+                # SF / DONE: free search may still dig side pieces.
+                free_closes = True
+            if free_closes:
+                return -_DOMINATE_OPEN_PATH
 
-    # T2–T3 legal Evolve → Mega always dominates (before any demote).
+    # Legal Evolve → Mega always dominates (before any demote).
+    # Wave D: not limited to T2–T3 — any turn the engine offers the evolve.
     if (
-        2 <= board.my_turn_number <= 3
-        and option.type == OptionType.EVOLVE
+        option.type == OptionType.EVOLVE
         and _evolve_to_mega_starmie(obs, option, my_index)
     ):
         return _DOMINATE_OPEN_PATH
@@ -755,6 +770,14 @@ def score_opening_option(
             if lillie_should_play(board, phase, hand, resources):
                 return _DOMINATE_OPEN_PATH - 30.0
             return -_DOMINATE_OPEN_PATH
+        # Munk seat soft — only after Mega secured (below evolve / water / Ball).
+        if KIND_PLAY_MUNK in tags and board.bench_open > 0:
+            mega_secured = bool(
+                getattr(board, "mega_starmie_on_field", False)
+                or MEGA_STARMIE in hand.hand_ids
+            )
+            if mega_secured:
+                return _DOMINATE_OPEN_PATH - 30.0
         return _DOMINATE_OPEN_PATH
 
     # Conflict-only demote (no blanket −DOMINATE on all off-preferred path plays).
@@ -809,7 +832,20 @@ def score_opening_option(
             if cid == DUDUNSPARCE_EX:
                 return -_DOMINATE_OPEN_PATH
             if cid == MEGA_STARMIE:
-                return _DOMINATE_OPEN_PATH
+                from opening_cards import mega_ready_to_land
+
+                ready = mega_ready_to_land(
+                    staryu_on_field=board.staryu_on_field,
+                    mega_starmie_on_field=board.mega_starmie_on_field,
+                    line_has_water=bool(getattr(board, "line_has_water", False))
+                    or _line_has_water(obs, my_index),
+                    hand_ids=hand.hand_ids,
+                    supporter_played=hand.supporter_played,
+                )
+                if ready:
+                    return _DOMINATE_OPEN_PATH
+                # Not ready to land — do not let Mega outrank water / other evo digs.
+                return _DOMINATE_OPEN_PATH - 100.0
             if cid == MEGA_FROSLASS:
                 # Opening: never prioritize 861 over Mega Starmie / dual-basic Snorunt.
                 return _DOMINATE_OPEN_PATH - 80.0

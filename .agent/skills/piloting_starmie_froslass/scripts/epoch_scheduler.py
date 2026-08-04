@@ -114,21 +114,22 @@ def _hand_has(hand_ids: list[int], *cids: int) -> bool:
 
 
 def _want_dual_basic_snorunt(board: Any, hand_ids: list[int]) -> bool:
-    """After Staryu/Mega is online: prefer a second Basic (Snorunt) for T2 options.
+    """Soft-prefer Snorunt only after Mega is secured (in hand or on field).
 
-    Investment (water / Mega evolve / Mega search) stays on the Starmie line;
-    this only unlocks bench/search preference for Snorunt.
+    While G3 is still hunting Mega Starmie, PLAY_SNORUNT must NOT enter
+    preferred — it outranked Ultra Ball / dig and abandoned the Mega goal.
     """
-    staryu_on = bool(getattr(board, "staryu_on_field", False))
     mega_on = bool(getattr(board, "mega_starmie_on_field", False))
+    mega_in_hand = MEGA_STARMIE in hand_ids
+    # Require Mega piece before dual-basic investment.
+    if not (mega_on or mega_in_hand):
+        return False
+    staryu_on = bool(getattr(board, "staryu_on_field", False))
     if not (staryu_on or mega_on):
         return False
     if bool(getattr(board, "snorunt_line_on_bench", False)):
         return False
     if bool(getattr(board, "froslass_104_on_field", False)):
-        return False
-    if int(getattr(board, "bench_open", 0) or 0) <= 0 and SNORUNT not in hand_ids:
-        # Still allow SEARCH_SNORUNT even if bench full? Skip if no space to place.
         return False
     if int(getattr(board, "bench_open", 0) or 0) <= 0:
         return False
@@ -180,8 +181,10 @@ def _build_gap_plan(
         if ULTRA_BALL in hand_ids:
             prefs.append(KIND_PLAY_UB)
         prefs.append(KIND_SEARCH_STARYU)
+        # Only real basic-searchers suppress Lillie dig. Hilda/Crispin cannot
+        # fetch Staryu (E-HILDA-2) — leave Lillie preferred when those alone sit.
         if LILLIE in hand_ids and not _hand_has(
-            hand_ids, POFFIN, POKE_PAD, ULTRA_BALL, HILDA, CRISPIN
+            hand_ids, POFFIN, POKE_PAD, ULTRA_BALL
         ):
             prefs.append(KIND_PLAY_LILLIE)
         return EpochPlan(
@@ -206,15 +209,23 @@ def _build_gap_plan(
     if gap == "G2":
         if not ((staryu_on or mega_on) and not line_has_water):
             return None
+        # G2 = water first (audit C1): attach / Hilda / Crispin — not Pad.
+        # Wave D: Ultra Ball only when hand has no water and no Hilda/Crispin
+        # (narrow dig for energy supporters; do not reopen Pad-as-G2).
         prefs_g2: list[str] = [KIND_ATTACH_WATER_LINE]
         if HILDA in hand_ids:
             prefs_g2.append(KIND_PLAY_HILDA)
         if CRISPIN in hand_ids:
             prefs_g2.append(KIND_PLAY_CRISPIN)
-        if ULTRA_BALL in hand_ids:
+        _water_ids = frozenset({WATER_BASIC, PRISM, 16})  # 16 = EnergyType.WATER
+        hand_has_water = any(c in _water_ids for c in hand_ids)
+        if (
+            not hand_has_water
+            and HILDA not in hand_ids
+            and CRISPIN not in hand_ids
+            and ULTRA_BALL in hand_ids
+        ):
             prefs_g2.append(KIND_PLAY_UB)
-        if POKE_PAD in hand_ids:
-            prefs_g2.append(KIND_PLAY_PAD)
         prefs_g2.append(KIND_ABILITY_MEOWTH)
         if LILLIE in hand_ids:
             prefs_g2.append(KIND_PLAY_LILLIE)
@@ -248,13 +259,14 @@ def _build_gap_plan(
             prefs.append(KIND_EVOLVE_MEGA)
         if LILLIE in hand_ids:
             prefs.append(KIND_PLAY_LILLIE)
-        _append_dual_basic_prefs(prefs, board, hand_ids)
+        # No PLAY_MUNK on G3 — Mega search/Hilda/Ball own the turn.
+        # Munk seats after mega_secured (EVOLVE / SF3 / Layer1).
         return EpochPlan(
             1,
             "G3",
             preferred_kinds=tuple(prefs),
             demote_kinds=(KIND_DEMOTE_POFFIN, KIND_DEMOTE_SIDE, KIND_DEMOTE_BOSS, KIND_DEMOTE_306),
-            reason="need Mega Starmie in hand (+ dual-basic Snorunt if free)",
+            reason="need Mega Starmie in hand",
         )
 
     if gap == "EVOLVE":
@@ -265,6 +277,10 @@ def _build_gap_plan(
         if mega_on:
             prefs_ev.append(KIND_PLAY_SWITCH)
         _append_dual_basic_prefs(prefs_ev, board, hand_ids)
+        munk_on = bool(getattr(board, "munkidori_on_field", False))
+        bench_open = int(getattr(board, "bench_open", 0) or 0)
+        if MUNKIDORI in hand_ids and not munk_on and bench_open > 0:
+            prefs_ev.append(KIND_PLAY_MUNK)
         return EpochPlan(
             1,
             "EVOLVE",

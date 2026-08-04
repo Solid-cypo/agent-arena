@@ -36,6 +36,8 @@ from opening_cards import (
     WATER_BASIC,
     can_retreat_pokemon,
     ENERGY_IDS,
+    hilda_evolution_priority,
+    mega_ready_to_land,
     retreat_cost_for,
 )
 from opponent_roles import (
@@ -111,6 +113,7 @@ class TurnFacts:
     mega_starmie_on_field: bool
     mega_froslass_on_field: bool
     staryu_on_field: bool
+    line_has_water: bool
     staryu_can_evolve: bool
     snorunt_on_field: bool
     snorunt_can_evolve: bool
@@ -310,6 +313,11 @@ def build_turn_facts(
         mega_starmie_on_field=MEGA_STARMIE in field_ids,
         mega_froslass_on_field=MEGA_FROSLASS in field_ids,
         staryu_on_field=STARYU in field_ids,
+        line_has_water=any(
+            _si(getattr(p, "id", None)) in (STARYU, MEGA_STARMIE)
+            and _has_energy(p, _WATER_IDS)
+            for p in field
+        ),
         staryu_can_evolve=any(
             _si(getattr(p, "id", None)) == STARYU and can_evolve_now(p)
             for p in field
@@ -422,7 +430,8 @@ def item_uncoverable_gaps(facts: TurnFacts, gap: TurnGap) -> tuple[str, ...]:
     for t in missing:
         if t == "BASE" and POFFIN not in hand and POKE_PAD not in hand and ULTRA_BALL not in hand:
             uncoverable.append(t)
-        elif t == "EVOLUTION" and HILDA not in hand and ULTRA_BALL not in hand and POKE_PAD not in hand:
+        # Mega Starmie is Rule-Box — Pad cannot cover the main EVOLUTION gap.
+        elif t == "EVOLUTION" and HILDA not in hand and ULTRA_BALL not in hand:
             uncoverable.append(t)
         elif t == "ENERGY" and CRISPIN not in hand and HILDA not in hand and NIGHT_STRETCHER not in hand:
             uncoverable.append(t)
@@ -446,9 +455,20 @@ def must_prioritize_draw(facts: TurnFacts, gap: TurnGap, combat: CombatPlan) -> 
 
     Mandatory attack turns (active ready Mega, or DISPATCH then attack) still
     yield — dig never blocks a required attack sequence.
+
+    Before usable Mega Starmie is online, only count the attacker-line gaps
+    (BASE / EVOLUTION / ENERGY). DP pieces must not flip objective to DRAW and
+    starve Mega search / item plays during OPENING.
     """
     if combat.attack_required:
         return False
+    mega_ready = bool(facts.active_ready_mega or facts.bench_ready_mega_id == MEGA_STARMIE)
+    if not mega_ready:
+        line_missing = tuple(
+            t for t in missing_gap_types(facts, gap)
+            if t in ("BASE", "EVOLUTION", "ENERGY")
+        )
+        return len(line_missing) >= 3
     return count_missing_types(facts, gap) >= 3
 
 
@@ -665,6 +685,11 @@ def _attacker_online(facts: TurnFacts) -> bool:
     )
 
 
+def _attacker_line_online(facts: TurnFacts) -> bool:
+    """Staryu or Mega Starmie on field — earlier than ready-to-attack Mega."""
+    return bool(facts.staryu_on_field or facts.mega_starmie_on_field)
+
+
 def _acquire_targets(facts: TurnFacts, gap: TurnGap, objective: Objective) -> tuple[int, ...]:
     """Hand-component-driven minimal activation set.
 
@@ -693,18 +718,50 @@ def _acquire_targets(facts: TurnFacts, gap: TurnGap, objective: Objective) -> tu
     # Held Mega with no Staryu online: only hunt the base, not Dark/Snorunt.
     if MEGA_STARMIE in hand and gap.need_base:
         return (STARYU,)
+    # Mega in hand + Staryu can evolve this turn: evolve — no Snorunt dig.
+    # If Staryu is online but summoning-sick, fall through to free DP window.
+    if MEGA_STARMIE in hand and facts.staryu_can_evolve:
+        return ()
     if gap.need_evolution and MEGA_STARMIE not in hand:
-        return (MEGA_STARMIE,)
+        # Lock Mega only when base + water path can land it; else non-Mega first.
+        ready = mega_ready_to_land(
+            staryu_on_field=facts.staryu_on_field,
+            mega_starmie_on_field=facts.mega_starmie_on_field,
+            line_has_water=facts.line_has_water,
+            hand_ids=facts.hand_ids,
+            supporter_played=facts.supporter_played,
+        )
+        if ready:
+            return (MEGA_STARMIE,)
+        out: list[int] = []
+        if not hand.intersection(_WATER_IDS):
+            out.append(WATER_BASIC)
+        for cid in hilda_evolution_priority(mega_ready=False):
+            if cid not in hand and cid not in out:
+                out.append(cid)
+        return tuple(out) if out else (MEGA_STARMIE,)
     if gap.need_energy and not hand.intersection(_WATER_IDS):
         return (WATER_BASIC,)
 
-    # Held / on-field Munkidori: once an attacker is online, fetch Dark to
-    # activate Adrena-Brain rather than digging more utility basics.
+    line_online = _attacker_line_online(facts)
+    mega_secured = bool(facts.mega_starmie_on_field or MEGA_STARMIE in hand)
+
+    # Hand Munk + line online + Mega secured → seat Munk (not dig side basics).
+    if (
+        line_online
+        and mega_secured
+        and MUNKIDORI in hand
+        and not facts.munkidori_on_field
+    ):
+        return (MUNKIDORI,)
+
+    # Fetch Dark once Munk is on field (or Mega secured + Munk held).
     munk_ready_to_activate = (
-        _attacker_online(facts)
+        line_online
         and not facts.munkidori_has_dark
         and DARK_BASIC not in hand
         and (facts.munkidori_on_field or MUNKIDORI in hand)
+        and (mega_secured or facts.munkidori_on_field)
     )
     if munk_ready_to_activate:
         return (DARK_BASIC,)
@@ -716,8 +773,8 @@ def _acquire_targets(facts: TurnFacts, gap: TurnGap, objective: Objective) -> tu
             if g == "MUNKIDORI":
                 if MUNKIDORI in hand:
                     continue
-                # Attacker not online yet: do not steal seats for Munk before base.
-                if not _attacker_online(facts) and (
+                # Line not online yet: do not steal seats for Munk before base.
+                if not line_online and (
                     gap.need_base or gap.need_evolution or gap.need_energy
                 ):
                     continue
@@ -727,7 +784,7 @@ def _acquire_targets(facts: TurnFacts, gap: TurnGap, objective: Objective) -> tu
                     continue
                 if not facts.munkidori_on_field and MUNKIDORI not in hand:
                     continue
-                if not _attacker_online(facts) and not facts.munkidori_on_field:
+                if not line_online and not facts.munkidori_on_field:
                     continue
                 order.append(DARK_BASIC)
             elif g == "DAMAGE_PLACER":
@@ -784,7 +841,9 @@ def _acquire_plan(facts: TurnFacts, gap: TurnGap, objective: Objective, combat: 
     if targets:
         if POFFIN in hand and any(t in _BASE_ATTACKERS for t in targets):
             sources.append(POFFIN)
-        if POKE_PAD in hand and any(t in (STARYU, MEGA_STARMIE, SNORUNT, FROSLASS) for t in targets):
+        # Poké Pad: no Rule Box only — Staryu/Snorunt/Froslass/Dudunsparce.
+        # Mega ex has a Rule Box and cannot be Pad-fetched.
+        if POKE_PAD in hand and any(t in (STARYU, SNORUNT, FROSLASS, DUDUNSPARCE) for t in targets):
             sources.append(POKE_PAD)
         if HILDA in hand and any(t in (MEGA_STARMIE, FROSLASS, MEGA_FROSLASS) for t in targets):
             sources.append(HILDA)

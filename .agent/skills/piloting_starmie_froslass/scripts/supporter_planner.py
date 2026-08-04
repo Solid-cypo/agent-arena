@@ -20,10 +20,12 @@ from opening_cards import (
     HILDA,
     JUDGE,
     LILLIE,
+    MEGA_STARMIE,
     POKE_PAD,
     SNORUNT,
     UNFAIR_STAMP,
     WALLYS_COMPASSION,
+    mega_ready_to_land,
 )
 from phase_fsm import PhaseState
 
@@ -142,12 +144,16 @@ def _fix_now_supporter(
         )
     ):
         return BOSS_ORDERS
-    # Hilda / Crispin: water or mega line still missing while opening incomplete.
+    # Hilda closes EVOLUTION (+energy) only — never BASE (E-HILDA-1/2).
+    # Crispin closes ENERGY only (two different Basic Energies).
     if not board.active_is_mega_starmie or not board.active_has_water:
-        if _in_hand(hand, HILDA) and (
-            not board.mega_starmie_on_field or not board.staryu_on_field
+        staryu_online = bool(board.staryu_on_field or board.mega_starmie_on_field)
+        if (
+            _in_hand(hand, HILDA)
+            and staryu_online
+            and not board.mega_starmie_on_field
         ):
-            # Under forced dig, Hilda still closes EVOLUTION/BASE — allowed.
+            # G3: Staryu seated, need Mega (+ optional Water) — Hilda is legal.
             return HILDA
         if _in_hand(hand, CRISPIN) and (
             (board.staryu_on_field and not board.active_has_water)
@@ -185,6 +191,16 @@ def lillie_forbidden(
 
     if resources.exhausted(LILLIE) and LILLIE not in hand.hand_ids:
         return True, "DR-1b"
+
+    # Mega land gate: do not wash Mega when base + water path can land it now.
+    if MEGA_STARMIE in hand.hand_ids and mega_ready_to_land(
+        staryu_on_field=board.staryu_on_field,
+        mega_starmie_on_field=board.mega_starmie_on_field,
+        line_has_water=bool(getattr(board, "line_has_water", False)),
+        hand_ids=hand.hand_ids,
+        supporter_played=hand.supporter_played,
+    ):
+        return True, "DR-MEGA-LAND"
 
     return False, ""
 
@@ -383,16 +399,18 @@ def pick_supporter(
             "Wally — heal Mega Starmie",
         )
 
-    # Soft-prefer Hilda when opening still needs mega/water and Hilda is in hand.
+    # Soft-prefer Hilda only when Staryu is online and Mega is still missing
+    # (E-HILDA-2: G1 must not spend the slot on an evolution-only searcher).
     if (
         (phase.primary == "OPENING" or not phase.opening_complete)
         and _in_hand(hand, HILDA)
-        and (not board.mega_starmie_on_field or not board.staryu_on_field)
+        and board.staryu_on_field
+        and not board.mega_starmie_on_field
         and not (force_dig and typed_closer is None)
     ):
         return SupporterDecision(
             "PLAY", HILDA, "SP-HILDA-OPEN", 900.0,
-            "Hilda fix-now over Lillie dig",
+            "Hilda evo+energy over Lillie dig",
         )
 
     if (

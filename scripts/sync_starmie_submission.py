@@ -13,6 +13,7 @@ PILOT_MODULES = (
     "starmie_pilot.py",
     "opening_bridge.py",
     "opening_planner.py",
+    "opening_exec.py",
     "opening_state.py",
     "hand_snapshot.py",
     "phase_fsm.py",
@@ -21,6 +22,7 @@ PILOT_MODULES = (
     "draw_axis.py",
     "supporter_planner.py",
     "turn_planner.py",
+    "epoch_scheduler.py",
     "opponent_roles.py",
     "matchup_alakazam.py",
 )

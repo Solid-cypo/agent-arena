@@ -13,9 +13,10 @@ from opening_cards import (
     FAN_CALL_IDS,
     FAN_CALL_PRIORITY,
     HILDA,
-    HILDA_EVOLUTION_PRIORITY,
     ITEM_IDS,
     MEGA_STARMIE,
+    hilda_evolution_priority,
+    mega_ready_to_land,
     MEOWTH_EX,
     MEOWTH_OPENING_SUPPORTER_PRIORITY,
     POFFIN_OPENING_PRIORITY,
@@ -452,11 +453,31 @@ class OpeningGameState:
         )
         return True
 
+    def _line_has_water(self) -> bool:
+        mons = ([self.active] if self.active else []) + list(self.bench)
+        return any(
+            p.card_id in (STARYU, MEGA_STARMIE) and p.has_water() for p in mons if p
+        )
+
+    def _mega_starmie_on_field(self) -> bool:
+        if self.active and self.active.card_id == MEGA_STARMIE:
+            return True
+        return any(p.card_id == MEGA_STARMIE for p in self.bench)
+
     def hilda_search(self, *, need_evolution: bool = True, need_energy: bool = True) -> None:
         before = self._deck_top10()
         picks: list[int] = []
         if need_evolution:
-            for cid in HILDA_EVOLUTION_PRIORITY:
+            # Hilda itself is fetching energy this resolution → count as water path.
+            ready = mega_ready_to_land(
+                staryu_on_field=self.staryu_on_field(),
+                mega_starmie_on_field=self._mega_starmie_on_field(),
+                line_has_water=self._line_has_water(),
+                hand_ids=self.hand,
+                supporter_played=self.supporter_played,
+                hilda_resolving=True,
+            )
+            for cid in hilda_evolution_priority(mega_ready=ready):
                 if cid in self.deck:
                     picks.append(cid)
                     break

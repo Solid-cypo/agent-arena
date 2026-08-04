@@ -58,9 +58,10 @@ def _obs_gs(me, opp, *, turn=2, my_index=0, first_player=1, ctx=0):
 
 
 def test_going_second_plays_budew_when_bench_open():
+    # No Mega path yet → GS Budew stall owns the turn.
     me = _player(
         active=_pkm(sp._CARDS["staryu"]),
-        hand=(sp._BUDEW_ID, sp._CARDS["mega_starmie_ex"], WATER),
+        hand=(sp._BUDEW_ID,),
     )
     opp = _player(active=_pkm(999, hp=200))
     obs = _obs_gs(me, opp, turn=2)
@@ -68,6 +69,20 @@ def test_going_second_plays_budew_when_bench_open():
     assert sp._going_second(sit["board"])
     play = NS(type=OptionType.PLAY, index=0)
     assert sp._hard_rule_bonus(obs, play, sit) >= sp._DOMINATE
+
+
+def test_going_second_budew_yields_to_mega_clock():
+    # Wave D: Mega + water in hand → do not stall with side-basic Budew.
+    me = _player(
+        active=_pkm(sp._CARDS["staryu"]),
+        hand=(sp._BUDEW_ID, sp._CARDS["mega_starmie_ex"], WATER),
+    )
+    opp = _player(active=_pkm(999, hp=200))
+    obs = _obs_gs(me, opp, turn=2)
+    sit = sp._compute_situation(obs)
+    play = NS(type=OptionType.PLAY, index=0)
+    assert sp._mega_clock_hard_bonus(obs, play, sit) <= -sp._DOMINATE_OPEN_PATH
+    assert sp._hard_rule_bonus(obs, play, sit) <= -sp._DOMINATE_OPEN_PATH
 
 
 def test_going_second_defers_budew_when_last_seat_needed_for_staryu():

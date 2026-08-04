@@ -8,22 +8,21 @@
 
 ## 当前状态（每次会话结束时更新此节）
 
-- **更新日期**：2026-08-03
-- **线上提交**：**`55209165`**（PENDING）— plug must-attack leaks（Poffin/861 贴水后支援/Retreat；ghost prep 修复）
-- **对照**：`55202093` 公开分 **455.7**（公局约 41%；有油空转仍漏）｜更早 `55196958` ~421
+- **更新日期**：2026-08-04
+- **线上提交**：仍以 `55209165` / must-attack 包为基线；本机已叠 **Wave D（Mega 时钟）+ Wave E（Mega 落地门控）**
+- **对照**：baseline `/tmp/baseline_55202093_f07e541`（≈ `f07e541`）
 - **卡组**：`data/decks/starmie_froslass.csv` — 3×海星星、无 306、5 水 + 3 恶
 - **本包内容**：
-  - 从 `submission_starmie.tar.gz` **恢复**被清盘的 Must-attack/Fuel/861 包（commit `f07e541`）
-  - **Must-attack 堵漏**：早期 closeout 闸（先于 Alak/acquire/ignition-retreat）；ghost `required_before_attack` 不挡 Jetting；禁有油 Poffin/支援/Retreat
-  - 保留：有效 Boss、Fuel gate、861 控手、AcquirePlan、C2b
+  - Wave D：合法 Mega 必进化；错前场抬有水/可进化海星；G2 窄开 UB；有水 Mega Active 禁切走（`_mega_clock_hard_bonus`）
+  - Wave E：`mega_ready_to_land` / `water_path_ok` / `hilda_evolution_priority`；Lillie 仅 ready 抽 Mega（`DR-MEGA-LAND`）；Hilda ready 锁 1031
+  - 修复：`staryu_seat_protected` 不再用裸 `staryu_can_evolve`（避免误杀后手含羞苞）
+  - 审计脚本：`scripts/h2h_loss_audit.py` + `engine_log_metrics.py` + `summarize_engine_audit.py`
 - **本地回归**：
-  - 单测：Pilot 61/61｜TurnPlan 26/26｜Combat 5/5｜Draw 9/9｜Alak 7/7
-  - BC 4×20：**71.25%**（Alak 65%｜Lucario 60%｜DP 95%｜Marnie 65%）；`ready_mega_no_attack=0`
-  - 对照堵漏前 BC 58.8%；产物 `logs/combat_eval_must_attack_plug_bc_4x20/`
-  - 线上复盘：`data/kaggle_episodes/review_must_attack_55202093/`
-- **下一刀决策闸**：公开分回来后若空转消失 → **861 成型**；若仍漏 → 再盯回放新路径
-- **OPENING KPI**（历史）：CP1 78.8%｜Goal@T2 35.8%｜Goal@T5 58.0%
-- **磁盘**：约 88%；改规则务必立刻 commit（本次清盘教训）
+  - 单测核心：`test_mega_land_gate` + pilot + turn_plan + budew + engine_metrics → **122 passed**
+  - H2H n=200 seed140000：`logs/h2h_audit_waveE_land_gate_n200_s140000/` → **WR 49.5%**；`no_mega` 桶约 30%
+  - BC 4×20（Wave E）：约 **75%**（`logs/combat_eval_waveE_land_gate_bc_4x20/`）
+- **下一刀**：压侧基础 / 收紧 861 `froslass_exception`；缺 Mega 时 Salvator/Hilda/UB 压 Water Gun；底座攻禁令扩到「做打手阶段」
+- **磁盘**：约 59%；**未 commit 工作区曾再丢**，改规则务必立刻 commit
 - **指标文档**：`references/rulebook/METRICS-CombatV1_20260801.md`｜`TURN_PLAN_POLICY_20260802.md`｜`ULTRA_BALL_POLICY_20260801.md`
 
 ---

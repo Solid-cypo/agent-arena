@@ -960,6 +960,193 @@ def test_ghost_adrena_prep_does_not_block_jetting():
     assert sp._hard_rule_bonus(obs, poffin, sit) <= -sp._DOMINATE_OPEN_PATH
 
 
+def test_opening_play_munk_when_mega_secured():
+    # Mega on field but dry (not must-attack) — secured for Munk seat PATH.
+    # Fueled Mega must-attack would demote all PLAY; Wave D evolve owns the
+    # turn while Mega is only in hand + Staryu can evolve.
+    me = _player(
+        active=_pkm(sp._CARDS["mega_starmie_ex"]),
+        hand=[
+            NS(id=sp._MUNKIDORI_ID),
+            NS(id=sp._CARDS["snorunt"]),
+        ],
+    )
+    obs = _obs(turn=5, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    play_munk = NS(type=OptionType.PLAY, index=0)
+    play_egg = NS(type=OptionType.PLAY, index=1)
+    assert sp._hard_rule_bonus(obs, play_munk, sit) >= sp._DOMINATE_OPEN_PATH - 30.0 - 1e-6
+    assert sp._hard_rule_bonus(obs, play_munk, sit) > sp._hard_rule_bonus(obs, play_egg, sit)
+
+
+def test_opening_play_munk_no_boost_before_mega_secured():
+    me = _player(
+        active=_pkm(sp._CARDS["staryu"], energies=[int(EnergyType.WATER)]),
+        hand=[NS(id=sp._MUNKIDORI_ID), NS(id=sp._CARDS["snorunt"])],
+    )
+    obs = _obs(turn=3, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    play_munk = NS(type=OptionType.PLAY, index=0)
+    assert sp._hard_rule_bonus(obs, play_munk, sit) < sp._DOMINATE_OPEN_PATH - 30.0 - 1e-6
+
+
+def test_opening_attach_dark_when_munk_already_seated():
+    dark = 7
+    me = _player(
+        active=_pkm(sp._CARDS["staryu"], energies=[int(EnergyType.WATER)]),
+        bench=[_pkm(sp._MUNKIDORI_ID)],
+        hand=[NS(id=dark)],
+    )
+    me.energyAttached = False
+    obs = _obs(turn=2, my_index=0, me=me, opp=_player(active=_pkm(999)), first_player=1)
+    sit = sp._compute_situation(obs)
+    attach = NS(
+        type=OptionType.ATTACH,
+        inPlayArea=AreaType.BENCH,
+        inPlayIndex=0,
+        handIndex=0,
+        index=0,
+    )
+    assert sp._hard_rule_bonus(obs, attach, sit) >= sp._DOMINATE_OPEN_PATH - 20.0 - 1e-6
+
+
+def test_opening_dark_yields_to_water_on_dry_staryu():
+    water = int(EnergyType.WATER)
+    dark = 7
+    me = _player(
+        active=_pkm(sp._CARDS["staryu"]),
+        bench=[_pkm(sp._MUNKIDORI_ID)],
+        hand=[NS(id=water), NS(id=dark)],
+    )
+    obs = _obs(turn=3, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    attach_dark = NS(
+        type=OptionType.ATTACH,
+        inPlayArea=AreaType.BENCH,
+        inPlayIndex=0,
+        handIndex=1,
+        index=1,
+    )
+    assert sp._hard_rule_bonus(obs, attach_dark, sit) <= -sp._DOMINATE_MID + 1e-6
+
+
+def test_protected_staryu_bans_switch_to_munk():
+    me = _player(
+        active=_pkm(sp._CARDS["staryu"], energies=[int(EnergyType.WATER)]),
+        bench=[_pkm(sp._MUNKIDORI_ID)],
+        hand=[NS(id=1123), NS(id=sp._CARDS["mega_starmie_ex"])],
+    )
+    obs = _obs(turn=3, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    switch = NS(type=OptionType.PLAY, index=0)
+    assert sp._hard_rule_bonus(obs, switch, sit) < 0
+
+
+def test_boss_path_after_mega_secured_without_attack_debt():
+    from dataclasses import replace
+
+    me = _aggression_me(hand=[NS(id=sp._BOSS_ID)])
+    opp = _player(active=_pkm(900, hp=200), bench=[_pkm(901, hp=110)])
+    obs = _obs(turn=6, my_index=0, me=me, opp=opp)
+    sit = sp._compute_situation(obs)
+    hand = sit.get("hand")
+    assert hand is not None
+    sit["hand"] = replace(
+        hand, gust_target_on_opp_bench=True, gust_target_koable=True, has_boss=True,
+    )
+    plan = sit.get("turn_plan")
+    if plan is not None:
+        sit["turn_plan"] = replace(
+            plan,
+            combat=replace(
+                plan.combat,
+                attack_required=False,
+                required_before_attack=(),
+                expected_prize_delta=max(1, int(plan.combat.expected_prize_delta or 0)),
+            ),
+        )
+    play_boss = NS(type=OptionType.PLAY, index=0)
+    score = sp._boss_after_mega_hard_bonus(
+        obs, play_boss, sit, 0, sit["board"], sit["phase"], sit.get("turn_plan"),
+    )
+    assert score >= sp._DOMINATE_OPEN_PATH - 25.0 - 1e-6
+
+
+# ── Wave D: Mega clock ──────────────────────────────────────────────────────
+
+def test_wave_d_must_evolve_over_water_gun():
+    """game_143 shape: Mega in hand + watered Staryu → EVOLVE, not Water Gun."""
+    water = int(EnergyType.WATER)
+    mega = NS(id=sp._CARDS["mega_starmie_ex"])
+    me = _player(
+        active=_pkm(sp._CARDS["staryu"], energies=[water]),
+        hand=[mega, NS(id=water)],
+    )
+    # Going-second My-T2 (global turn 4, first_player=1).
+    obs = _obs(turn=4, my_index=0, me=me, opp=_player(active=_pkm(999)), first_player=1)
+    sit = sp._compute_situation(obs)
+    assert sit["board"].my_turn_number >= 2
+    assert sit["turn_plan"].facts.staryu_can_evolve
+    evolve = NS(type=OptionType.EVOLVE, area=AreaType.HAND, index=0)
+    gun = NS(type=OptionType.ATTACK, attackId=0)  # Water Gun / non-mega
+    attach = NS(
+        type=OptionType.ATTACH,
+        inPlayArea=AreaType.ACTIVE,
+        inPlayIndex=0,
+        handIndex=1,
+        index=1,
+    )
+    sit["select_options"] = [evolve, gun, attach]
+    assert sp._hard_rule_bonus(obs, evolve, sit) >= sp._DOMINATE_OPEN_PATH - 1e-6
+    assert sp._hard_rule_bonus(obs, gun, sit) <= -sp._DOMINATE_OPEN_PATH + 1e-6
+    assert sp._hard_rule_bonus(obs, attach, sit) <= -sp._DOMINATE_OPEN_PATH + 1e-6
+
+
+def test_wave_d_promote_benched_staryu_over_snorunt():
+    """game_011 shape: Snorunt Active, watered Staryu on bench → promote."""
+    water = int(EnergyType.WATER)
+    me = _player(
+        active=_pkm(sp._CARDS["snorunt"]),
+        bench=[_pkm(sp._CARDS["staryu"], energies=[water])],
+        hand=[NS(id=1123), NS(id=sp._CARDS["mega_starmie_ex"])],
+    )
+    obs = _obs(turn=3, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    switch = NS(type=OptionType.PLAY, index=0)
+    attack = NS(type=OptionType.ATTACK, attackId=0)
+    assert sp._hard_rule_bonus(obs, switch, sit) >= sp._DOMINATE_OPEN_PATH - 1e-6
+    assert sp._hard_rule_bonus(obs, attack, sit) <= -sp._DOMINATE_OPEN_PATH + 1e-6
+
+
+def test_wave_d_ban_switch_off_fueled_mega():
+    """D4: Active Mega+water must not Switch away before Jetting."""
+    me = _aggression_me(hand=[NS(id=1123)], bench=[_pkm(sp._MUNKIDORI_ID)])
+    opp = _player(active=_pkm(999))
+    obs = _obs(turn=5, my_index=0, me=me, opp=opp)
+    sit = sp._compute_situation(obs)
+    switch = NS(type=OptionType.PLAY, index=0)
+    # must_attack_closeout / mega_clock both demote Switch off fueled Mega.
+    assert sp._hard_rule_bonus(obs, switch, sit) <= -sp._DOMINATE_OPEN_PATH + 1e-6
+
+
+def test_wave_d_opening_ban_munk_to_active_select():
+    """OPENING without Mega secured: do not select Munk into Active."""
+    from cg.api import SelectContext
+
+    me = _player(
+        active=_pkm(sp._CARDS["staryu"]),
+        bench=[_pkm(sp._MUNKIDORI_ID)],
+        hand=[NS(id=1123)],
+    )
+    obs = _obs(turn=2, my_index=0, me=me, opp=_player(active=_pkm(999)), first_player=1)
+    obs.select = NS(context=int(SelectContext.SWITCH), deck=[])
+    sit = sp._compute_situation(obs)
+    pick_munk = NS(
+        type=OptionType.CARD, area=AreaType.BENCH, index=0, playerIndex=0,
+    )
+    assert sp._hard_rule_bonus(obs, pick_munk, sit) <= -sp._DOMINATE_OPEN_PATH + 1e-6
+
+
 if __name__ == "__main__":
     import traceback
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
