@@ -107,9 +107,9 @@ def test_hilda_priority_ready_locks_mega():
 
 def test_hilda_priority_not_ready_demotes_mega():
     prio = hilda_evolution_priority(mega_ready=False)
-    assert prio[0] != MEGA_STARMIE
-    assert prio[-1] == MEGA_STARMIE
-    assert MEGA_FROSLASS in prio
+    assert prio[0] not in (MEGA_STARMIE, MEGA_FROSLASS)
+    assert prio[-1] == MEGA_FROSLASS
+    assert MEGA_STARMIE in prio
 
 
 def test_mega_ready_predicate_hand_water():

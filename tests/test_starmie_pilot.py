@@ -641,10 +641,15 @@ def test_harvest_h1_evolve_861():
     fro = _pkm(sp._CARDS["froslass"])
     mega = NS(id=sp._CARDS["mega_froslass_ex"])
     me = _player(active=fro, bench=[_pkm(sp._CARDS["snorunt"])], hand=[mega])
-    opp = _player(active=_pkm(999))
+    # Fat hand + 2-prize Active → expected Froslass prizes ≥ 2 (Wave F gate).
+    opp_active = _pkm(999, hp=200)
+    opp_active.ex = True
+    opp_active.prizeValue = 2
+    opp = _player(active=opp_active, hand_n=5)
     obs = _obs(turn=7, my_index=0, me=me, opp=opp)
     sit = sp._compute_situation(obs)
     assert sit["phase"].primary == "HARVEST"
+    assert sit["turn_plan"].combat.froslass_build_allowed
     opt = NS(type=OptionType.EVOLVE, area=AreaType.ACTIVE, index=0)
     assert sp._hard_rule_bonus(obs, opt, sit) >= sp._DOMINATE
 

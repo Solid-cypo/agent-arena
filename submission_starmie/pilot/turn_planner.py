@@ -34,16 +34,23 @@ from opening_cards import (
     SWITCH,
     ULTRA_BALL,
     WATER_BASIC,
+    LILLIE,
+    SALVATOR,
     can_retreat_pokemon,
     ENERGY_IDS,
     hilda_evolution_priority,
     mega_ready_to_land,
     retreat_cost_for,
+    two_turn_mega_path_ok,
 )
 from opponent_roles import (
+    ARCHALUDON_LINE_IDS,
     is_attack_damage_protected,
     opponent_role,
 )
+
+# Budew Itchy Pollen — sole basic-attack exception while stalling.
+_ATK_ITCHY_POLLEN = 323
 
 Objective = Literal["MAKE_ATTACKER", "ATTACK", "BUILD_DP", "SECOND_ATTACKER", "DRAW"]
 CombatMode = Literal["MEGA_MUST_ATTACK", "DOUBLE_KO", "FROSLASS_ATTACK", "NONE"]
@@ -135,6 +142,11 @@ class TurnFacts:
     opp_hand_count: int
     opp_active: OppTarget | None
     opp_bench: tuple[OppTarget, ...]
+    # Matchup / public-board gates (expert F3).
+    opp_archaludon_threat: bool = False
+    opp_munk_dp_online: bool = False
+    ban_froslass_line: bool = False
+    two_turn_mega_path: bool = False
 
 
 @dataclass(frozen=True)
@@ -286,6 +298,49 @@ def build_turn_facts(
     stadium_ids = _cards(getattr(obs.current, "stadium", None))
     risky_ruins_online = RISKY_RUINS in stadium_ids
 
+    opp_field = tuple(
+        p
+        for p in (
+            tuple(x for x in (opp.active or []) if x)
+            + tuple(x for x in (opp.bench or []) if x)
+        )
+    )
+    opp_field_card_ids = frozenset(_si(getattr(p, "id", None)) for p in opp_field)
+    opp_archaludon_threat = bool(opp_field_card_ids & ARCHALUDON_LINE_IDS)
+    opp_has_munk = MUNKIDORI in opp_field_card_ids
+    opp_munk_has_dark = any(
+        _si(getattr(p, "id", None)) == MUNKIDORI and _has_energy(p, _DARK_IDS)
+        for p in opp_field
+    )
+    opp_has_placer = bool(
+        opp_field_card_ids & {FROSLASS, MEGA_FROSLASS}
+    ) or risky_ruins_online
+    opp_munk_dp_online = opp_has_munk and (opp_munk_has_dark or opp_has_placer)
+    ban_froslass_line = bool(
+        matchup == "alakazam"
+        or opp_archaludon_threat
+        or opp_munk_dp_online
+    )
+    two_turn_mega = two_turn_mega_path_ok(
+        staryu_on_field=STARYU in {
+            _si(getattr(p, "id", None)) for p in field
+        },
+        mega_starmie_on_field=MEGA_STARMIE in {
+            _si(getattr(p, "id", None)) for p in field
+        },
+        staryu_can_evolve=any(
+            _si(getattr(p, "id", None)) == STARYU and can_evolve_now(p)
+            for p in field
+        ),
+        line_has_water=any(
+            _si(getattr(p, "id", None)) in (STARYU, MEGA_STARMIE)
+            and _has_energy(p, _WATER_IDS)
+            for p in field
+        ),
+        hand_ids=hand_ids,
+        supporter_played=bool(getattr(me, "supporterPlayed", False)),
+    )
+
     # Reserve spaces for roles that are not yet represented.  This is a budget,
     # not a demand to fill every role.
     reserve = 0
@@ -294,9 +349,11 @@ def build_turn_facts(
         reserve += 1
     if MUNKIDORI not in field_ids:
         reserve += 1
-    if not ({SNORUNT, FROSLASS, MEGA_FROSLASS} & field_ids):
+    if not ban_froslass_line and not ({SNORUNT, FROSLASS, MEGA_FROSLASS} & field_ids):
         reserve += 1
-    if MEGA_STARMIE in field_ids and not ({SNORUNT, MEGA_FROSLASS} & field_ids):
+    if MEGA_STARMIE in field_ids and not ban_froslass_line and not (
+        {SNORUNT, MEGA_FROSLASS} & field_ids
+    ):
         reserve += 1
     bench_open = max(0, 5 - len(bench))
 
@@ -351,6 +408,10 @@ def build_turn_facts(
         ),
         opp_active=opp_active,
         opp_bench=opp_bench,
+        opp_archaludon_threat=opp_archaludon_threat,
+        opp_munk_dp_online=opp_munk_dp_online,
+        ban_froslass_line=ban_froslass_line,
+        two_turn_mega_path=two_turn_mega,
     )
 
 
@@ -366,13 +427,22 @@ def _turn_gap(facts: TurnFacts) -> TurnGap:
     elif not facts.munkidori_has_dark:
         dp.append("DARK_ENERGY")
     if not facts.damage_placer_online:
-        dp.append("DAMAGE_PLACER")
+        # Ban chasing 104/861 vs Archaludon / Alak / opp Munk-DP; prefer ruins.
+        if facts.ban_froslass_line:
+            if not facts.risky_ruins_online:
+                dp.append("DAMAGE_PLACER")
+        else:
+            dp.append("DAMAGE_PLACER")
     return TurnGap(
         need_base=need_base,
         need_evolution=need_evolution,
         need_energy=need_energy,
         dp_gaps=tuple(dp),
-        need_second_attacker=facts.mega_starmie_on_field and not facts.mega_froslass_on_field,
+        need_second_attacker=(
+            facts.mega_starmie_on_field
+            and not facts.mega_froslass_on_field
+            and not facts.ban_froslass_line
+        ),
     )
 
 
@@ -552,7 +622,8 @@ def _dp_prep_steps(facts: TurnFacts) -> list[str]:
     """Small, bounded DP actions that never replace the mandatory attack."""
     required: list[str] = []
     if (
-        facts.snorunt_can_evolve
+        not facts.ban_froslass_line
+        and facts.snorunt_can_evolve
         and FROSLASS in facts.hand_ids
         and not facts.damage_placer_online
     ):
@@ -571,14 +642,29 @@ def _dp_prep_steps(facts: TurnFacts) -> list[str]:
 
 def _combat_plan(facts: TurnFacts) -> CombatPlan:
     expected_f = _expected_froslass_prizes(facts)
-    froslass_exception = (
-        expected_f >= facts.prize_self
+    starmie_can_attack = (
+        (facts.active_ready_mega and facts.active_id == MEGA_STARMIE)
         or (
-            not facts.mega_starmie_on_field
-            and (facts.mega_froslass_on_field or facts.snorunt_on_field)
+            facts.bench_ready_mega_id == MEGA_STARMIE
+            and facts.can_dispatch_bench_mega
         )
     )
-    froslass_allowed = expected_f >= 2 or froslass_exception
+    froslass_can_attack = (
+        (facts.active_ready_mega and facts.active_id == MEGA_FROSLASS)
+        or (
+            facts.bench_ready_mega_id == MEGA_FROSLASS
+            and facts.can_dispatch_bench_mega
+        )
+    )
+    # Expert C2: only lethal clear OR 861 is the sole attackable Mega.
+    froslass_exception = (
+        expected_f >= facts.prize_self
+        or (froslass_can_attack and not starmie_can_attack)
+    )
+    froslass_allowed = (
+        not facts.ban_froslass_line
+        and (expected_f >= 2 or froslass_exception)
+    )
 
     if facts.active_ready_mega and facts.active_id == MEGA_STARMIE:
         rider, boss_raw = _double_ko(facts)
@@ -737,6 +823,8 @@ def _acquire_targets(facts: TurnFacts, gap: TurnGap, objective: Objective) -> tu
         if not hand.intersection(_WATER_IDS):
             out.append(WATER_BASIC)
         for cid in hilda_evolution_priority(mega_ready=False):
+            if facts.ban_froslass_line and cid in (MEGA_FROSLASS, FROSLASS):
+                continue
             if cid not in hand and cid not in out:
                 out.append(cid)
         return tuple(out) if out else (MEGA_STARMIE,)
@@ -788,7 +876,14 @@ def _acquire_targets(facts: TurnFacts, gap: TurnGap, objective: Objective) -> tu
                     continue
                 order.append(DARK_BASIC)
             elif g == "DAMAGE_PLACER":
-                if RISKY_RUINS in hand or FROSLASS in hand:
+                if RISKY_RUINS in hand:
+                    continue
+                # F3: never chase 104/Snorunt when froslass line is banned.
+                if facts.ban_froslass_line:
+                    if RISKY_RUINS not in hand:
+                        order.append(RISKY_RUINS)
+                    continue
+                if FROSLASS in hand:
                     continue
                 if facts.snorunt_on_field:
                     order.append(FROSLASS)
@@ -799,7 +894,7 @@ def _acquire_targets(facts: TurnFacts, gap: TurnGap, objective: Objective) -> tu
         if order:
             return tuple(dict.fromkeys(order))
 
-    if gap.need_second_attacker:
+    if gap.need_second_attacker and not facts.ban_froslass_line:
         if not facts.snorunt_on_field and SNORUNT not in hand:
             return (SNORUNT, MEGA_FROSLASS)
         if MEGA_FROSLASS not in hand:
@@ -917,12 +1012,33 @@ def _draw_plan(facts: TurnFacts, gap: TurnGap, combat: CombatPlan) -> DrawPlan:
         and any(cid in _WATER_IDS for cid in facts.hand_ids)
     )
     bad_hand = only_single_gap or evolution_energy_no_base
-    allow_draw = not combat.attack_required and bad_hand
+    path_open = gap.need_base or gap.need_evolution or gap.need_energy
+    mega_in_hand = MEGA_STARMIE in facts.hand_ids
+    # HOLD only when Mega is already held and can land — never block Lillie dig for Mega.
+    ready_land = mega_in_hand and (
+        facts.two_turn_mega_path
+        or mega_ready_to_land(
+            staryu_on_field=facts.staryu_on_field,
+            mega_starmie_on_field=facts.mega_starmie_on_field,
+            line_has_water=facts.line_has_water,
+            hand_ids=facts.hand_ids,
+            supporter_played=facts.supporter_played,
+        )
+    )
+    # F4: HOLD while held Mega can land; structured bad hands may still dig.
+    if combat.attack_required or ready_land:
+        allow_draw = False
+        reason = "attack/mega-land path owns the turn"
+    elif path_open and not bad_hand:
+        allow_draw = False
+        reason = "MAKE_ATTACKER gap still open"
+    else:
+        allow_draw = bad_hand
+        reason = "structured single-gap bad hand" if allow_draw else (
+            "hand preserves a live path"
+        )
     first = duns_count == 0 and facts.bench_open > 0 and not gap.need_base
     second = duns_count == 1 and facts.bench_budget > 0
-    reason = "structured single-gap bad hand" if allow_draw else (
-        "attack turn" if combat.attack_required else "hand preserves a live path"
-    )
     return DrawPlan(allow_draw, first, second, reason)
 
 
@@ -973,14 +1089,19 @@ def build_turn_plan(
     if combat.attack_required:
         forbidden.extend(("END", "BASIC_ATTACK"))
         reasons.append("a ready Mega must attack this turn")
+    elif _ban_basic_attack(objective, combat, facts):
+        forbidden.append("BASIC_ATTACK")
+        reasons.append("basic attacks banned while building/landing Mega")
     if not combat.froslass_build_allowed:
         forbidden.append("BUILD_861")
-        reasons.append("Mega Froslass attack is projected below two prizes")
+        reasons.append("Mega Froslass build gated (prizes/matchup)")
     if not acquire.ball_allowed:
         forbidden.append("ULTRA_BALL")
         reasons.append(acquire.ball_reason)
     if force_draw:
         reasons.append(f"n_missing_types={n_miss}≥3 → prioritize dig")
+    if facts.two_turn_mega_path:
+        reasons.append("two_turn_mega_path live")
     return TurnPlan(
         facts=facts,
         gap=gap,
@@ -994,5 +1115,51 @@ def build_turn_plan(
     )
 
 
-def is_basic_attack_forbidden(card_id: int, plan: TurnPlan) -> bool:
-    return plan.combat.attack_required and card_id in _BASIC_ATTACK_BAN
+def _ban_basic_attack(
+    objective: Objective,
+    combat: CombatPlan,
+    facts: TurnFacts,
+) -> bool:
+    if combat.attack_required:
+        return True
+    mega_in_hand = MEGA_STARMIE in facts.hand_ids
+    # Legal Mega evolve / land window — never Water Gun.
+    if mega_in_hand and facts.staryu_on_field and facts.staryu_can_evolve:
+        return True
+    if mega_in_hand and facts.two_turn_mega_path:
+        return True
+    if mega_in_hand and mega_ready_to_land(
+        staryu_on_field=facts.staryu_on_field,
+        mega_starmie_on_field=facts.mega_starmie_on_field,
+        line_has_water=facts.line_has_water,
+        hand_ids=facts.hand_ids,
+        supporter_played=facts.supporter_played,
+    ):
+        return True
+    # MAKE_ATTACKER: ban base attacks only when a dig/setup tool is actually in hand.
+    if objective == "MAKE_ATTACKER" and any(
+        cid in facts.hand_ids
+        for cid in (SALVATOR, HILDA, CRISPIN, ULTRA_BALL, POFFIN, LILLIE, MEGA_STARMIE)
+    ):
+        return True
+    return False
+
+
+def is_basic_attack_forbidden(
+    card_id: int,
+    plan: TurnPlan,
+    *,
+    attack_id: int | None = None,
+) -> bool:
+    """Ban basic attacks per expert C1; sole exception = Budew Itchy stall."""
+    if card_id not in _BASIC_ATTACK_BAN:
+        return False
+    if not _ban_basic_attack(plan.objective, plan.combat, plan.facts):
+        return False
+    if (
+        card_id == BUDEW
+        and not plan.combat.attack_required
+        and attack_id == _ATK_ITCHY_POLLEN
+    ):
+        return False
+    return True

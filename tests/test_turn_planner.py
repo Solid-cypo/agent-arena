@@ -387,8 +387,16 @@ def test_froslass_two_prize_gate_and_exceptions():
     terminal_me = _player(active=_pkm(MEGA_STARMIE), prizes=1)
     assert _plan(terminal_me, one_prize).combat.froslass_build_allowed
 
+    # Wave F: Snorunt alone no longer unlocks BUILD_861 when expected_f < 2.
     unique_line = _player(active=_pkm(104), bench=(_pkm(860),))
-    assert _plan(unique_line, one_prize).combat.froslass_build_allowed
+    assert not _plan(unique_line, one_prize).combat.froslass_build_allowed
+
+    # Sole attackable Mega is fueled 861 → exception allows build/attack path.
+    only_861 = _player(
+        active=_pkm(MEGA_FROSLASS, energies=(WATER_BASIC,)),
+        prizes=6,
+    )
+    assert _plan(only_861, one_prize).combat.froslass_build_allowed
 
 
 def test_dunsparce_budget_and_bad_hand_draw_gate():

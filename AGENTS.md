@@ -9,20 +9,20 @@
 ## 当前状态（每次会话结束时更新此节）
 
 - **更新日期**：2026-08-04
-- **线上提交**：仍以 `55209165` / must-attack 包为基线；本机已叠 **Wave D（Mega 时钟）+ Wave E（Mega 落地门控）**
+- **线上提交**：仍以 `55209165` / must-attack 包为基线；本机已叠 **Wave D/E + Wave F 专家全对齐**
 - **对照**：baseline `/tmp/baseline_55202093_f07e541`（≈ `f07e541`）
 - **卡组**：`data/decks/starmie_froslass.csv` — 3×海星星、无 306、5 水 + 3 恶
-- **本包内容**：
-  - Wave D：合法 Mega 必进化；错前场抬有水/可进化海星；G2 窄开 UB；有水 Mega Active 禁切走（`_mega_clock_hard_bonus`）
-  - Wave E：`mega_ready_to_land` / `water_path_ok` / `hilda_evolution_priority`；Lillie 仅 ready 抽 Mega（`DR-MEGA-LAND`）；Hilda ready 锁 1031
-  - 修复：`staryu_seat_protected` 不再用裸 `staryu_can_evolve`（避免误杀后手含羞苞）
-  - 审计脚本：`scripts/h2h_loss_audit.py` + `engine_log_metrics.py` + `summarize_engine_audit.py`
+- **本包内容（Wave F）**：
+  - 底座攻禁令：手握可落地 Mega / MAKE_ATTACKER 有挖牌工具时禁 Water Gun（含羞苞 Itchy 例外）
+  - 收紧 `froslass_exception`（删 Snorunt 豁免）；铝钢/胡地/对手愿增猿 DP → `ban_froslass_line`
+  - 侧基础 demote；Hilda 未 ready 861 垫底；DrawPlan 单源 HOLD（仅手握可落地 Mega）
+  - 保留 Wave D/E Mega 时钟 + 落地门控
 - **本地回归**：
-  - 单测核心：`test_mega_land_gate` + pilot + turn_plan + budew + engine_metrics → **122 passed**
-  - H2H n=200 seed140000：`logs/h2h_audit_waveE_land_gate_n200_s140000/` → **WR 49.5%**；`no_mega` 桶约 30%
-  - BC 4×20（Wave E）：约 **75%**（`logs/combat_eval_waveE_land_gate_bc_4x20/`）
-- **下一刀**：压侧基础 / 收紧 861 `froslass_exception`；缺 Mega 时 Salvator/Hilda/UB 压 Water Gun；底座攻禁令扩到「做打手阶段」
-- **磁盘**：约 59%；**未 commit 工作区曾再丢**，改规则务必立刻 commit
+  - 单测：`test_expert_align_wave_f` + mega_land + pilot + turn_plan + budew → **124 passed**
+  - H2H n=200 seed140000：`logs/h2h_audit_waveF_expert_align_n200_s140000/` → **WR 52.0%**（Wave E 49.5%）；fast_mega **61.9%**
+  - BC 4×20 seed93000：约 **70%**（Alak 55｜Lucario 60｜Marnie 65｜Dragapult 100）；`logs/combat_eval_waveF_expert_align_bc_4x20/`
+- **下一刀**：压 `wrong_play_side_basic` / `miss_ub_mega`；seat B（41%）；`base_attack_with_ready_mega` 残余=2
+- **磁盘**：约 59%；改规则务必立刻 commit
 - **指标文档**：`references/rulebook/METRICS-CombatV1_20260801.md`｜`TURN_PLAN_POLICY_20260802.md`｜`ULTRA_BALL_POLICY_20260801.md`
 
 ---

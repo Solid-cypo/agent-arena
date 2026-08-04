@@ -82,7 +82,17 @@ OPPONENT_ROLES: dict[int, OpponentRoleProfile] = {
     941: _p("MAIN_ATTACKER_BASE", "WALREIN", 72, 100),  # Spheal
     942: _p("MAIN_ATTACKER_STAGE", "WALREIN", 82, 72),
     943: _p("MAIN_ATTACKER", "WALREIN", 100, 30),
+    # Archaludon / Duraludon (expert: never build Mega Froslass into this matchup)
+    169: _p("MAIN_ATTACKER_BASE", "ARCHALUDON", 72, 100),  # Duraludon
+    170: _p("MAIN_ATTACKER", "ARCHALUDON", 96, 35),
+    190: _p("MAIN_ATTACKER", "ARCHALUDON", 100, 30),  # Archaludon ex
+    839: _p("MAIN_ATTACKER_BASE", "ARCHALUDON", 72, 100),
+    840: _p("MAIN_ATTACKER", "ARCHALUDON", 96, 35),
+    992: _p("MAIN_ATTACKER_BASE", "ARCHALUDON", 70, 95),
 }
+
+# Public-card IDs that confirm an Archaludon/Duraludon line.
+ARCHALUDON_LINE_IDS = frozenset({169, 170, 190, 839, 840, 992})
 
 # Optional sticky matchup boosts layered on the card table.  Keys are card ids.
 _MATCHUP_OVERRIDES: dict[str, dict[int, tuple[int, int]]] = {

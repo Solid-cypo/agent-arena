@@ -92,9 +92,9 @@ HILDA_EVOLUTION_IDS = frozenset({MEGA_STARMIE, MEGA_FROSLASS, FROSLASS, DUDUNSPA
 HILDA_EVOLUTION_PRIORITY = (
     MEGA_STARMIE, MEGA_FROSLASS, FROSLASS, DUDUNSPARCE, DUDUNSPARCE_EX,
 )
-# When mega_ready_to_land is false: dig non-Mega first; Mega only as fallback.
+# When mega_ready_to_land is false: dig non-Mega first; 861 last (never above water/path).
 HILDA_EVOLUTION_PRIORITY_NOT_READY = (
-    MEGA_FROSLASS, FROSLASS, DUDUNSPARCE, DUDUNSPARCE_EX, MEGA_STARMIE,
+    FROSLASS, DUDUNSPARCE, DUDUNSPARCE_EX, MEGA_STARMIE, MEGA_FROSLASS,
 )
 
 _WATER_FETCH_SUPPORTERS = frozenset({HILDA, CRISPIN})
@@ -143,6 +143,28 @@ def hilda_evolution_priority(*, mega_ready: bool) -> tuple[int, ...]:
     if mega_ready:
         return HILDA_EVOLUTION_PRIORITY
     return HILDA_EVOLUTION_PRIORITY_NOT_READY
+
+
+def two_turn_mega_path_ok(
+    *,
+    staryu_on_field: bool,
+    mega_starmie_on_field: bool,
+    staryu_can_evolve: bool,
+    line_has_water: bool,
+    hand_ids: list[int] | tuple[int, ...] | set[int] | frozenset[int],
+    supporter_played: bool,
+) -> bool:
+    """Mega is in hand and base+water can land it this or next turn."""
+    if mega_starmie_on_field or not staryu_on_field:
+        return False
+    if MEGA_STARMIE not in set(hand_ids):
+        return False
+    return water_path_ok(
+        line_has_water=line_has_water,
+        hand_ids=hand_ids,
+        supporter_played=supporter_played,
+    )
+
 
 # Retreat cost in {C} energy cards required to retreat (card_db retreatCost).
 # DUNSPARCE_A (65) is free retreat; DUNSPARCE_B (305) costs 1.

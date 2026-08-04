@@ -380,15 +380,25 @@ def _froslass_line_worth(obs, my_index: int, board, sit: dict[str, Any]) -> bool
     Absolute Snow (150) counts as advancing if it can KO the opp Active.
     Unfair Stamp is NOT a buff — it shrinks opp hand (draw 2).
     """
+    plan = sit.get("turn_plan")
+    if plan is not None and not plan.combat.froslass_build_allowed:
+        # Still allow when 861 is the sole attackable Mega (exception inside plan).
+        if "BUILD_861" in plan.forbidden_actions and not (
+            plan.facts.active_ready_mega and plan.facts.active_id == _CARDS["mega_froslass_ex"]
+        ):
+            return False
     opp_hand = int(sit.get("opp_hand_count") or 0)
     if _resentful_worthless(opp_hand):
         return False
-    plan = sit.get("turn_plan")
     if plan is not None:
         try:
             from turn_planner import _expected_froslass_prizes
 
             if _expected_froslass_prizes(plan.facts) >= 2:
+                return True
+            if plan.combat.froslass_build_allowed and plan.facts.active_id == _CARDS[
+                "mega_froslass_ex"
+            ]:
                 return True
         except Exception:
             pass
@@ -1555,6 +1565,21 @@ def _going_second_budew_bonus(obs, option, sit: dict[str, Any]) -> float:
         plan.facts.active_ready_mega or plan.facts.can_dispatch_bench_mega
     ):
         return 0.0
+    # Wave F: only yield GS Budew when Mega is held and can land (not bare water path).
+    if plan is not None and _OC_MEGA_STARMIE in plan.facts.hand_ids:
+        try:
+            from opening_cards import mega_ready_to_land as _mrtl
+
+            if plan.facts.two_turn_mega_path or _mrtl(
+                staryu_on_field=plan.facts.staryu_on_field,
+                mega_starmie_on_field=plan.facts.mega_starmie_on_field,
+                line_has_water=plan.facts.line_has_water,
+                hand_ids=plan.facts.hand_ids,
+                supporter_played=plan.facts.supporter_played,
+            ):
+                return 0.0
+        except Exception:
+            pass
     if sit.get("mega_ready") and bool(getattr(board, "mega_starmie_on_field", False)):
         return 0.0
 
@@ -2072,6 +2097,7 @@ def _compute_situation(
             dunsparce_on_bench_can_evolve=dun_evolve,
             dudunsparce_66_on_bench=d66_bench,
             mega_starmie_hp_low=hp_low,
+            turn_plan=sit["turn_plan"],
         )
         if phase.primary == "OPENING":
             sit["opening_route"] = compute_opening_route(
@@ -2587,6 +2613,8 @@ def _mega_clock_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
         and active_id != _OC_MEGA_STARMIE
         and not bool(getattr(board, "active_is_mega_starmie", False))
     )
+    # F1c: intentional Dunsparce Active when no Mega-line Staryu to promote —
+    # need_promote_staryu is already false (bench_line is None). Keep Active.
     active_is_staryu_line = active_id in (_OC_STARYU, _OC_MEGA_STARMIE)
 
     # D1 — legal Mega evolve owns the turn (Active Staryu line).
@@ -3279,7 +3307,9 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
                 if attack_id in (_ATK_RESENTFUL, _ATK_ABS_SNOW):
                     return _DOMINATE_OPEN_PATH
                 return -_DOMINATE
-            if is_basic_attack_forbidden(plan.facts.active_id, plan):
+            if is_basic_attack_forbidden(
+                plan.facts.active_id, plan, attack_id=attack_id,
+            ):
                 opp = plan.facts.opp_active
                 direct_win = bool(
                     opp
@@ -3336,7 +3366,10 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
         if option.type == OptionType.END:
             return -_DOMINATE_OPEN_PATH
         if option.type == OptionType.ATTACK:
-            if is_basic_attack_forbidden(plan.facts.active_id, plan):
+            attack_id = _attack_id(option)
+            if is_basic_attack_forbidden(
+                plan.facts.active_id, plan, attack_id=attack_id,
+            ):
                 opp = plan.facts.opp_active
                 direct_win = bool(
                     opp
@@ -3353,6 +3386,35 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
             OptionType.RETREAT,
         ):
             return -_DOMINATE_OPEN_PATH
+
+    # F1a/F2b: ban basic attacks while MAKE_ATTACKER / mega-land path (non-must-attack).
+    if option.type == OptionType.ATTACK:
+        attack_id = _attack_id(option)
+        if is_basic_attack_forbidden(
+            plan.facts.active_id, plan, attack_id=attack_id,
+        ):
+            return -_DOMINATE_OPEN_PATH
+
+    # F2a/F2b: side-basic demote + dig supporters while MAKE_ATTACKER.
+    if plan.objective == "MAKE_ATTACKER" and not plan.facts.mega_starmie_on_field:
+        if option.type == OptionType.PLAY:
+            cid = _hand_card_id(obs, option, mi)
+            # Dig / land tools beat Water Gun and side basics.
+            if cid in (SALVATOR, HILDA, CRISPIN) and not plan.facts.supporter_played:
+                return _DOMINATE_OPEN
+            if cid == _OC_ULTRA_BALL and plan.acquire.ball_allowed:
+                return _DOMINATE_OPEN
+            if cid in (_OC_MUNKIDORI, _OC_SNORUNT):
+                # Allow seating Munk/Snorunt only after Staryu line is online.
+                if not plan.facts.staryu_on_field:
+                    return -_DOMINATE_OPEN_PATH
+            if cid in (DUNSPARCE_A, DUNSPARCE_B):
+                duns_n = sum(
+                    x in (DUNSPARCE_A, DUNSPARCE_B, _CARDS["dudunsparce"])
+                    for x in (plan.facts.bench_ids + (plan.facts.active_id,))
+                )
+                if duns_n >= 1 or plan.gap.need_base:
+                    return -_DOMINATE_OPEN_PATH
 
     # Gap-driven search source and Ultra Ball gate (non-must-attack turns).
     if option.type == OptionType.PLAY:

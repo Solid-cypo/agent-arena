@@ -120,7 +120,19 @@ def pick_draw_axis_action(
     dunsparce_on_bench_can_evolve: bool = False,
     dudunsparce_66_on_bench: bool = False,
     mega_starmie_hp_low: bool = False,
+    turn_plan: object | None = None,
 ) -> DrawAxisDecision | None:
+    # F4: TurnPlan DrawPlan is the single authority — HOLD → FORBID cycle.
+    if turn_plan is not None:
+        draw = getattr(turn_plan, "draw", None)
+        if draw is not None and not bool(getattr(draw, "allow_run_away_draw", False)):
+            return DrawAxisDecision(
+                action="FORBID",
+                rule_id="TP-DRAW-HOLD",
+                priority=0.0,
+                reason=f"TurnPlan holds draw ({getattr(draw, 'reason', '')})",
+            )
+
     forbidden, forbid_id = should_forbid_cycle(
         board, phase, hand, resources, on_bench_66=dudunsparce_66_on_bench,
     )
