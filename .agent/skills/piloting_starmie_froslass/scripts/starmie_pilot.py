@@ -2744,8 +2744,8 @@ def _mega_clock_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
                     if pkm and _si(getattr(pkm, "id", None)) != _OC_MEGA_STARMIE:
                         return -_DOMINATE_OPEN_PATH
 
-    # H3: fueled bench Mega — PATH Switch/Retreat/TO_ACTIVE (no ATTACK/END demote;
-    # hard demotes regressed seat B in Wave H trials).
+    # H3: fueled bench Mega — PATH Switch/Retreat/TO_ACTIVE (no END demote).
+    # I3: when a cut is live, demote base ATTACK so BC base_attack KPI clears.
     if (
         plan is not None
         and getattr(plan.facts, "can_dispatch_bench_mega", False)
@@ -2756,6 +2756,7 @@ def _mega_clock_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
             and not _starmie_promote_over_froslass(obs, mi, board, sit)
         )
     ):
+        can_cut = _hand_has_id(obs, mi, _OC_SWITCH) or _active_can_retreat(obs, mi)
         if option.type == OptionType.PLAY and _hand_card_id(obs, option, mi) == _OC_SWITCH:
             return _DOMINATE_OPEN_PATH
         if option.type == OptionType.RETREAT and _active_can_retreat(obs, mi):
@@ -2773,6 +2774,15 @@ def _mega_clock_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
                     )
                     if pkm and _si(getattr(pkm, "id", None)) == _OC_MEGA_STARMIE:
                         return _DOMINATE_OPEN_PATH
+                    return -_DOMINATE_OPEN_PATH
+        # I3: only demote ATTACK when cut exists — never blanket-ban Itchy stalls.
+        if can_cut and option.type == OptionType.ATTACK:
+            if not (
+                active_id == _BUDEW_ID
+                and _attack_id(option) == _ATK_ITCHY_POLLEN
+                and not getattr(plan.facts, "bench_ready_mega_id", None)
+            ):
+                return -_DOMINATE_OPEN_PATH
 
     return 0.0
 
@@ -3492,7 +3502,29 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
         if cid == _OC_ULTRA_BALL and plan.acquire.ball_allowed:
             return _DOMINATE_OPEN_PATH
 
-    # F2a/F2b + G2 demote; H2 first-player Meowth demote only.
+    # I1: going-second My-T2+ — demote side basics while Mega gap / evolve window.
+    # Hard gate: never touch gs_t1 (Budew Itchy window).
+    gs_t2p = bool(
+        board is not None
+        and _going_second(board)
+        and int(getattr(board, "my_turn_number", 0) or 0) >= 2
+    )
+    mega_held = _OC_MEGA_STARMIE in plan.facts.hand_ids
+    mega_line_pressure = bool(
+        need_mega
+        or (mega_held and plan.facts.staryu_on_field)
+        or plan.gap.need_evolution
+    )
+
+    # I2: legal Mega evolve — PATH (belt; mega_clock also covers this).
+    if (
+        option.type == OptionType.EVOLVE
+        and _evolve_to_mega_starmie(obs, option, mi)
+        and plan.facts.staryu_can_evolve
+    ):
+        return _DOMINATE_OPEN_PATH
+
+    # F2a/F2b + G2 demote; H2 first-player Meowth; I1 GS My-T2+ side demote.
     if plan.objective == "MAKE_ATTACKER" and not plan.facts.mega_starmie_on_field:
         if option.type == OptionType.PLAY:
             cid = _hand_card_id(obs, option, mi)
@@ -3505,6 +3537,12 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
                     return -_DOMINATE_OPEN_PATH
             if going_first and cid == _OC_MEOWTH_EX and (need_base or need_mega):
                 return -_DOMINATE_OPEN_PATH
+            # I1: after GS My-T1, stop parking Snorunt/Budew/Meowth/Boss over Mega line.
+            if gs_t2p and mega_line_pressure:
+                if cid in (_OC_SNORUNT, _OC_MEOWTH_EX, _BUDEW_ID):
+                    return -_DOMINATE_OPEN_PATH
+                if cid == _OC_BOSS and (need_mega or mega_held):
+                    return -_DOMINATE_OPEN_PATH
             if cid in (DUNSPARCE_A, DUNSPARCE_B):
                 duns_n = sum(
                     x in (DUNSPARCE_A, DUNSPARCE_B, _CARDS["dudunsparce"])
@@ -3521,6 +3559,22 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
                 cid = _card_option_id(obs, option, mi)
                 if cid in (_OC_MUNKIDORI, _OC_SNORUNT, _BUDEW_ID):
                     return -_DOMINATE_OPEN_PATH
+                if gs_t2p and cid == _OC_MEOWTH_EX:
+                    return -_DOMINATE_OPEN_PATH
+            # I2: need Mega — demote TO_HAND picks that are side-line (Froslass/Snorunt).
+            if ctx in (
+                int(SelectContext.TO_HAND),
+                int(SelectContext.TO_FIELD),
+            ):
+                cid = _card_option_id(obs, option, mi)
+                if cid in (
+                    _OC_SNORUNT,
+                    _OC_FROSLASS,
+                    _CARDS.get("mega_froslass_ex", -2),
+                ):
+                    return -_DOMINATE_OPEN_PATH
+                if cid == _OC_MEGA_STARMIE:
+                    return _DOMINATE_OPEN_PATH
 
     # Gap-driven search source and Ultra Ball gate (non-must-attack turns).
     if option.type == OptionType.PLAY:
@@ -4898,8 +4952,18 @@ def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None)
                             rl_min_votes = int(os.environ.get("RL_MIN_VOTES", "2"))
                             rl_ranked = os.environ.get("RL_RANKED", "1") != "0"
                             rl_k = int(os.environ.get("RL_K", "4"))
+                            # Wave I0: pin RL RNG from GAME_SEED when H2H/eval sets it.
+                            rl_rng = None
+                            _gs = os.environ.get("GAME_SEED", "").strip()
+                            if _gs:
+                                try:
+                                    import numpy as _np
+
+                                    rl_rng = _np.random.default_rng(int(_gs))
+                                except Exception:
+                                    rl_rng = None
                             rl_idx, rl_conf = prop.propose(
-                                obs, options, view, mi, k=rl_k, rng=None,
+                                obs, options, view, mi, k=rl_k, rng=rl_rng,
                                 min_votes=rl_min_votes, ranked=rl_ranked,
                             )
                             rl_kind = prop.last_action[0] if prop.last_action else "?"
@@ -5049,35 +5113,41 @@ def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None)
 _LIVE_AGENT_STATE: dict[str, Any] | None = None
 
 
+def reset_agent_state(agent_state: dict[str, Any] | None) -> None:
+    """Reset per-game flags on a specific agent_state (H2H dual-agent safe)."""
+    if agent_state is None:
+        return
+    agent_state["opening_complete_this_game"] = False
+    agent_state["max_my_turn"] = 0
+    agent_state["final_board"] = None
+    agent_state["mega_on_field_by_my_turn_4"] = False
+    agent_state["mega_on_field_by_my_turn_3"] = False
+    agent_state["mega_first_seen_my_turn"] = None
+    agent_state["staryu_on_field_by_my_turn_1"] = False
+    agent_state["staryu_on_field_by_my_turn_2"] = False
+    agent_state["staryu_first_seen_my_turn"] = None
+    agent_state["usable_mega_by_my_turn_2"] = False
+    agent_state["usable_mega_by_my_turn_3"] = False
+    agent_state["epoch_memory"] = default_epoch_memory()
+    agent_state["board_at_my_turn_1"] = None
+    agent_state["board_at_my_turn_4"] = None
+    agent_state["board_at_my_turn_3"] = None
+    agent_state["opening_complete_my_turn"] = None
+    agent_state["pending_crispin_energy_id"] = None
+    agent_state["harvest_resentful_fired"] = False
+    agent_state["harvest_ko_last_turn"] = False
+    agent_state["matchup_alakazam_confirmed"] = False
+    agent_state["alak_finisher_window"] = False
+    agent_state["alak_follow_window"] = False
+    agent_state["alak_budew_ko_last_opp_turn"] = False
+    agent_state["alak_budew_ko_pending"] = False
+    agent_state["alak_prev_my_had_budew"] = False
+    agent_state["alak_last_my_turn"] = -1
+    agent_state["prize_progress"] = {"last": 6, "turn": 0}
+
+
 def reset_for_new_game() -> None:
     """Reset per-game flags in the live agent_state. Call before each game in
     local harnesses so OPENING-completion accounting is per-game."""
-    if _LIVE_AGENT_STATE is not None:
-        _LIVE_AGENT_STATE["opening_complete_this_game"] = False
-        _LIVE_AGENT_STATE["max_my_turn"] = 0
-        _LIVE_AGENT_STATE["final_board"] = None
-        _LIVE_AGENT_STATE["mega_on_field_by_my_turn_4"] = False
-        _LIVE_AGENT_STATE["mega_on_field_by_my_turn_3"] = False
-        _LIVE_AGENT_STATE["mega_first_seen_my_turn"] = None
-        _LIVE_AGENT_STATE["staryu_on_field_by_my_turn_1"] = False
-        _LIVE_AGENT_STATE["staryu_on_field_by_my_turn_2"] = False
-        _LIVE_AGENT_STATE["staryu_first_seen_my_turn"] = None
-        _LIVE_AGENT_STATE["usable_mega_by_my_turn_2"] = False
-        _LIVE_AGENT_STATE["usable_mega_by_my_turn_3"] = False
-        _LIVE_AGENT_STATE["epoch_memory"] = default_epoch_memory()
-        _LIVE_AGENT_STATE["board_at_my_turn_1"] = None
-        _LIVE_AGENT_STATE["board_at_my_turn_4"] = None
-        _LIVE_AGENT_STATE["board_at_my_turn_3"] = None
-        _LIVE_AGENT_STATE["opening_complete_my_turn"] = None
-        _LIVE_AGENT_STATE["pending_crispin_energy_id"] = None
-        _LIVE_AGENT_STATE["harvest_resentful_fired"] = False
-        _LIVE_AGENT_STATE["harvest_ko_last_turn"] = False
-        _LIVE_AGENT_STATE["matchup_alakazam_confirmed"] = False
-        _LIVE_AGENT_STATE["alak_finisher_window"] = False
-        _LIVE_AGENT_STATE["alak_follow_window"] = False
-        _LIVE_AGENT_STATE["alak_budew_ko_last_opp_turn"] = False
-        _LIVE_AGENT_STATE["alak_budew_ko_pending"] = False
-        _LIVE_AGENT_STATE["alak_prev_my_had_budew"] = False
-        _LIVE_AGENT_STATE["alak_last_my_turn"] = -1
-        _LIVE_AGENT_STATE["prize_progress"] = {"last": 6, "turn": 0}
+    reset_agent_state(_LIVE_AGENT_STATE)
 

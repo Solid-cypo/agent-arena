@@ -30,6 +30,7 @@ for p in (str(ROOT), str(SUB), str(SUB / "pilot")):
     if p not in sys.path:
         sys.path.insert(0, p)
 
+os.environ.setdefault("PYTHONHASHSEED", "0")
 os.environ.setdefault("RL_ENABLED", "1")
 os.environ.setdefault("USE_HYBRID", "1")
 
@@ -157,7 +158,15 @@ def run_pool(
         else:
             opp_agent = policy_mod.make_agent(deck_opp, dict(policy_mod.DEFAULT_WEIGHTS))
         for i in range(n):
-            random.seed(seed0 + i)
+            game_seed = seed0 + i
+            random.seed(game_seed)
+            os.environ["GAME_SEED"] = str(game_seed)
+            try:
+                import numpy as np
+
+                np.random.seed(game_seed % (2**32 - 1))
+            except Exception:
+                pass
             reset_agent()
             g = {
                 "deck": deck_name,

@@ -9,10 +9,15 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
+import os
 import random
 import sys
 import time
 from pathlib import Path
+
+# Wave I0: pin hash seed when parent shell forgot (must be set before many imports
+# for full effect; still document PYTHONHASHSEED=0 on the command line).
+os.environ.setdefault("PYTHONHASHSEED", "0")
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -68,7 +73,11 @@ def _purge_pilot_modules() -> None:
 
 
 def load_starmie_agent(agent_dir: Path):
-    """Return (agent_fn, reset_fn, module_keep_alive)."""
+    """Return (agent_fn, reset_fn, module_keep_alive, deck).
+
+    reset_fn is bound to THIS agent's agent_state so H2H dual-load works
+    (global _LIVE_AGENT_STATE would otherwise only reset the last load).
+    """
     agent_dir = agent_dir.resolve()
     pilot_dir = agent_dir / "pilot"
     if not pilot_dir.is_dir():
@@ -85,7 +94,16 @@ def load_starmie_agent(agent_dir: Path):
     deck = _read_deck(agent_dir)
     weights = _read_weights(agent_dir)
     agent_fn = sp.make_starmie_agent(deck, weights)
-    reset_fn = getattr(sp, "reset_for_new_game", lambda: None)
+    # Capture state before the next load overwrites module globals.
+    agent_state = getattr(sp, "_LIVE_AGENT_STATE", None)
+    reset_state = getattr(sp, "reset_agent_state", None)
+
+    def reset_fn() -> None:
+        if callable(reset_state):
+            reset_state(agent_state)
+        else:
+            getattr(sp, "reset_for_new_game", lambda: None)()
+
     return agent_fn, reset_fn, sp, deck
 
 
@@ -106,11 +124,18 @@ def main() -> int:
     ap.add_argument("-n", type=int, default=40, help="Total games (half each seat)")
     ap.add_argument("--seed", type=int, default=94000)
     ap.add_argument("--out", type=Path, default=None)
+    ap.add_argument(
+        "--rules-only",
+        action="store_true",
+        help="Disable RL hybrid (RL_ENABLED=0) for lower agent-side noise",
+    )
     args = ap.parse_args()
 
+    if args.rules_only:
+        os.environ["RL_ENABLED"] = "0"
     print(f"baseline: {args.baseline}")
     print(f"current:  {args.current}")
-    print(f"games={args.n} seed0={args.seed}")
+    print(f"games={args.n} seed0={args.seed} RL_ENABLED={os.environ.get('RL_ENABLED', '1')}")
 
     # Load baseline first, then current (current modules stay on sys.path after).
     base_agent, base_reset, _base_mod, deck_base = load_starmie_agent(args.baseline)
@@ -125,7 +150,15 @@ def main() -> int:
     t0 = time.time()
 
     for i in range(args.n):
-        random.seed(args.seed + i)
+        game_seed = args.seed + i
+        random.seed(game_seed)
+        os.environ["GAME_SEED"] = str(game_seed)
+        try:
+            import numpy as np
+
+            np.random.seed(game_seed % (2**32 - 1))
+        except Exception:
+            pass
         cur_reset()
         base_reset()
         cur_is_a = (i % 2 == 0)

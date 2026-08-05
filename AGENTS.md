@@ -9,22 +9,20 @@
 ## 当前状态（每次会话结束时更新此节）
 
 - **更新日期**：2026-08-06
-- **线上提交**：仍以 `55209165` / must-attack 包为基线；本机已叠 **Wave D–G + Wave H 软收口**
+- **线上提交**：仍以 `55209165` / must-attack 包为基线；本机已叠 **Wave D–H + Wave I 稳闸/seat B 窄收口**
 - **对照**：baseline `/tmp/baseline_55202093_f07e541`（≈ `f07e541`）
 - **卡组**：`data/decks/starmie_froslass.csv` — 3×海星星、无 306、5 水 + 3 恶
-- **本包内容（Wave H，叠在 Wave G 上）**：
-  - H1：`need_base` 时 Lillie 进入 `acquire.sources`；先手 PATH Lillie/Poffin/Pad/UB/Staryu；Active 海星+水且可进化时禁 Water Gun
-  - H2：先手 demote Meowth（保留 GS My-T1 含羞苞窗与 Wave G 侧基础门）
-  - H3：替补 **fueled** Mega → PATH Switch/Retreat/TO_ACTIVE（**不做** ATTACK/END 硬 demote）
-  - H0：仍靠 G0/`attack_required`；对「错前场+未 fueled Mega」的全局禁攻会砸后手 Itchy，本波不做
-  - **明确拒绝**：禁空过 END / 禁无意义 Switch / 未 fueled 也抬座 — 试验中 seat B 崩到 ~36–42%
+- **本包内容（Wave I，叠在 Wave H 上）**：
+  - I0：H2H/BC 降噪 — 双 agent `reset_agent_state`、`GAME_SEED`→RL rng、`--rules-only`、`compare_h2h_manifests.py`；策略闸用 **n=400**（libcg `random_device` 不可 100% 复现）
+  - I1：后手 My-T2+ demote Snorunt/Meowth/多余 Budew/Boss（手握 Mega 或 need_mega）；**GS My-T1 含羞苞不动**
+  - I2：齐件 EVOLVE PATH；need Mega 时 TO_HAND 禁挖 Froslass/Snorunt
+  - I3：fueled bench Mega + 可 Switch/Retreat 时 demote 底座攻（保留未 fueled Itchy）
+  - 继承 Wave H 软版：Lillie sources、先手 PATH、H3 PATH Switch（无全局 END demote）
 - **本地回归**：
-  - 单测：`tests/test_wave_h_seat_a.py` + wave_g + budew → **21 passed**（wave_h 子集）
-  - H2H 注意：同 seed140000 对局级复现率约 **48%**（Wave G 原跑 51.5% vs 复测 43.5%）；单次 n=200 不可作硬闸
-  - 试验峰（硬 demote 版，后手不可复现）：`logs/h2h_audit_waveH_min_run.log` → 总 **51.5%** / A **57%** / B **46%**
-  - 软版验收（HASHSEED=0）：H2H `logs/h2h_audit_waveH_seat_a_n200_s140000/` → 总 **48%** / A **52%** / B **44%**（对照同条件 Wave G 复测约 43.5%/A54/B33）；`miss_lillie` **3**（Wave G 原 15）
-  - BC 软版：`logs/combat_eval_waveH_bc_4x20/` → ~**64%**；`ready_mega_no_attack=0`；`base_attack_with_ready_mega`≈2（未清零）
-- **下一刀**：先修 H2H 确定性（或 n 加倍）再压 seat B / 必攻泄漏；勿再上全局 END/ATTACK demote；含羞苞让路政策不动
+  - 单测：wave_i + wave_h + wave_g + budew → **28 passed**
+  - H2H n=400 seed140000：`logs/h2h_audit_waveI_seat_b/` → 总 **50.5%** / A **52%** / B **49%**（Wave H 软版 n=200：48%/A52/B44）
+  - BC 4×20 seed93000：`logs/combat_eval_waveI_bc_4x20/` → **75%**；`ready_mega_no_attack=0`；`base_attack_with_ready_mega`≈3（未清零）
+- **下一刀**：seat B 冲 55%+；必攻泄漏清零（窄刀）；引擎 seed API 单独立项；勿全局 END/ATTACK demote
 - **磁盘**：改规则务必立刻 commit
 - **指标文档**：`references/rulebook/METRICS-CombatV1_20260801.md`｜`TURN_PLAN_POLICY_20260802.md`｜`ULTRA_BALL_POLICY_20260801.md`
 

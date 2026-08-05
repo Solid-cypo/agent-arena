@@ -8,10 +8,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 import sys
 import time
 from pathlib import Path
+
+os.environ.setdefault("PYTHONHASHSEED", "0")
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -55,7 +58,15 @@ def main() -> int:
         help="Also write raw engine_logs jsonl per game (large)",
     )
     ap.add_argument("--short-steps", type=int, default=40)
+    ap.add_argument(
+        "--rules-only",
+        action="store_true",
+        help="Disable RL hybrid (RL_ENABLED=0) for lower agent-side noise",
+    )
     args = ap.parse_args()
+
+    if args.rules_only:
+        os.environ["RL_ENABLED"] = "0"
 
     if not args.baseline.is_dir():
         # Re-extract baseline if missing.
@@ -78,7 +89,14 @@ def main() -> int:
     print(f"baseline: {args.baseline}")
     print(f"current:  {args.current}")
     print(f"out:      {out_dir}")
-    print(f"games={args.n} seed0={args.seed} logs={args.logs}")
+    print(
+        f"games={args.n} seed0={args.seed} logs={args.logs} "
+        f"RL_ENABLED={os.environ.get('RL_ENABLED', '1')}"
+    )
+    print(
+        "NOTE: libcg uses random_device — same seed ≠ bit-identical games; "
+        "use n≥400 for strategy gates (Wave I0)."
+    )
 
     base_agent, base_reset, _bm, deck_base = load_starmie_agent(args.baseline)
     cur_agent, cur_reset, _cm, deck_cur = load_starmie_agent(args.current)
@@ -89,7 +107,15 @@ def main() -> int:
     t0 = time.time()
 
     for i in range(args.n):
-        random.seed(args.seed + i)
+        game_seed = args.seed + i
+        random.seed(game_seed)
+        os.environ["GAME_SEED"] = str(game_seed)
+        try:
+            import numpy as np
+
+            np.random.seed(game_seed % (2**32 - 1))
+        except Exception:
+            pass
         cur_reset()
         base_reset()
         cur_is_a = (i % 2 == 0)
