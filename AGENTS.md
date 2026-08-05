@@ -8,20 +8,23 @@
 
 ## 当前状态（每次会话结束时更新此节）
 
-- **更新日期**：2026-08-05
-- **线上提交**：仍以 `55209165` / must-attack 包为基线；本机已叠 **Wave D/E/F + Wave G 负局收口**
+- **更新日期**：2026-08-06
+- **线上提交**：仍以 `55209165` / must-attack 包为基线；本机已叠 **Wave D–G + Wave H 软收口**
 - **对照**：baseline `/tmp/baseline_55202093_f07e541`（≈ `f07e541`）
 - **卡组**：`data/decks/starmie_froslass.csv` — 3×海星星、无 306、5 水 + 3 恶
-- **本包内容（Wave G）**：
-  - G1：`need_evolution` 时 acquire 只锁 Mega（可附带水）；Ball 授权；死支援不再 UB-3 锁球
-  - G2：MAKE_ATTACKER 下 demote Munk/Snorunt/Boss/多余含羞苞；Poffin→bench 侧基础
-  - G3：后手 My-T1 含羞苞 PATH；My-T2+ 挖 Mega PATH
-  - G0：bench ready Mega 禁底座攻；强行 DISPATCH/END 加压会砸 WR，残余 `base_attack_with_ready_mega`≈1–2
+- **本包内容（Wave H，叠在 Wave G 上）**：
+  - H1：`need_base` 时 Lillie 进入 `acquire.sources`；先手 PATH Lillie/Poffin/Pad/UB/Staryu；Active 海星+水且可进化时禁 Water Gun
+  - H2：先手 demote Meowth（保留 GS My-T1 含羞苞窗与 Wave G 侧基础门）
+  - H3：替补 **fueled** Mega → PATH Switch/Retreat/TO_ACTIVE（**不做** ATTACK/END 硬 demote）
+  - H0：仍靠 G0/`attack_required`；对「错前场+未 fueled Mega」的全局禁攻会砸后手 Itchy，本波不做
+  - **明确拒绝**：禁空过 END / 禁无意义 Switch / 未 fueled 也抬座 — 试验中 seat B 崩到 ~36–42%
 - **本地回归**：
-  - 单测：wave_g + turn_plan + expert_align + mega_land + budew + pilot → **131 passed**
-  - H2H n=200 seed140000：`logs/h2h_audit_waveG_loss_close_n200_s140000/` → **WR 51.5%**（Wave F 52.0%）；seat B **57%**（原 41%）；`miss_ub_mega` **4**（原 20）；`wrong_play_side_basic` **51**（原 75）
-  - BC 4×20 seed93000：约 **69%**；`ready_mega_no_attack=0`；`base_attack_with_ready_mega`≈1；`logs/combat_eval_waveG_bc_4x20/`
-- **下一刀**：seat A 回升（Wave G 先手 46%）；`no_mega` 桶 WR；在不砸总 WR 前提下清零必攻泄漏
+  - 单测：`tests/test_wave_h_seat_a.py` + wave_g + budew → **21 passed**（wave_h 子集）
+  - H2H 注意：同 seed140000 对局级复现率约 **48%**（Wave G 原跑 51.5% vs 复测 43.5%）；单次 n=200 不可作硬闸
+  - 试验峰（硬 demote 版，后手不可复现）：`logs/h2h_audit_waveH_min_run.log` → 总 **51.5%** / A **57%** / B **46%**
+  - 软版验收（HASHSEED=0）：H2H `logs/h2h_audit_waveH_seat_a_n200_s140000/` → 总 **48%** / A **52%** / B **44%**（对照同条件 Wave G 复测约 43.5%/A54/B33）；`miss_lillie` **3**（Wave G 原 15）
+  - BC 软版：`logs/combat_eval_waveH_bc_4x20/` → ~**64%**；`ready_mega_no_attack=0`；`base_attack_with_ready_mega`≈2（未清零）
+- **下一刀**：先修 H2H 确定性（或 n 加倍）再压 seat B / 必攻泄漏；勿再上全局 END/ATTACK demote；含羞苞让路政策不动
 - **磁盘**：改规则务必立刻 commit
 - **指标文档**：`references/rulebook/METRICS-CombatV1_20260801.md`｜`TURN_PLAN_POLICY_20260802.md`｜`ULTRA_BALL_POLICY_20260801.md`
 

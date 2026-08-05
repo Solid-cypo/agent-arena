@@ -2744,6 +2744,36 @@ def _mega_clock_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
                     if pkm and _si(getattr(pkm, "id", None)) != _OC_MEGA_STARMIE:
                         return -_DOMINATE_OPEN_PATH
 
+    # H3: fueled bench Mega — PATH Switch/Retreat/TO_ACTIVE (no ATTACK/END demote;
+    # hard demotes regressed seat B in Wave H trials).
+    if (
+        plan is not None
+        and getattr(plan.facts, "can_dispatch_bench_mega", False)
+        and active_id != _OC_MEGA_STARMIE
+        and not bool(getattr(board, "active_is_mega_starmie", False))
+        and not (
+            bool(getattr(board, "active_is_mega_froslass", False))
+            and not _starmie_promote_over_froslass(obs, mi, board, sit)
+        )
+    ):
+        if option.type == OptionType.PLAY and _hand_card_id(obs, option, mi) == _OC_SWITCH:
+            return _DOMINATE_OPEN_PATH
+        if option.type == OptionType.RETREAT and _active_can_retreat(obs, mi):
+            return _DOMINATE_OPEN_PATH
+        if option.type == OptionType.CARD:
+            try:
+                ctx = int(obs.select.context)
+            except Exception:
+                ctx = -1
+            if ctx in (int(SelectContext.SWITCH), int(SelectContext.TO_ACTIVE)):
+                pi = _si(getattr(option, "playerIndex", None), mi)
+                if pi == mi:
+                    pkm = _pokemon_in_area(
+                        obs, option.area, _si(getattr(option, "index", None)), mi,
+                    )
+                    if pkm and _si(getattr(pkm, "id", None)) == _OC_MEGA_STARMIE:
+                        return _DOMINATE_OPEN_PATH
+
     return 0.0
 
 
@@ -3431,7 +3461,38 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
         if cid in (_OC_MUNKIDORI, _OC_SNORUNT, _BUDEW_ID):
             return -_DOMINATE_OPEN_PATH
 
-    # F2a/F2b + G2 Poffin bench demote.
+    need_base = bool(plan.gap.need_base)
+    going_first = bool(board is not None and not _going_second(board))
+    going_first_t1 = bool(
+        going_first and int(getattr(board, "my_turn_number", 0) or 0) == 1
+    )
+
+    # H1 (going first): need_base — PATH dig/seat tools only (no END/Switch/ATTACK bans).
+    if (
+        going_first
+        and plan.objective == "MAKE_ATTACKER"
+        and need_base
+        and not plan.facts.mega_starmie_on_field
+        and option.type == OptionType.PLAY
+    ):
+        bench_open = int(getattr(board, "bench_open", 0) or 0) if board else 0
+        staryu_in_hand = _OC_STARYU in plan.facts.hand_ids
+        cid = _hand_card_id(obs, option, mi)
+        if cid == _OC_STARYU and bench_open > 0:
+            return _DOMINATE_OPEN_PATH
+        if (
+            cid == LILLIE
+            and not plan.facts.supporter_played
+            and not going_first_t1
+            and not staryu_in_hand
+        ):
+            return _DOMINATE_OPEN_PATH
+        if cid in (_OC_POFFIN, _OC_POKE_PAD) and bench_open > 0:
+            return _DOMINATE_OPEN_PATH
+        if cid == _OC_ULTRA_BALL and plan.acquire.ball_allowed:
+            return _DOMINATE_OPEN_PATH
+
+    # F2a/F2b + G2 demote; H2 first-player Meowth demote only.
     if plan.objective == "MAKE_ATTACKER" and not plan.facts.mega_starmie_on_field:
         if option.type == OptionType.PLAY:
             cid = _hand_card_id(obs, option, mi)
@@ -3442,6 +3503,8 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
             if cid in (_OC_MUNKIDORI, _OC_SNORUNT):
                 if not plan.facts.staryu_on_field or need_mega:
                     return -_DOMINATE_OPEN_PATH
+            if going_first and cid == _OC_MEOWTH_EX and (need_base or need_mega):
+                return -_DOMINATE_OPEN_PATH
             if cid in (DUNSPARCE_A, DUNSPARCE_B):
                 duns_n = sum(
                     x in (DUNSPARCE_A, DUNSPARCE_B, _CARDS["dudunsparce"])

@@ -941,6 +941,15 @@ def _acquire_plan(facts: TurnFacts, gap: TurnGap, objective: Objective, combat: 
             sources.append(SALVATOR)
         if ULTRA_BALL in hand and any(t in (STARYU, MEGA_STARMIE, SNORUNT, FROSLASS, MEGA_FROSLASS, MUNKIDORI) for t in targets):
             sources.append(ULTRA_BALL)
+        # H1: missing Staryu — Lillie dig is a first-class source (Hilda cannot fetch Basics).
+        if (
+            LILLIE in hand
+            and not facts.supporter_played
+            and gap.need_base
+            and STARYU not in hand
+            and STARYU in targets
+        ):
+            sources.append(LILLIE)
     if recover is not None and NIGHT_STRETCHER in hand:
         sources.append(NIGHT_STRETCHER)
 
@@ -1142,6 +1151,16 @@ def _ban_basic_attack(
         line_has_water=facts.line_has_water,
         hand_ids=facts.hand_ids,
         supporter_played=facts.supporter_played,
+    ):
+        return True
+    # H1: Active Staryu + water + Mega in hand — never Water Gun over evolve.
+    if (
+        objective == "MAKE_ATTACKER"
+        and facts.active_id == STARYU
+        and facts.line_has_water
+        and not facts.mega_starmie_on_field
+        and mega_in_hand
+        and facts.staryu_can_evolve
     ):
         return True
     # MAKE_ATTACKER: ban base attacks only when a dig/setup tool is actually in hand.
