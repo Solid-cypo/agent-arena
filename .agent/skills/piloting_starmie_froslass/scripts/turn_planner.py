@@ -809,25 +809,13 @@ def _acquire_targets(facts: TurnFacts, gap: TurnGap, objective: Objective) -> tu
     if MEGA_STARMIE in hand and facts.staryu_can_evolve:
         return ()
     if gap.need_evolution and MEGA_STARMIE not in hand:
-        # Lock Mega only when base + water path can land it; else non-Mega first.
-        ready = mega_ready_to_land(
-            staryu_on_field=facts.staryu_on_field,
-            mega_starmie_on_field=facts.mega_starmie_on_field,
-            line_has_water=facts.line_has_water,
-            hand_ids=facts.hand_ids,
-            supporter_played=facts.supporter_played,
-        )
-        if ready:
-            return (MEGA_STARMIE,)
+        # G1: always dig Mega Starmie — never mix FROSLASS/SNORUNT into targets
+        # (that tripped UB-1 and caused miss_ub_mega while Ball sat unused).
         out: list[int] = []
-        if not hand.intersection(_WATER_IDS):
+        if not facts.line_has_water and not hand.intersection(_WATER_IDS):
             out.append(WATER_BASIC)
-        for cid in hilda_evolution_priority(mega_ready=False):
-            if facts.ban_froslass_line and cid in (MEGA_FROSLASS, FROSLASS):
-                continue
-            if cid not in hand and cid not in out:
-                out.append(cid)
-        return tuple(out) if out else (MEGA_STARMIE,)
+        out.append(MEGA_STARMIE)
+        return tuple(out)
     if gap.need_energy and not hand.intersection(_WATER_IDS):
         return (WATER_BASIC,)
 
@@ -933,6 +921,7 @@ def _acquire_plan(facts: TurnFacts, gap: TurnGap, objective: Objective, combat: 
     hand = Counter(facts.hand_ids)
     recover = _recover_target(facts, gap)
     sources: list[int] = []
+    need_mega_fetch = gap.need_evolution and MEGA_STARMIE not in facts.hand_ids
     if targets:
         if POFFIN in hand and any(t in _BASE_ATTACKERS for t in targets):
             sources.append(POFFIN)
@@ -940,24 +929,40 @@ def _acquire_plan(facts: TurnFacts, gap: TurnGap, objective: Objective, combat: 
         # Mega ex has a Rule Box and cannot be Pad-fetched.
         if POKE_PAD in hand and any(t in (STARYU, SNORUNT, FROSLASS, DUDUNSPARCE) for t in targets):
             sources.append(POKE_PAD)
-        if HILDA in hand and any(t in (MEGA_STARMIE, FROSLASS, MEGA_FROSLASS) for t in targets):
+        # Supporters only close the gap if they can still be played this turn.
+        if (
+            HILDA in hand
+            and not facts.supporter_played
+            and any(t in (MEGA_STARMIE, FROSLASS, MEGA_FROSLASS) for t in targets)
+        ):
             sources.append(HILDA)
+        # Salvator fetches Evolution Pokémon — primary Mega dig supporter.
+        if SALVATOR in hand and not facts.supporter_played and MEGA_STARMIE in targets:
+            sources.append(SALVATOR)
         if ULTRA_BALL in hand and any(t in (STARYU, MEGA_STARMIE, SNORUNT, FROSLASS, MEGA_FROSLASS, MUNKIDORI) for t in targets):
             sources.append(ULTRA_BALL)
     if recover is not None and NIGHT_STRETCHER in hand:
         sources.append(NIGHT_STRETCHER)
 
-    free_closes_gap = any(s in (POFFIN, POKE_PAD, HILDA) for s in sources)
+    free_closes_gap = any(s in (POFFIN, POKE_PAD, HILDA, SALVATOR) for s in sources)
     target_is_pokemon = any(t not in (WATER_BASIC, DARK_BASIC) for t in targets)
     second_done = facts.active_ready_mega and bool(facts.bench_ready_mega_id)
+    # G1: digging Mega is never a "side-line" Ball — UB-1 must not block 1031.
+    mega_is_target = MEGA_STARMIE in targets
     if not target_is_pokemon:
         ball_allowed, reason = False, "no current Pokemon gap"
     elif MEGA_STARMIE in hand and (facts.staryu_on_field or facts.mega_starmie_on_field):
         ball_allowed, reason = False, "UB-2 Mega already held with base online"
+    elif need_mega_fetch and mega_is_target:
+        # Plan G1: authorize Ball while Mega is the gap (supporters still score
+        # higher in Layer1; do not let a dead held supporter lock Ball out).
+        ball_allowed, reason = True, "G1 need Mega — Ball dig authorized"
     elif free_closes_gap:
         ball_allowed, reason = False, "UB-3 free search closes current gap"
-    elif not facts.mega_starmie_on_field and any(
-        t in (SNORUNT, FROSLASS, MUNKIDORI) for t in targets
+    elif (
+        not facts.mega_starmie_on_field
+        and not mega_is_target
+        and any(t in (SNORUNT, FROSLASS, MUNKIDORI) for t in targets)
     ):
         ball_allowed, reason = False, "UB-1 pre-Mega Ball stays on the attacker line"
     elif second_done:
@@ -1122,6 +1127,9 @@ def _ban_basic_attack(
 ) -> bool:
     if combat.attack_required:
         return True
+    # G0: fueled Mega on bench — never Water Gun / Itchy while it exists.
+    if facts.bench_ready_mega_id:
+        return True
     mega_in_hand = MEGA_STARMIE in facts.hand_ids
     # Legal Mega evolve / land window — never Water Gun.
     if mega_in_hand and facts.staryu_on_field and facts.staryu_can_evolve:
@@ -1156,9 +1164,11 @@ def is_basic_attack_forbidden(
         return False
     if not _ban_basic_attack(plan.objective, plan.combat, plan.facts):
         return False
+    # Itchy stall is illegal once a fueled Mega sits on the bench (G0).
     if (
         card_id == BUDEW
         and not plan.combat.attack_required
+        and not plan.facts.bench_ready_mega_id
         and attack_id == _ATK_ITCHY_POLLEN
     ):
         return False

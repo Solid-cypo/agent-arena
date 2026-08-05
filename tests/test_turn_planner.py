@@ -217,15 +217,17 @@ def test_ub3_free_search_only_blocks_when_it_closes_gap():
             hand=(POFFIN, ULTRA_BALL),
         )
     )
-    assert missing_mega.acquire.targets[0] == MEGA_STARMIE
+    assert missing_mega.acquire.targets == (MEGA_STARMIE,)
     assert missing_mega.acquire.ball_allowed
 
-    # Dry base + no water-fetch tools → dig water / non-Mega before locking Mega.
+    # Dry base + no water-fetch tools → water then Mega (G1: no FROSLASS mix).
     dry_mega = _plan(
         _player(active=_pkm(STARYU), hand=(POFFIN, ULTRA_BALL))
     )
     assert dry_mega.acquire.targets[0] == WATER_BASIC
-    assert MEGA_STARMIE in dry_mega.acquire.targets
+    assert dry_mega.acquire.targets[-1] == MEGA_STARMIE
+    assert FROSLASS not in dry_mega.acquire.targets
+    assert dry_mega.acquire.ball_allowed
 
 
 def test_dynamic_discard_protects_path_and_releases_dead_poffin():

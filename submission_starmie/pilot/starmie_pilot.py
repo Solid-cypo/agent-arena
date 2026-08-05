@@ -1592,7 +1592,23 @@ def _going_second_budew_bonus(obs, option, sit: dict[str, Any]) -> float:
     )
     budew_field = _field_has_budew(obs, mi)
     need_base = bool(plan.gap.need_base) if plan is not None else False
+    need_mega = bool(
+        plan is not None
+        and plan.gap.need_evolution
+        and _OC_MEGA_STARMIE not in plan.facts.hand_ids
+    )
     bench_open = int(getattr(board, "bench_open", 0) or 0)
+
+    # G3: after My-T1 dig Mega (My-T1 Budew keeps PATH).
+    if need_mega and not gs_t1 and option.type == OptionType.PLAY:
+        cid = _hand_card_id(obs, option, mi)
+        supp_done = bool(getattr(plan.facts, "supporter_played", False))
+        if cid == SALVATOR and not supp_done:
+            return _DOMINATE_OPEN_PATH
+        if cid == HILDA and not supp_done:
+            return _DOMINATE_OPEN_PATH
+        if cid == _OC_ULTRA_BALL and plan.acquire.ball_allowed:
+            return _DOMINATE_OPEN_PATH
 
     # Wall: once Active, stay until the opponent breaks it (or Mega takes over).
     if budew_active and not sit.get("alak_finisher_window") and not sit.get(
@@ -1676,7 +1692,7 @@ def _going_second_budew_bonus(obs, option, sit: dict[str, Any]) -> float:
             getattr(board, "staryu_on_field", False)
         ):
             return 0.0
-        return _DOMINATE_OPEN
+        return _DOMINATE_OPEN_PATH
 
     promote = _promote_benched_budew()
     if promote != 0.0:
@@ -3395,18 +3411,36 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
         ):
             return -_DOMINATE_OPEN_PATH
 
-    # F2a/F2b: side-basic demote + dig supporters while MAKE_ATTACKER.
+    # G1/G2: dig Mega at PATH; demote Munk/Snorunt/Boss while Mega gap open.
+    need_mega = bool(plan.gap.need_evolution and _OC_MEGA_STARMIE not in plan.facts.hand_ids)
+    gs_t1 = bool(
+        board is not None
+        and _going_second(board)
+        and int(getattr(board, "my_turn_number", 0) or 0) == 1
+    )
+    if need_mega and option.type == OptionType.PLAY and not gs_t1:
+        cid = _hand_card_id(obs, option, mi)
+        if cid == SALVATOR and not plan.facts.supporter_played:
+            return _DOMINATE_OPEN_PATH
+        if cid == HILDA and not plan.facts.supporter_played:
+            return _DOMINATE_OPEN_PATH
+        if cid == _OC_ULTRA_BALL and plan.acquire.ball_allowed:
+            return _DOMINATE_OPEN_PATH
+        if cid == _OC_BOSS:
+            return -_DOMINATE_OPEN_PATH
+        if cid in (_OC_MUNKIDORI, _OC_SNORUNT, _BUDEW_ID):
+            return -_DOMINATE_OPEN_PATH
+
+    # F2a/F2b + G2 Poffin bench demote.
     if plan.objective == "MAKE_ATTACKER" and not plan.facts.mega_starmie_on_field:
         if option.type == OptionType.PLAY:
             cid = _hand_card_id(obs, option, mi)
-            # Dig / land tools beat Water Gun and side basics.
             if cid in (SALVATOR, HILDA, CRISPIN) and not plan.facts.supporter_played:
-                return _DOMINATE_OPEN
+                return _DOMINATE_OPEN_PATH if need_mega and not gs_t1 else _DOMINATE_OPEN
             if cid == _OC_ULTRA_BALL and plan.acquire.ball_allowed:
-                return _DOMINATE_OPEN
+                return _DOMINATE_OPEN_PATH if need_mega and not gs_t1 else _DOMINATE_OPEN
             if cid in (_OC_MUNKIDORI, _OC_SNORUNT):
-                # Allow seating Munk/Snorunt only after Staryu line is online.
-                if not plan.facts.staryu_on_field:
+                if not plan.facts.staryu_on_field or need_mega:
                     return -_DOMINATE_OPEN_PATH
             if cid in (DUNSPARCE_A, DUNSPARCE_B):
                 duns_n = sum(
@@ -3414,6 +3448,15 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
                     for x in (plan.facts.bench_ids + (plan.facts.active_id,))
                 )
                 if duns_n >= 1 or plan.gap.need_base:
+                    return -_DOMINATE_OPEN_PATH
+        if option.type == OptionType.CARD and need_mega and not gs_t1:
+            try:
+                ctx = int(obs.select.context)
+            except Exception:
+                ctx = -1
+            if ctx == int(SelectContext.TO_BENCH):
+                cid = _card_option_id(obs, option, mi)
+                if cid in (_OC_MUNKIDORI, _OC_SNORUNT, _BUDEW_ID):
                     return -_DOMINATE_OPEN_PATH
 
     # Gap-driven search source and Ultra Ball gate (non-must-attack turns).

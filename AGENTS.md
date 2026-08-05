@@ -8,21 +8,21 @@
 
 ## 当前状态（每次会话结束时更新此节）
 
-- **更新日期**：2026-08-04
-- **线上提交**：仍以 `55209165` / must-attack 包为基线；本机已叠 **Wave D/E + Wave F 专家全对齐**
+- **更新日期**：2026-08-05
+- **线上提交**：仍以 `55209165` / must-attack 包为基线；本机已叠 **Wave D/E/F + Wave G 负局收口**
 - **对照**：baseline `/tmp/baseline_55202093_f07e541`（≈ `f07e541`）
 - **卡组**：`data/decks/starmie_froslass.csv` — 3×海星星、无 306、5 水 + 3 恶
-- **本包内容（Wave F）**：
-  - 底座攻禁令：手握可落地 Mega / MAKE_ATTACKER 有挖牌工具时禁 Water Gun（含羞苞 Itchy 例外）
-  - 收紧 `froslass_exception`（删 Snorunt 豁免）；铝钢/胡地/对手愿增猿 DP → `ban_froslass_line`
-  - 侧基础 demote；Hilda 未 ready 861 垫底；DrawPlan 单源 HOLD（仅手握可落地 Mega）
-  - 保留 Wave D/E Mega 时钟 + 落地门控
+- **本包内容（Wave G）**：
+  - G1：`need_evolution` 时 acquire 只锁 Mega（可附带水）；Ball 授权；死支援不再 UB-3 锁球
+  - G2：MAKE_ATTACKER 下 demote Munk/Snorunt/Boss/多余含羞苞；Poffin→bench 侧基础
+  - G3：后手 My-T1 含羞苞 PATH；My-T2+ 挖 Mega PATH
+  - G0：bench ready Mega 禁底座攻；强行 DISPATCH/END 加压会砸 WR，残余 `base_attack_with_ready_mega`≈1–2
 - **本地回归**：
-  - 单测：`test_expert_align_wave_f` + mega_land + pilot + turn_plan + budew → **124 passed**
-  - H2H n=200 seed140000：`logs/h2h_audit_waveF_expert_align_n200_s140000/` → **WR 52.0%**（Wave E 49.5%）；fast_mega **61.9%**
-  - BC 4×20 seed93000：约 **70%**（Alak 55｜Lucario 60｜Marnie 65｜Dragapult 100）；`logs/combat_eval_waveF_expert_align_bc_4x20/`
-- **下一刀**：压 `wrong_play_side_basic` / `miss_ub_mega`；seat B（41%）；`base_attack_with_ready_mega` 残余=2
-- **磁盘**：约 59%；改规则务必立刻 commit
+  - 单测：wave_g + turn_plan + expert_align + mega_land + budew + pilot → **131 passed**
+  - H2H n=200 seed140000：`logs/h2h_audit_waveG_loss_close_n200_s140000/` → **WR 51.5%**（Wave F 52.0%）；seat B **57%**（原 41%）；`miss_ub_mega` **4**（原 20）；`wrong_play_side_basic` **51**（原 75）
+  - BC 4×20 seed93000：约 **69%**；`ready_mega_no_attack=0`；`base_attack_with_ready_mega`≈1；`logs/combat_eval_waveG_bc_4x20/`
+- **下一刀**：seat A 回升（Wave G 先手 46%）；`no_mega` 桶 WR；在不砸总 WR 前提下清零必攻泄漏
+- **磁盘**：改规则务必立刻 commit
 - **指标文档**：`references/rulebook/METRICS-CombatV1_20260801.md`｜`TURN_PLAN_POLICY_20260802.md`｜`ULTRA_BALL_POLICY_20260801.md`
 
 ---
