@@ -9,7 +9,7 @@
 ## 当前状态（每次会话结束时更新此节）
 
 - **更新日期**：2026-08-06
-- **线上提交**：[`55299191`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions) Wave I+L freeze → publicScore **600.0**（对照旧包 `55209165`=438.4 / `55202093`=483.3）；本机权威闸仍是 **Wave I** + **Wave L**
+- **线上提交**：[`55299191`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions) Wave I+L freeze → publicScore **445.4**（初评曾见 600，池子滚动后回落；对照 `55209165`=444.3 / `55202093`=483.3）；本机权威闸仍是 **Wave I** + **Wave L**
 - **对照**：baseline `/tmp/baseline_55202093_f07e541`（≈ `f07e541`）；H2H 权威：`logs/h2h_audit_waveI_seat_b/`（n=400 → **50.5% / A52 / B49**）
 - **卡组**：`data/decks/starmie_froslass.csv` — 3×海星星、无 306、5 水 + 3 恶
 - **OPENING 硬刀：挂起**（Wave J/K 已证 ROI 为负）
