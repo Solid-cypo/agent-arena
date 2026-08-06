@@ -55,8 +55,12 @@
   - Boss 胜出率 **1.7%**；选项含 Boss PLAY **1.7%**（≪35% 闸）→ Wave S「假窗口 Boss 单卡再降权」**NO-GO**
   - 全员同分率 **0.72**；主赢=ATTACH/END/侧基本/ATTACK/杂 PLAY（−PATH 平台上排序近乎任意）
   - **已证伪**：game_045 叙事的 Boss 平台赢家假设
-- **政策面**：仍锚定 Wave L（turn_planner L 刀已确认在树）；挂起表只读；平台线停刀直至新针（非 Boss 单卡）
-- 权威面：Wave I H2H + Wave L 政策叠加
+- **UB 烧 Mega 归因（SOP-D）NO-GO**：[`logs/diagnose_ub_burn_mega/DIAGNOSE.md`](logs/diagnose_ub_burn_mega/DIAGNOSE.md)（`scripts/dump_ub_discard_mega.py`）
+  - H2H n=200 seed140000：burn 局率 **4%**；lift **0.004** / seatB **0.021** → 标签≠死因
+  - 引擎 UB 弃 **2** 张；本跑次 UB-2 泄漏 0；错杀多为手持 Mega 挖底座时 `dv=100` 同分
+  - **已证伪**：「game_155 族 UB 烧 Mega ⇒ 值得开 Wave T WR 刀」；**不另开 Wave T**
+- **政策面**：Wave L **已冻结 commit**（`28c6e08`）；挂起表只读（OPENING / DP / 861 / 平台 Q–S / UB 烧 Mega）
+- **权威面**：Wave I H2H + Wave L 政策叠加
 - **迭代 SOP（强制）**：[`references/rulebook/SOP-PilotIteration.md`](references/rulebook/SOP-PilotIteration.md) — D→H→P→G0→G1→G2；黄/红必解剖；禁止抽奖式换维
 - **磁盘**：改规则务必立刻 commit
 - **指标文档**：`references/rulebook/METRICS-CombatV1_20260801.md`｜`TURN_PLAN_POLICY_20260802.md`｜`ULTRA_BALL_POLICY_20260801.md`｜**`SOP-PilotIteration.md`**
