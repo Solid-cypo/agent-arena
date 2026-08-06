@@ -615,6 +615,18 @@ def _effective_boss_candidate(
     )
     if delta > 0 or double_ko_needs_boss:
         return candidate, with_boss, max(delta, 0 if not double_ko_needs_boss else delta)
+    # Wave L: closing window — cut a higher-priority KO-able threat even when
+    # prize count ties (still Jetting-legal). Does not open OPENING / pre-Mega.
+    if (
+        facts.prize_self <= 3
+        and candidate is not None
+        and facts.opp_active is not None
+        and 0 < candidate.hp <= 120
+        and 0 < facts.opp_active.hp <= 120
+        and candidate.prizes == facts.opp_active.prizes
+        and candidate.boss_priority > facts.opp_active.boss_priority
+    ):
+        return candidate, with_boss, 0
     return None, baseline, 0
 
 
@@ -687,8 +699,9 @@ def _combat_plan(facts: TurnFacts) -> CombatPlan:
         boss, expected, delta = _effective_boss_candidate(
             facts, rider=rider, candidate=candidate,
         )
+        # Wave L: Boss before DP prep so prize gust is not starved by 104/Adrena.
         if boss is not None:
-            required.append("BOSS")
+            required = ["BOSS", *required]
         mode: CombatMode = "DOUBLE_KO" if rider else "MEGA_MUST_ATTACK"
         return CombatPlan(
             mode=mode,
@@ -896,6 +909,14 @@ def _recover_target(facts: TurnFacts, gap: TurnGap) -> int | None:
         return WATER_BASIC
     if "DARK_ENERGY" in gap.dp_gaps and DARK_BASIC in discard:
         return DARK_BASIC
+    # Wave L: fueled Active Mega — stretch Boss back for prize/role gust.
+    if (
+        facts.active_ready_mega
+        and facts.active_id == MEGA_STARMIE
+        and BOSS_ORDERS in discard
+        and BOSS_ORDERS not in facts.hand_ids
+    ):
+        return BOSS_ORDERS
     for cid in (STARYU, MEGA_STARMIE, SNORUNT, FROSLASS, MUNKIDORI):
         if cid in discard and (
             (cid in (STARYU, MEGA_STARMIE) and (gap.need_base or gap.need_evolution))

@@ -9,22 +9,57 @@
 ## 当前状态（每次会话结束时更新此节）
 
 - **更新日期**：2026-08-06
-- **线上提交**：仍以 `55209165` / must-attack 包为基线；本机已叠 **Wave D–H + Wave I 稳闸/seat B 窄收口**
-- **对照**：baseline `/tmp/baseline_55202093_f07e541`（≈ `f07e541`）
+- **线上提交**：仍以 `55209165` / must-attack 包为基线；本机权威闸仍是 **Wave I**；其上叠 **Wave L（有效 Boss 窄刀）**
+- **对照**：baseline `/tmp/baseline_55202093_f07e541`（≈ `f07e541`）；H2H 权威：`logs/h2h_audit_waveI_seat_b/`（n=400 → **50.5% / A52 / B49**）
 - **卡组**：`data/decks/starmie_froslass.csv` — 3×海星星、无 306、5 水 + 3 恶
-- **本包内容（Wave I，叠在 Wave H 上）**：
-  - I0：H2H/BC 降噪 — 双 agent `reset_agent_state`、`GAME_SEED`→RL rng、`--rules-only`、`compare_h2h_manifests.py`；策略闸用 **n=400**（libcg `random_device` 不可 100% 复现）
-  - I1：后手 My-T2+ demote Snorunt/Meowth/多余 Budew/Boss（手握 Mega 或 need_mega）；**GS My-T1 含羞苞不动**
-  - I2：齐件 EVOLVE PATH；need Mega 时 TO_HAND 禁挖 Froslass/Snorunt
-  - I3：fueled bench Mega + 可 Switch/Retreat 时 demote 底座攻（保留未 fueled Itchy）
-  - 继承 Wave H 软版：Lillie sources、先手 PATH、H3 PATH Switch（无全局 END demote）
+- **OPENING 硬刀：挂起**（Wave J/K 已证 ROI 为负）
+  - **禁止**新的全局/半全局 OPENING demote、Poffin dual-fill trim、GS T1 Budew 改动、全局 END–ATTACK demote
+  - Poffin `maxCount=2` 仍可能在 PATH Staryu 后捞到 demoted Snorunt（`wrong_play_side_basic`）——**仅文档/观测**，不得再硬修直到有 seat-B 安全证伪
+  - 开局「够用闸」seat B≥55% **不当主阻塞**；OPENING 只读表（`wrong_play_side_basic` / `no_mega`）
+- **本包内容（Wave L，叠在 Wave I 上）**：
+  - L1：fueled Active Mega + plan `boss_target` → Boss PLAY 满 PATH；无 target 时仍走 gust 软闸 PATH−10
+  - L2：closing（己奖≤3）等奖时按 `boss_priority` 切更高威胁；Combat `required_before_attack` **BOSS 先于** DP prep
+  - L3：fueled Active Mega 时 Night Stretcher 可从弃牌捞 Boss
+  - 继承 Wave I：I1–I3 seat B / evolve / dispatch；GS My-T1 含羞苞不动
 - **本地回归**：
-  - 单测：wave_i + wave_h + wave_g + budew → **28 passed**
-  - H2H n=400 seed140000：`logs/h2h_audit_waveI_seat_b/` → 总 **50.5%** / A **52%** / B **49%**（Wave H 软版 n=200：48%/A52/B44）
-  - BC 4×20 seed93000：`logs/combat_eval_waveI_bc_4x20/` → **75%**；`ready_mega_no_attack=0`；`base_attack_with_ready_mega`≈3（未清零）
-- **下一刀**：seat B 冲 55%+；必攻泄漏清零（窄刀）；引擎 seed API 单独立项；勿全局 END/ATTACK demote
+  - 单测：`tests/test_wave_l_boss.py`（5）+ wave_i（7）通过；`sync_starmie_submission.py` 已同步
+  - BC 4×20 seed93000：`logs/combat_eval_waveL_bc_4x20/` → WR **62.5%**；相对 Wave K 同 seed：`zero_boss` 25→**19**、`no_effective_boss` 26→**20**（负局占比 83%/87%→**63%/67%**）；`effective_boss_rate` 0.54→**0.77**；`ready_mega_no_attack=0`；`base_attack_with_ready_mega=1`（不差于 Wave I 的 3）
+  - H2H n=200 seed140000 rules-only：`logs/h2h_audit_waveL_boss/` → 总 **51.0%** / A **55%** / B **47%**（对照 Wave I n=400：50.5%/A52/B49；无 Wave K 式 seat B 崩）
+- **Wave M（中盘 DP）试刀已回滚**：抬 `ATTACH_DARK`/PLAY Munk/无效 Boss demote → H2H **41.5% / B32%**（`logs/h2h_audit_waveM_dp/`）
+- **Wave N（超窄 DP 仅 prep 序）已回滚 + 已解剖**：H2H 总 **51%** / B **39%**（`logs/h2h_audit_waveN_dp/`）；解剖见 [`logs/h2h_audit_waveN_dp/AUTOPSY.md`](logs/h2h_audit_waveN_dp/AUTOPSY.md)
+  - **已证伪**：序刀可抬 `munk_dark`（29%→28.5%，seat B 反降）
+  - **未证实**：序刀机制性害死 seat B（总 WR 平、配对翻转不显著、同 seed≠同局）
+  - **监视信号**：seat B `mega_evolved_no_attack` 6%→14% — 再动 DP prep 前必须 hard-rule trace
+  - 禁止再改 `_dp_prep_steps` 序直至决策探针；**撤回**「DP 硬改已榨干」
+- **Wave O / 861 归因（SOP-D）NO-GO**：[`logs/diagnose_waveO_861/DIAGNOSE.md`](logs/diagnose_waveO_861/DIAGNOSE.md)
+  - `no_861` 胜/负均为 **90%（lift+0）** → 标签≠死因；全池 `ever_861` 仅 10%，胜局 45/50 无 861 仍赢
+  - `861_no_fire`≈可忽略；**禁止**为刷掉 `no_861` 放宽 861 窗
+  - **已证伪**：「负局最大 tag=no_861 ⇒ 主攻 HARVEST 861」
+- **`no_attack` 归因（SOP-D）NO-GO 全局必攻再收紧**：[`logs/diagnose_waveP_no_attack/DIAGNOSE.md`](logs/diagnose_waveP_no_attack/DIAGNOSE.md)
+  - 全池 lift 被无 Mega 灌水；`ever_mega` 且零攻仅 **4** 局（全胡地）；`ready_mega_no_attack=0`
+- **seat B × `no_mega` 归因（SOP-D）**：[`logs/diagnose_seatB_no_mega/DIAGNOSE.md`](logs/diagnose_seatB_no_mega/DIAGNOSE.md)
+  - 负 32% vs 胜 8.5%；主簇=线死/无 Mega/砖，**不是** OPENING 宽 demote 理由
+  - 决策针候选：`mega_clock` facts/选项不一致时的 −PATH 平台（`game_045`/`155`）
+- **Wave Q 已回滚 + 已解剖**：[`logs/h2h_audit_waveQ_mega_clock/AUTOPSY.md`](logs/h2h_audit_waveQ_mega_clock/AUTOPSY.md)
+  - 刀：`_mega_evolve_legal_now` 强制选项接地 → H2H **40.5% / B34%**（红）
+  - **已证伪**：宽 options 接地；禁止原样重试
+- **实机 EVOLVE dump（已完成）**：[`logs/dump_evolve_options/DUMP.md`](logs/dump_evolve_options/DUMP.md)
+  - 结构：`EVOLVE` + `area=HAND(1031)` + `inPlayArea/Index→1030`；helper **认得** Mega
+  - 平台真身：`facts` 忽略 `appearThisTurn`（cg.Pokemon 无 canEvolve/turnPlayed）
+- **Wave R 已回滚 + 已解剖**：[`logs/h2h_audit_waveR_appear/AUTOPSY.md`](logs/h2h_audit_waveR_appear/AUTOPSY.md)
+  - 刀：`can_evolve_now` 尊重 `appearThisTurn` → dump plateau 55→9（探针过），H2H **46% / B36%**（红）
+  - **已证伪**：只修 facts/appear 关平台即可抬 seat B——与 Q 同族：关假 mega_clock 窗口伤后手
+  - 禁止第三刀「只关平台 demote」
+- **平台拍 option_score dump（已完成）**：[`logs/dump_plateau_scores/DUMP.md`](logs/dump_plateau_scores/DUMP.md)（`scripts/dump_plateau_scores.py`）
+  - MAIN + mega window + facts can evolve + 无 EVOLVE + mega_legal；60 events / 20 games seed140000
+  - Boss 胜出率 **1.7%**；选项含 Boss PLAY **1.7%**（≪35% 闸）→ Wave S「假窗口 Boss 单卡再降权」**NO-GO**
+  - 全员同分率 **0.72**；主赢=ATTACH/END/侧基本/ATTACK/杂 PLAY（−PATH 平台上排序近乎任意）
+  - **已证伪**：game_045 叙事的 Boss 平台赢家假设
+- **政策面**：仍锚定 Wave L（turn_planner L 刀已确认在树）；挂起表只读；平台线停刀直至新针（非 Boss 单卡）
+- 权威面：Wave I H2H + Wave L 政策叠加
+- **迭代 SOP（强制）**：[`references/rulebook/SOP-PilotIteration.md`](references/rulebook/SOP-PilotIteration.md) — D→H→P→G0→G1→G2；黄/红必解剖；禁止抽奖式换维
 - **磁盘**：改规则务必立刻 commit
-- **指标文档**：`references/rulebook/METRICS-CombatV1_20260801.md`｜`TURN_PLAN_POLICY_20260802.md`｜`ULTRA_BALL_POLICY_20260801.md`
+- **指标文档**：`references/rulebook/METRICS-CombatV1_20260801.md`｜`TURN_PLAN_POLICY_20260802.md`｜`ULTRA_BALL_POLICY_20260801.md`｜**`SOP-PilotIteration.md`**
 
 ---
 
@@ -33,6 +68,7 @@
 | 文档 | 内容 |
 |---|---|
 | `ONBOARDING.md` | 快速上手、目录结构、全部常用命令 |
+| **`references/rulebook/SOP-PilotIteration.md`** | **Pilot 迭代 SOP（先归因再动刀；闸门与回滚纪律）** |
 | `references/PROJECT_LAYOUT.md` | 项目布局详情 |
 | `references/ptcg_dimension_theory.md` | 理论建模（28 维） |
 | `.agent/skills/piloting_starmie_froslass/references/phases/00–04` | 海星 Phase 文档链 |
@@ -76,3 +112,4 @@ python3 run_arena.py eval --games 20                   # 本地对战
 - **一个任务一个对话**；任务结束时把结论落盘（更新本文件"当前状态"节或相关文档），不要依赖聊天历史传递进度。
 - 探索/调研类工作交给 explore 子代理，主对话只接收结论。
 - 大日志、审计输出写入 `logs/`，聊天中只引用路径和摘要。
+- **政策迭代**必须遵循 `references/rulebook/SOP-PilotIteration.md`：无假设卡不改码；G0 黄/红先解剖再回滚；n=200 不单独封杀维度。
