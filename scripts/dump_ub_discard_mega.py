@@ -236,8 +236,8 @@ def main() -> int:
     events: list[dict] = []
     games: list[dict] = []
 
-    base_agent, base_reset, _bm, deck_b = load_starmie_agent(args.baseline)
-    cur_agent, cur_reset, sp, deck = load_starmie_agent(args.current)
+    base_agent, base_reset, _bm, deck_b, _ = load_starmie_agent(args.baseline)
+    cur_agent, cur_reset, sp, deck, _ = load_starmie_agent(args.current)
     assert deck == deck_b
 
     t0 = time.time()

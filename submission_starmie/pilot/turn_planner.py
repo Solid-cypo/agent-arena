@@ -905,6 +905,20 @@ def _acquire_targets(facts: TurnFacts, gap: TurnGap, objective: Objective) -> tu
 
 def _recover_target(facts: TurnFacts, gap: TurnGap) -> int | None:
     discard = set(facts.discard_ids)
+    # Wave U4: Mega already online and only needs fuel — water before anything else.
+    if (
+        facts.mega_starmie_on_field
+        and gap.need_energy
+        and WATER_BASIC in discard
+    ):
+        return WATER_BASIC
+    # Wave U4: Mega dead/missing, discard has Mega, Staryu line can land — Mega first.
+    if (
+        not facts.mega_starmie_on_field
+        and MEGA_STARMIE in discard
+        and (gap.need_evolution or facts.staryu_on_field)
+    ):
+        return MEGA_STARMIE
     if gap.need_energy and WATER_BASIC in discard:
         return WATER_BASIC
     if "DARK_ENERGY" in gap.dp_gaps and DARK_BASIC in discard:
@@ -928,6 +942,21 @@ def _recover_target(facts: TurnFacts, gap: TurnGap) -> int | None:
         ):
             return cid
     return None
+
+
+def _ub_would_force_burn_mega(facts: TurnFacts, gap: TurnGap) -> bool:
+    """True when playing UB forces discarding held MEGA_STARMIE (min=max=2)."""
+    if MEGA_STARMIE not in facts.hand_ids:
+        return False
+    counts: Counter[int] = Counter(facts.hand_ids)
+    if counts.get(ULTRA_BALL, 0) <= 0:
+        return False
+    counts[ULTRA_BALL] -= 1
+    if counts[ULTRA_BALL] <= 0:
+        del counts[ULTRA_BALL]
+    # Non-Mega cards available as the two discards.
+    safe = sum(n for cid, n in counts.items() if cid != MEGA_STARMIE)
+    return safe < 2
 
 
 def discard_value(card_id: int, plan: TurnPlan | AcquirePlan) -> int:
@@ -979,10 +1008,23 @@ def _acquire_plan(facts: TurnFacts, gap: TurnGap, objective: Objective, combat: 
     second_done = facts.active_ready_mega and bool(facts.bench_ready_mega_id)
     # G1: digging Mega is never a "side-line" Ball — UB-1 must not block 1031.
     mega_is_target = MEGA_STARMIE in targets
+    mega_held = MEGA_STARMIE in hand
+    line_water = bool(facts.line_has_water or WATER_BASIC in hand)
     if not target_is_pokemon:
         ball_allowed, reason = False, "no current Pokemon gap"
-    elif MEGA_STARMIE in hand and (facts.staryu_on_field or facts.mega_starmie_on_field):
+    elif mega_held and (facts.staryu_on_field or facts.mega_starmie_on_field):
         ball_allowed, reason = False, "UB-2 Mega already held with base online"
+    elif (
+        mega_held
+        and line_water
+        and facts.staryu_on_field
+        and not need_mega_fetch
+    ):
+        # Wave U2b: land path already complete — keep Ball for Meowth/Lillie later.
+        ball_allowed, reason = False, "UB-2b Mega+water path held — defer Ball"
+    elif _ub_would_force_burn_mega(facts, gap):
+        # Wave U2: engine must discard 2; hand would force Mega (or sole water).
+        ball_allowed, reason = False, "UB-forced-burn Mega/critical water"
     elif need_mega_fetch and mega_is_target:
         # Plan G1: authorize Ball while Mega is the gap (supporters still score
         # higher in Layer1; do not let a dead held supporter lock Ball out).
@@ -1007,6 +1049,9 @@ def _acquire_plan(facts: TurnFacts, gap: TurnGap, objective: Objective, combat: 
             (cid == STARYU and gap.need_base)
             or (cid == MEGA_STARMIE and gap.need_evolution)
         ):
+            value = 10_000
+        elif cid == MEGA_STARMIE:
+            # Wave U2: never soft-burn held Mega even when dig target is a base.
             value = 10_000
         elif cid == WATER_BASIC and (gap.need_energy or combat.attack_required):
             value = 9_500
@@ -1127,6 +1172,11 @@ def build_turn_plan(
     elif _ban_basic_attack(objective, combat, facts):
         forbidden.append("BASIC_ATTACK")
         reasons.append("basic attacks banned while building/landing Mega")
+    elif not combat.attack_required:
+        # Wave U1: Staryu gun always illegal — expose via forbidden even when
+        # other basics (Itchy) remain legal under the selective ban.
+        forbidden.append("BASIC_ATTACK")
+        reasons.append("Wave U1: Staryu Water Gun banned")
     if not combat.froslass_build_allowed:
         forbidden.append("BUILD_861")
         reasons.append("Mega Froslass build gated (prizes/matchup)")
@@ -1184,6 +1234,12 @@ def _ban_basic_attack(
         and facts.staryu_can_evolve
     ):
         return True
+    # Wave U1: Dudunsparce dig available — never Water Gun over evolve-draw.
+    if (
+        DUDUNSPARCE in facts.hand_ids
+        and any(cid in (DUNSPARCE_A, DUNSPARCE_B) for cid in facts.bench_ids + (facts.active_id,))
+    ):
+        return True
     # MAKE_ATTACKER: ban base attacks only when a dig/setup tool is actually in hand.
     if objective == "MAKE_ATTACKER" and any(
         cid in facts.hand_ids
@@ -1202,6 +1258,10 @@ def is_basic_attack_forbidden(
     """Ban basic attacks per expert C1; sole exception = Budew Itchy stall."""
     if card_id not in _BASIC_ATTACK_BAN:
         return False
+    # Wave U1: Staryu Water Gun is illegal unless a Mega must-attack turn
+    # already routes through the shared ban (attack_required → True above).
+    if card_id == STARYU and not plan.combat.attack_required:
+        return True
     if not _ban_basic_attack(plan.objective, plan.combat, plan.facts):
         return False
     # Itchy stall is illegal once a fueled Mega sits on the bench (G0).

@@ -1,0 +1,28 @@
+---
+description: Opening 核心硬指标（先手≤T3 / 后手≤T2）不可回吐
+alwaysApply: true
+---
+
+# Opening 核心硬指标
+
+所有修改与优化（刀、plan-step、handoff、检索、贴能、中盘）**必须先保证不伤**下列达成率；WR / OL 漏点均为辅指标。
+
+## 定义（manifest）
+
+- **先手（seat A，`cur_is_a=true`）**：`mega_evo_my_t ≤ 3`
+- **后手（seat B，`cur_is_a=false`）**：`mega_evo_my_t ≤ 2`
+- 合计 = 上述分席达成局数 / n
+
+主闸惯例：vs fireform，`n=200`，`seed0=82000`。对照基线以当前采用栈（ENERGY v2 闸）的分席率为地板，**任一席回吐即判不合格**。
+
+## 为何后手是 ≤T2（不要降到 T3）
+
+专家金标 `traj_expert_gold_v1_clean` 后手 109 局：CLEAN_T1×10 + CLEAN_T2×99 → **100%≤T2**。
+金标只有「萨瓦托 T1」或「T1 挖/铺 → T2 进化」两档，没有正常拖到 T3。
+我方后手众数 T3、T2 进化档为 0，是效率缺口，不是指标过严。
+
+## 闸纪律
+
+1. 改动前后必须报：先手≤T3、后手≤T2、合计；勿只用全席 Mega≤T3。
+2. 若硬指标回吐：回滚或改刀，不得用 WR/漏点好转顶替。
+3. Handoff / combat 冻层等同理：开局时钟未达成则冻层失败。

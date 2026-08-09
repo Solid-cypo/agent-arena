@@ -8,23 +8,28 @@
 
 ## 当前状态（每次会话结束时更新此节）
 
-- **更新日期**：2026-08-06
-- **线上提交**：[`55299191`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions) Wave I+L freeze → publicScore **445.4**（初评曾见 600，池子滚动后回落；对照 `55209165`=444.3 / `55202093`=483.3）；本机权威闸仍是 **Wave I** + **Wave L**
-- **对照**：baseline `/tmp/baseline_55202093_f07e541`（≈ `f07e541`）；H2H 权威：`logs/h2h_audit_waveI_seat_b/`（n=400 → **50.5% / A52 / B49**）
+- **更新日期**：2026-08-07
+- **线上提交**：[`55299191`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions) Wave I+L freeze → publicScore **445.4**（对照 `55209165`=444.3 / `55202093`=483.3）；本机权威闸现为 **Wave I + L + U**（未再提交）
+- **对照**：baseline `/tmp/baseline_55202093_f07e541`（≈ `f07e541`）；H2H 权威仍记 Wave I n=400（`logs/h2h_audit_waveI_seat_b/` → **50.5% / A52 / B49**）；Wave U G0 已过
 - **卡组**：`data/decks/starmie_froslass.csv` — 3×海星星、无 306、5 水 + 3 恶
 - **OPENING 硬刀：挂起**（Wave J/K 已证 ROI 为负）
   - **禁止**新的全局/半全局 OPENING demote、Poffin dual-fill trim、GS T1 Budew 改动、全局 END–ATTACK demote
   - Poffin `maxCount=2` 仍可能在 PATH Staryu 后捞到 demoted Snorunt（`wrong_play_side_basic`）——**仅文档/观测**，不得再硬修直到有 seat-B 安全证伪
   - 开局「够用闸」seat B≥55% **不当主阻塞**；OPENING 只读表（`wrong_play_side_basic` / `no_mega`）
-- **本包内容（Wave L，叠在 Wave I 上）**：
-  - L1：fueled Active Mega + plan `boss_target` → Boss PLAY 满 PATH；无 target 时仍走 gust 软闸 PATH−10
-  - L2：closing（己奖≤3）等奖时按 `boss_priority` 切更高威胁；Combat `required_before_attack` **BOSS 先于** DP prep
-  - L3：fueled Active Mega 时 Night Stretcher 可从弃牌捞 Boss
-  - 继承 Wave I：I1–I3 seat B / evolve / dispatch；GS My-T1 含羞苞不动
-- **本地回归**：
-  - 单测：`tests/test_wave_l_boss.py`（5）+ wave_i（7）通过；`sync_starmie_submission.py` 已同步
-  - BC 4×20 seed93000：`logs/combat_eval_waveL_bc_4x20/` → WR **62.5%**；相对 Wave K 同 seed：`zero_boss` 25→**19**、`no_effective_boss` 26→**20**（负局占比 83%/87%→**63%/67%**）；`effective_boss_rate` 0.54→**0.77**；`ready_mega_no_attack=0`；`base_attack_with_ready_mega=1`（不差于 Wave I 的 3）
-  - H2H n=200 seed140000 rules-only：`logs/h2h_audit_waveL_boss/` → 总 **51.0%** / A **55%** / B **47%**（对照 Wave I n=400：50.5%/A52/B49；无 Wave K 式 seat B 崩）
+- **本包内容（Wave U，叠在 Wave I+L 上；修线上 90447438/90443511/90444305 簇）**：
+  - U1：底座海星水枪硬禁（`_ATTACH_ILLEGAL`）；可进化节节在 MAKE_ATTACKER 压过 END
+  - U2：UB 禁打时硬非法；手持 Mega 弃牌保护；`UB-forced-burn`（打出后不足 2 张非 Mega 弃牌）
+  - U3：双海星 / Active 不可进化 → 禁唯一水贴 Active，优先 Bench
+  - U4：场上无 Mega 时夜伸优先捞弃牌 Mega（场上已有 Mega 缺油仍先水）
+  - U5：先手 My-T1 Active 含羞苞禁撤退/交替上底座
+  - 继承 Wave L：Boss PATH / closing gust / 夜伸捞 Boss；Wave I seat B / evolve / dispatch
+- **本地回归（Wave U）**：
+  - 单测：`tests/test_wave_u_online_leaks.py`（9）+ wave_h/i/l + turn_planner 通过；`sync_starmie_submission.py` 已同步
+  - 三局离线形状抽检：水枪禁 / UB forced-burn / 夜伸 Mega / 双海星贴 Bench / 先手含羞苞留场 — ALL_OK
+  - H2H n=200 seed140000 rules-only：`logs/h2h_audit_waveU_online/` → 总 **55.0%** / A **59%** / B **51%**（对照 Wave L n=200：51%/A55/B47）
+  - BC 4×20 seed93000：`logs/combat_eval_waveU_bc_4x20/` → WR **67.5%**；`ready_mega_no_attack=0`；`base_attack_with_ready_mega=0`；`bad_ultra_ball_discard=0`
+- **Wave L（已冻结，仍在栈上）**：
+  - L1–L3 Boss / closing / 夜伸捞 Boss；BC 曾 WR 62.5%、`effective_boss_rate` 0.77（U 烟测同 seed WR 更高，Boss 率噪声带内）
 - **Wave M（中盘 DP）试刀已回滚**：抬 `ATTACH_DARK`/PLAY Munk/无效 Boss demote → H2H **41.5% / B32%**（`logs/h2h_audit_waveM_dp/`）
 - **Wave N（超窄 DP 仅 prep 序）已回滚 + 已解剖**：H2H 总 **51%** / B **39%**（`logs/h2h_audit_waveN_dp/`）；解剖见 [`logs/h2h_audit_waveN_dp/AUTOPSY.md`](logs/h2h_audit_waveN_dp/AUTOPSY.md)
   - **已证伪**：序刀可抬 `munk_dark`（29%→28.5%，seat B 反降）
@@ -63,7 +68,7 @@
 - **权威面**：Wave I H2H + Wave L 政策叠加
 - **迭代 SOP（强制）**：[`references/rulebook/SOP-PilotIteration.md`](references/rulebook/SOP-PilotIteration.md) — D→H→P→G0→G1→G2；黄/红必解剖；禁止抽奖式换维
 - **磁盘**：改规则务必立刻 commit
-- **指标文档**：`references/rulebook/METRICS-CombatV1_20260801.md`｜`TURN_PLAN_POLICY_20260802.md`｜`ULTRA_BALL_POLICY_20260801.md`｜**`SOP-PilotIteration.md`**
+- **指标文档**：`references/rulebook/METRICS-CombatV1_20260801.md`｜`TURN_PLAN_POLICY_20260802.md`｜`ULTRA_BALL_POLICY_20260801.md`｜**`SOP-PilotIteration.md`**｜**`ONLINE_LEAK_PATTERNS_55299191.md`**
 
 ---
 
@@ -73,6 +78,7 @@
 |---|---|
 | `ONBOARDING.md` | 快速上手、目录结构、全部常用命令 |
 | **`references/rulebook/SOP-PilotIteration.md`** | **Pilot 迭代 SOP（先归因再动刀；闸门与回滚纪律）** |
+| **`references/rulebook/ONLINE_LEAK_PATTERNS_55299191.md`** | **线上可追溯失误模式（OL-A…F）+ 日志识别式 + Wave U 对照** |
 | `references/PROJECT_LAYOUT.md` | 项目布局详情 |
 | `references/ptcg_dimension_theory.md` | 理论建模（28 维） |
 | `.agent/skills/piloting_starmie_froslass/references/phases/00–04` | 海星 Phase 文档链 |

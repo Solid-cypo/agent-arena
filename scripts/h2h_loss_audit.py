@@ -98,8 +98,8 @@ def main() -> int:
         "use n≥400 for strategy gates (Wave I0)."
     )
 
-    base_agent, base_reset, _bm, deck_base = load_starmie_agent(args.baseline)
-    cur_agent, cur_reset, _cm, deck_cur = load_starmie_agent(args.current)
+    base_agent, base_reset, _bm, deck_base, _ = load_starmie_agent(args.baseline)
+    cur_agent, cur_reset, _cm, deck_cur, cur_state = load_starmie_agent(args.current)
     assert deck_base == deck_cur, "deck.csv mismatch"
 
     wins_cur = wins_base = draws = trunc = 0
@@ -189,6 +189,13 @@ def main() -> int:
             )
             (games_dir / f"{stem}.log").write_text(text, encoding="utf-8")
 
+        # Plan-discipline trace from current agent (Phase 0).
+        trace = list((cur_state or {}).get("plan_trace") or [])
+        if trace:
+            with open(games_dir / f"{stem}.plan.jsonl", "w", encoding="utf-8") as h:
+                for row_t in trace:
+                    h.write(json.dumps(row_t, ensure_ascii=False) + "\n")
+
         if args.save_jsonl:
             with open(games_dir / f"{stem}.jsonl", "w", encoding="utf-8") as h:
                 for lg in g.engine_logs:
@@ -216,6 +223,8 @@ def main() -> int:
             "cur_itchy": sides["cur_itchy"],
             "opp_itchy": sides["opp_itchy"],
             "log_path": log_rel if write_log else None,
+            "plan_trace_n": len(trace),
+            "plan_path": f"games/{stem}.plan.jsonl" if trace else None,
         }
         rows.append(row)
 

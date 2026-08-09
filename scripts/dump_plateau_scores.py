@@ -245,11 +245,11 @@ def main() -> int:
     store: list[dict] = []
 
     if args.baseline.is_dir():
-        base_agent, base_reset, _bm, deck_b = load_starmie_agent(args.baseline)
+        base_agent, base_reset, _bm, deck_b, _ = load_starmie_agent(args.baseline)
     else:
         base_agent = base_reset = deck_b = None
 
-    cur_agent, cur_reset, _cm, deck = load_starmie_agent(args.current)
+    cur_agent, cur_reset, _cm, deck, _ = load_starmie_agent(args.current)
     import starmie_pilot as sp  # noqa: WPS433
 
     if deck_b is not None:

@@ -14,6 +14,30 @@ def _pct(n: int, d: int) -> str:
     return f"{100.0 * n / d:.1f}%"
 
 
+def opening_hard_hit(game: dict) -> bool:
+    """Core Opening KPI: first ≤T3, second ≤T2 (`mega_evo_my_t`)."""
+    mega = (game.get("cur") or {}).get("mega_evo_my_t")
+    if mega is None:
+        return False
+    limit = 3 if game.get("cur_is_a") else 2
+    return int(mega) <= limit
+
+
+def opening_hard_rates(games: list) -> dict[str, tuple[int, int]]:
+    """Return {label: (hits, n)} for first / second / all."""
+    seat_a = [g for g in games if g.get("cur_is_a")]
+    seat_b = [g for g in games if not g.get("cur_is_a")]
+
+    def pack(rs: list) -> tuple[int, int]:
+        return sum(1 for g in rs if opening_hard_hit(g)), len(rs)
+
+    return {
+        "first_le_t3": pack(seat_a),
+        "second_le_t2": pack(seat_b),
+        "all": pack(games),
+    }
+
+
 def summarize(manifest: dict) -> str:
     games = manifest.get("games") or []
     n = len(games)
@@ -122,9 +146,30 @@ def summarize(manifest: dict) -> str:
     lines.append(f"| 项 | 值 |")
     lines.append(f"|---|---|")
     lines.append(f"| WR (decided) | {wins}-{losses} ({_pct(wins, decided)}) draws={draws} |")
-    lines.append(f"| seat A (先手) | {seat_wr(seat_a)} |")
-    lines.append(f"| seat B (后手) | {seat_wr(seat_b)} |")
+    lines.append(f"| seat A (先手) WR | {seat_wr(seat_a)} |")
+    lines.append(f"| seat B (后手) WR | {seat_wr(seat_b)} |")
     lines.append(f"| 短局 steps&lt;40 | {short}/{n} ({_pct(short, n)}) |")
+    lines.append("")
+    hard = opening_hard_rates(games)
+    h_a, n_a = hard["first_le_t3"]
+    h_b, n_b = hard["second_le_t2"]
+    h_all, n_all = hard["all"]
+    old_t3 = sum(
+        1
+        for g in games
+        if (g.get("cur") or {}).get("mega_evo_my_t") is not None
+        and int((g.get("cur") or {}).get("mega_evo_my_t") or 99) <= 3
+    )
+    lines.append("## Opening 核心硬指标（不可回吐）")
+    lines.append("")
+    lines.append("定义：先手 `mega_evo_my_t≤3`；后手 `mega_evo_my_t≤2`。WR / 全席≤T3 均为辅。")
+    lines.append("")
+    lines.append("| 项 | 值 |")
+    lines.append("|---|---|")
+    lines.append(f"| **先手 Opening≤T3** | {h_a}/{n_a} ({_pct(h_a, n_a)}) |")
+    lines.append(f"| **后手 Opening≤T2** | {h_b}/{n_b} ({_pct(h_b, n_b)}) |")
+    lines.append(f"| **硬指标合计** | {h_all}/{n_all} ({_pct(h_all, n_all)}) |")
+    lines.append(f"| （辅）全席 Mega≤T3 | {old_t3}/{n} ({_pct(old_t3, n)}) |")
     lines.append("")
     lines.append("## 路径桶 × 胜负（current 视角）")
     lines.append("")

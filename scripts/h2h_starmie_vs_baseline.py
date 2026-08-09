@@ -94,6 +94,8 @@ def load_starmie_agent(agent_dir: Path):
     deck = _read_deck(agent_dir)
     weights = _read_weights(agent_dir)
     agent_fn = sp.make_starmie_agent(deck, weights)
+    # Opening handoff reloads HEAD into a fresh module object; prefer that.
+    sp = sys.modules.get("starmie_pilot", sp)
     # Capture state before the next load overwrites module globals.
     agent_state = getattr(sp, "_LIVE_AGENT_STATE", None)
     reset_state = getattr(sp, "reset_agent_state", None)
@@ -104,7 +106,7 @@ def load_starmie_agent(agent_dir: Path):
         else:
             getattr(sp, "reset_for_new_game", lambda: None)()
 
-    return agent_fn, reset_fn, sp, deck
+    return agent_fn, reset_fn, sp, deck, agent_state
 
 
 def main() -> int:
@@ -138,8 +140,8 @@ def main() -> int:
     print(f"games={args.n} seed0={args.seed} RL_ENABLED={os.environ.get('RL_ENABLED', '1')}")
 
     # Load baseline first, then current (current modules stay on sys.path after).
-    base_agent, base_reset, _base_mod, deck_base = load_starmie_agent(args.baseline)
-    cur_agent, cur_reset, _cur_mod, deck_cur = load_starmie_agent(args.current)
+    base_agent, base_reset, _base_mod, deck_base, _ = load_starmie_agent(args.baseline)
+    cur_agent, cur_reset, _cur_mod, deck_cur, _ = load_starmie_agent(args.current)
     assert deck_base == deck_cur, "deck.csv mismatch between agents"
 
     wins_cur = 0

@@ -1474,10 +1474,14 @@ def _reorder_poffin_bench(
     elif sit is not None and _going_second(sit.get("board")):
         # GS My-T1 only: prefer Budew in free Poffin fills once Staryu is safe.
         # Later turns must not bench a dead Budew.
+        # Dual-Staryu: keep Staryu-first until two Staryu are seated.
         board = sit.get("board")
         my_t = int(getattr(board, "my_turn_number", 0) or 0) if board is not None else 0
+        n_staryu = _count_staryu_on_field(obs, my_index)
         if board is not None and not bool(getattr(board, "staryu_on_field", False)):
             pass  # keep Staryu-first default
+        elif n_staryu < 2:
+            pass  # second Staryu before Budew / side fills
         elif my_t == 1 and not _field_has_budew(obs, my_index):
             rest = [c for c in POFFIN_OPENING_PRIORITY if c != _BUDEW_ID]
             pri = {cid: i for i, cid in enumerate((_BUDEW_ID,) + tuple(rest))}
@@ -1545,6 +1549,218 @@ def _field_has_budew(obs, my_index: int) -> bool:
         )
     except Exception:
         return False
+
+
+_PROTECTOR_ACTIVE_IDS = frozenset({
+    _BUDEW_ID,
+    DUNSPARCE_A,
+    DUNSPARCE_B,
+    _CARDS["dunsparce_a"],
+    _CARDS["dunsparce_b"],
+})
+
+
+def _selects_our_staryu(obs, option, mi: int) -> bool:
+    """True when CARD option picks our unevolved Staryu as SWITCH/TO_ACTIVE."""
+    if option.type != OptionType.CARD:
+        return False
+    try:
+        ctx = int(obs.select.context)
+    except Exception:
+        ctx = -1
+    if ctx not in (int(SelectContext.SWITCH), int(SelectContext.TO_ACTIVE)):
+        return False
+    pi = _si(getattr(option, "playerIndex", None), mi)
+    if pi != mi:
+        return False
+    pkm = _pokemon_in_area(
+        obs, option.area, _si(getattr(option, "index", None)), mi,
+    )
+    return bool(pkm and _si(getattr(pkm, "id", None)) == _OC_STARYU)
+
+
+def _count_staryu_on_field(obs, my_index: int) -> int:
+    n = 0
+    try:
+        me = obs.current.players[my_index]
+        active = (me.active or [None])[0]
+        if active and _si(getattr(active, "id", None)) == _OC_STARYU:
+            n += 1
+        for p in me.bench or []:
+            if p and _si(getattr(p, "id", None)) == _OC_STARYU:
+                n += 1
+    except Exception:
+        return n
+    return n
+
+
+def _selects_our_non_mega(obs, option, mi: int) -> bool:
+    """True when SWITCH/TO_ACTIVE picks our non-Mega Pokémon into Active."""
+    if option.type != OptionType.CARD:
+        return False
+    try:
+        ctx = int(obs.select.context)
+    except Exception:
+        ctx = -1
+    if ctx not in (int(SelectContext.SWITCH), int(SelectContext.TO_ACTIVE)):
+        return False
+    pi = _si(getattr(option, "playerIndex", None), mi)
+    if pi != mi:
+        return False
+    pkm = _pokemon_in_area(
+        obs, option.area, _si(getattr(option, "index", None)), mi,
+    )
+    if not pkm:
+        return False
+    return _si(getattr(pkm, "id", None)) != _OC_MEGA_STARMIE
+
+
+def _anchor_staryu_wall_bonus(obs, option, sit: dict[str, Any]) -> float:
+    """Hard-ban yanking Active Staryu while the Mega path is live.
+
+    Symptoms (GS Opening leaks): switch onto Staryu → attach water → switch off
+    to Dunsparce/Snorunt; Crispin then cut away with Mega still in hand.
+    Only legal cut: Switch/Retreat onto an already-evolved bench Mega Starmie.
+    """
+    board = sit.get("board")
+    if board is None:
+        return 0.0
+    mi = sit["my_index"]
+    active = _active_pokemon(obs, mi)
+    if not active or _si(getattr(active, "id", None)) != _OC_STARYU:
+        return 0.0
+
+    mega_in_hand = _hand_has_id(obs, mi, _OC_MEGA_STARMIE)
+    protected = _staryu_seat_protected(obs, mi, board, sit.get("turn_plan"))
+    if not (mega_in_hand or protected):
+        return 0.0
+
+    bench_mega = _bench_has_id(obs, mi, _OC_MEGA_STARMIE)
+    if option.type == OptionType.RETREAT:
+        if bench_mega and _active_can_retreat(obs, mi):
+            return 0.0
+        return _ATTACH_ILLEGAL
+    if option.type == OptionType.PLAY and _hand_card_id(obs, option, mi) == _OC_SWITCH:
+        if bench_mega:
+            return 0.0
+        return _ATTACH_ILLEGAL
+    if _selects_our_non_mega(obs, option, mi):
+        return _ATTACH_ILLEGAL
+    return 0.0
+
+
+def _dual_staryu_opening_bonus(obs, option, sit: dict[str, Any]) -> float:
+    """OPENING: prefer two Staryu on field so one is always evolvable.
+
+    One Staryu may be summoning-sick; a second guarantees a Mega seat.
+    Cap remains 2 via opening_bench.
+    """
+    board = sit.get("board")
+    phase = sit.get("phase")
+    if board is None or phase is None:
+        return 0.0
+    if getattr(phase, "primary", None) != "OPENING":
+        return 0.0
+    if bool(getattr(board, "mega_starmie_on_field", False)):
+        return 0.0
+    mi = sit["my_index"]
+    n = _count_staryu_on_field(obs, mi)
+    if n >= 2:
+        return 0.0
+    if n < 1:
+        return 0.0  # BASE / dig owns the first Staryu
+    if int(getattr(board, "bench_open", 0) or 0) <= 0:
+        return 0.0
+    if option.type == OptionType.PLAY and _hand_card_id(obs, option, mi) == _OC_STARYU:
+        return _DOMINATE_OPEN_PATH - 5.0
+    # Poffin/Pad that can fetch the second Staryu when none in hand.
+    if (
+        option.type == OptionType.PLAY
+        and _hand_card_id(obs, option, mi) in (_OC_POFFIN, _OC_POKE_PAD)
+        and not _hand_has_id(obs, mi, _OC_STARYU)
+    ):
+        return _DOMINATE_OPEN - 20.0
+    return 0.0
+
+
+def _protector_wall_bonus(obs, option, sit: dict[str, Any]) -> float:
+    """Knife A2 / OL-A2: Active Budew or Dunsparce must not expose bare Staryu.
+
+    - Going-first My-T1: never retreat/switch onto Staryu (cannot evolve).
+    - Otherwise: ban Staryu expose unless Mega is in hand (same-turn land) or a
+      Mega Starmie already sits on bench (promote Mega, not the base).
+    Watered-base alone is the OL-A2 leak (mega_clock D2). Must run *before*
+    mega_clock. Remaining leak: Mega held/fetched → cut to base → skip evo
+    (see knifeA2v2 tight experiment; WR regresses when Mega-hand cut is banned).
+    """
+    board = sit.get("board")
+    if board is None:
+        return 0.0
+    mi = sit["my_index"]
+    active = _active_pokemon(obs, mi)
+    if not active:
+        return 0.0
+    aid = _si(getattr(active, "id", None))
+    if aid not in _PROTECTOR_ACTIVE_IDS:
+        return 0.0
+
+    mega_in_hand = _hand_has_id(obs, mi, _OC_MEGA_STARMIE)
+    bench_mega = _bench_has_id(obs, mi, _OC_MEGA_STARMIE)
+    gf_t1 = (not _going_second(board)) and int(
+        getattr(board, "my_turn_number", 0) or 0
+    ) == 1
+
+    # GF-T1: always wall. Later: wall unless Mega hand/bench justifies a cut-in.
+    wall_all_retreat = gf_t1 or not (mega_in_hand or bench_mega)
+    if wall_all_retreat:
+        if option.type == OptionType.RETREAT:
+            return _ATTACH_ILLEGAL
+        if option.type == OptionType.PLAY and _hand_card_id(obs, option, mi) == _OC_SWITCH:
+            return _ATTACH_ILLEGAL
+        if _selects_our_staryu(obs, option, mi):
+            return _ATTACH_ILLEGAL
+        if gf_t1 and aid == _BUDEW_ID and option.type == OptionType.END:
+            return _DOMINATE_MID
+        return 0.0
+
+    # Mega path open: still never pick bare Staryu when Mega Starmie is on bench.
+    if bench_mega and _selects_our_staryu(obs, option, mi):
+        return _ATTACH_ILLEGAL
+    return 0.0
+
+
+def _going_first_budew_stay_bonus(obs, option, sit: dict[str, Any]) -> float:
+    """Wave U5: going-first My-T1 Active Budew — stay; never retreat onto Staryu.
+
+    Knife A2 folds the general protector wall into `_protector_wall_bonus` (runs
+    before mega_clock). This helper remains for unit tests and as a late belt.
+    """
+    plan = sit.get("turn_plan")
+    if plan is not None and plan.combat.attack_required:
+        return 0.0
+    board = sit.get("board")
+    if board is None or _going_second(board):
+        return 0.0
+    if int(getattr(board, "my_turn_number", 0) or 0) != 1:
+        return 0.0
+    # Do NOT bail on can_dispatch_bench_mega: fetching Mega (UB/Hilda) is exactly
+    # when game_112/180 retreated Budew→Staryu and voided My-T2 Itchy. Mega already
+    # Active+ready is impossible while Active is Budew; keep that guard only.
+    if plan is not None and plan.facts.active_ready_mega:
+        return 0.0
+    mi = sit["my_index"]
+    active = _active_pokemon(obs, mi)
+    if not active or _si(getattr(active, "id", None)) != _BUDEW_ID:
+        return 0.0
+    if option.type == OptionType.RETREAT:
+        return _ATTACH_ILLEGAL
+    if option.type == OptionType.PLAY and _hand_card_id(obs, option, mi) == _OC_SWITCH:
+        return _ATTACH_ILLEGAL
+    if _selects_our_staryu(obs, option, mi):
+        return _ATTACH_ILLEGAL
+    if option.type == OptionType.END:
+        return _DOMINATE_MID
+    return 0.0
 
 
 def _going_second_budew_bonus(obs, option, sit: dict[str, Any]) -> float:
@@ -1911,6 +2127,37 @@ def _evolve_to_dudunsparce(obs, option, my_index: int) -> bool:
     return False
 
 
+def _dudunsparce_evolve_available(obs, my_index: int, sit: dict[str, Any] | None = None) -> bool:
+    """True when hand holds 66 and a Dunsparce is on our field (bench/active).
+
+    Knife A (ops_firefix restore): used to keep EVOLVE_66 above TurnPlan dig
+    (Hilda/Salvator/UB) and to ignore draw_axis TP-DRAW-HOLD FORBID on evolve.
+    """
+    if not _hand_has_id(obs, my_index, _CARDS["dudunsparce"]):
+        return False
+    if (
+        _bench_has_id(obs, my_index, _CARDS["dunsparce_a"])
+        or _bench_has_id(obs, my_index, _CARDS["dunsparce_b"])
+        or _bench_has_id(obs, my_index, DUNSPARCE_A)
+        or _bench_has_id(obs, my_index, DUNSPARCE_B)
+    ):
+        return True
+    active = _active_pokemon(obs, my_index)
+    if active and _si(getattr(active, "id", None)) in (
+        _CARDS["dunsparce_a"],
+        _CARDS["dunsparce_b"],
+        DUNSPARCE_A,
+        DUNSPARCE_B,
+    ):
+        return True
+    # Prefer offered EVOLVE options when the engine already listed them.
+    if sit is not None:
+        for o in sit.get("select_options") or []:
+            if _evolve_to_dudunsparce(obs, o, my_index):
+                return True
+    return False
+
+
 def _planner_score(priority: float) -> float:
     """Map supporter_planner / draw_axis priority into Layer1 band (850–950)."""
     if priority <= 0:
@@ -2226,10 +2473,9 @@ def _layer1_supporter_draw_axis(
             return _planner_score(sup.priority)
 
     draw = sit.get("draw_axis_dec")
-    # DD-OPENING / FORBID: never let 66 evolve or Run Away outrank dig paths.
+    # Knife A: EVOLVE_66 is hard-PATHed in _hard_rule_bonus (firefix) — never
+    # demote it here for TP-DRAW-HOLD / DD-OPENING FORBID. RunAway still yields.
     if draw and draw.action == "FORBID":
-        if option.type == OptionType.EVOLVE and _evolve_to_dudunsparce(obs, option, mi):
-            return -_DOMINATE_OPEN_PATH
         if (
             option.type == OptionType.ABILITY
             and _ability_source_id(obs, option, mi) == _CARDS["dudunsparce"]
@@ -2240,6 +2486,7 @@ def _layer1_supporter_draw_axis(
         if _ability_source_id(obs, option, mi) == _CARDS["dudunsparce"]:
             return _planner_score(draw.priority)
 
+    # Soft authorize path unused when Knife A hard-PATH fires first.
     if draw and draw.action in ("EVOLVE_66",) and _evolve_to_dudunsparce(obs, option, mi):
         return _planner_score(draw.priority)
 
@@ -2429,6 +2676,36 @@ def _attach_priority_bonus(
                 return _DOMINATE_MID
             return _DOMINATE_OPEN_PATH if board.active_is_mega_starmie else _DOMINATE_PLUS
         if tid == _OC_STARYU and not _has_water_energy(target):
+            # Wave U3: dual Staryu / unevolvable Active — fuel Bench egg, not
+            # the doomed Active that will eat the only water (90444305).
+            active = _active_pokemon(obs, mi)
+            active_is_staryu = bool(
+                active and _si(getattr(active, "id", None)) == _OC_STARYU
+            )
+            attaching_active = False
+            try:
+                ipa = getattr(option, "inPlayArea", None)
+                attaching_active = (
+                    ipa == AreaType.ACTIVE or int(ipa) == int(AreaType.ACTIVE)
+                )
+            except Exception:
+                attaching_active = False
+            bench_dry = _bench_has_dry_staryu(obs, mi)
+            can_evolve_active = True
+            try:
+                if active_is_staryu and active is not None:
+                    can_evolve_active = not bool(
+                        getattr(active, "appearThisTurn", False)
+                    )
+            except Exception:
+                can_evolve_active = True
+            if active_is_staryu and attaching_active and (
+                bench_dry or not can_evolve_active
+            ):
+                return _ATTACH_ILLEGAL
+            if active_is_staryu and bench_dry and not attaching_active:
+                if not _field_has_dry_mega(obs, mi):
+                    return _DOMINATE_OPEN_PATH
             # Prefer Staryu water when no dry Mega still needs it.
             if not _field_has_dry_mega(obs, mi):
                 # Alakazam-only: Munk dark may outrank spare-Staryu water.
@@ -2467,6 +2744,19 @@ def _attach_priority_bonus(
         return _DOMINATE_OPEN_PATH if phase.primary == "HARVEST" else _DOMINATE
 
     return 0.0
+
+
+def _bench_has_dry_staryu(obs, my_index: int) -> bool:
+    """True when a Bench Staryu has no water (Wave U3 dual-egg fuel seat)."""
+    try:
+        for p in obs.current.players[my_index].bench or []:
+            if not p:
+                continue
+            if _si(getattr(p, "id", None)) == _OC_STARYU and not _has_water_energy(p):
+                return True
+    except Exception:
+        pass
+    return False
 
 
 def _field_has_dry_mega(obs, my_index: int) -> bool:
@@ -2592,6 +2882,82 @@ def _mega_evolve_legal_now(obs, sit: dict[str, Any], board, plan) -> bool:
     return False
 
 
+def _mega_evolve_option_offered(obs, sit: dict[str, Any]) -> bool:
+    """True when the live select list includes Mega Starmie evolve.
+
+    Grounds Closing locks on engine-offered options (avoids Wave Q plateau
+    where facts say can_evolve but EVOLVE is not in the list yet).
+    """
+    mi = sit["my_index"]
+    opts = sit.get("select_options") or []
+    if not opts:
+        return False
+    return any(_evolve_to_mega_starmie(obs, o, mi) for o in opts)
+
+
+def _wait_evolve_freeze_bonus(obs, option, sit: dict[str, Any], plan) -> float:
+    """Gold T1 summoning-sick window: hold Mega, freeze side-board noise.
+
+    WAIT_EVOLVE used to unlock the whole plan_step (return 0) so Poffin / Budew /
+    Snorunt / Munk ate the turn; expert gold freezes until T2 evolve.
+    Allowed: END, water→Staryu line, second Staryu seat, Item dig that does not
+    expand junk basics.
+    """
+    board = sit.get("board")
+    if board is None or plan is None:
+        return 0.0
+    if _OC_MEGA_STARMIE not in plan.facts.hand_ids:
+        return 0.0
+    if not bool(getattr(plan.facts, "staryu_on_field", False)):
+        return 0.0
+    if bool(getattr(plan.facts, "mega_starmie_on_field", False)):
+        return 0.0
+    mi = sit["my_index"]
+
+    if option.type == OptionType.END:
+        return _DOMINATE_MID
+    if option.type == OptionType.ATTACH:
+        eid = _attach_energy_id(obs, option, mi)
+        if eid not in _WATER_ENERGY_IDS:
+            return _ATTACH_ILLEGAL
+        target = _attach_target_pokemon(obs, option, mi)
+        if target and _si(getattr(target, "id", None)) in (
+            _OC_STARYU, _OC_MEGA_STARMIE,
+        ):
+            return _DOMINATE_OPEN_PATH - 20.0
+        return _ATTACH_ILLEGAL
+    if option.type == OptionType.EVOLVE:
+        # Cannot Mega yet; ban other evolves stealing the sick window.
+        if _evolve_to_mega_starmie(obs, option, mi):
+            return _DOMINATE_OPEN_PATH
+        return _ATTACH_ILLEGAL
+    if option.type == OptionType.RETREAT:
+        return _ATTACH_ILLEGAL
+    if option.type == OptionType.PLAY:
+        cid = _hand_card_id(obs, option, mi)
+        if cid == _OC_SWITCH:
+            return _ATTACH_ILLEGAL
+        if cid == _OC_STARYU:
+            return _DOMINATE_OPEN_PATH - 5.0  # dual Staryu insurance
+        if cid in (_OC_POFFIN, _OC_POKE_PAD) and not _hand_has_id(obs, mi, _OC_STARYU):
+            # Only if under dual-Staryu cap (second seat).
+            if _count_staryu_on_field(obs, mi) < 2:
+                return _DOMINATE_OPEN - 30.0
+            return _ATTACH_ILLEGAL
+        if cid in (
+            _BUDEW_ID, _OC_SNORUNT, _OC_MUNKIDORI, _BOSS_ID,
+            LILLIE, CRISPIN, _OC_ULTRA_BALL,
+        ):
+            return _ATTACH_ILLEGAL
+        # Mega already held — no further dig supporters this sick window.
+        if cid in (HILDA, SALVATOR):
+            return _ATTACH_ILLEGAL
+        return -_DOMINATE_OPEN_PATH
+    if option.type == OptionType.ABILITY:
+        return -_DOMINATE_OPEN_PATH
+    return 0.0
+
+
 def _bench_priority_staryu(obs, my_index: int, *, mega_in_hand: bool):
     """Bench Staryu worth promoting: watered, or Mega in hand (evolvable line)."""
     try:
@@ -2629,6 +2995,14 @@ def _mega_clock_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
         and active_id != _OC_MEGA_STARMIE
         and not bool(getattr(board, "active_is_mega_starmie", False))
     )
+    # Knife A2: protector Active — do not PATH-promote bare Staryu unless Mega
+    # is in hand. Watered-base alone is the OL-A2 leak.
+    gf_t1 = (not _going_second(board)) and int(
+        getattr(board, "my_turn_number", 0) or 0
+    ) == 1
+    if need_promote_staryu and active_id in _PROTECTOR_ACTIVE_IDS:
+        if gf_t1 or not mega_in_hand:
+            need_promote_staryu = False
     # F1c: intentional Dunsparce Active when no Mega-line Staryu to promote —
     # need_promote_staryu is already false (bench_line is None). Keep Active.
     active_is_staryu_line = active_id in (_OC_STARYU, _OC_MEGA_STARMIE)
@@ -2636,29 +3010,43 @@ def _mega_clock_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
     # D1 — legal Mega evolve owns the turn (Active Staryu line).
     # If the evolvable Staryu is only on bench, allow Switch/Retreat so D2 can
     # promote before/after bench evolve (game_011).
+    # When EVOLVE is actually offered: Closing = hard-illegal distractors.
     if can_evolve:
+        evo_offered = _mega_evolve_option_offered(obs, sit)
+        demote = _ATTACH_ILLEGAL if evo_offered else -_DOMINATE_OPEN_PATH
         if _evolve_to_mega_starmie(obs, option, mi):
             return _DOMINATE_OPEN_PATH
         if option.type == OptionType.ATTACK:
-            return -_DOMINATE_OPEN_PATH
+            return _ATTACH_ILLEGAL
         if option.type == OptionType.END and active_is_staryu_line:
-            return -_DOMINATE_OPEN_PATH
+            return demote
         if option.type == OptionType.ATTACH:
             # Evolve first; water Jetting after Mega is on the field.
-            return -_DOMINATE_OPEN_PATH
+            return demote
         if option.type == OptionType.ABILITY:
-            return -_DOMINATE_OPEN_PATH
+            return demote
         if option.type == OptionType.PLAY:
             cid = _hand_card_id(obs, option, mi)
             if cid == _OC_SWITCH and need_promote_staryu:
                 pass  # fall through to D2 promote
+            elif cid == _OC_SWITCH and active_is_staryu_line:
+                # Yanking evolvable Active Staryu is a hard Opening leak.
+                return _ATTACH_ILLEGAL
             else:
-                return -_DOMINATE_OPEN_PATH
+                return demote
         if option.type == OptionType.RETREAT:
             if need_promote_staryu and _active_can_retreat(obs, mi):
                 pass  # fall through to D2 promote
+            elif active_is_staryu_line:
+                return _ATTACH_ILLEGAL
             else:
-                return -_DOMINATE_OPEN_PATH
+                return demote
+        if option.type == OptionType.CARD and active_is_staryu_line:
+            if _selects_our_non_mega(obs, option, mi):
+                return _ATTACH_ILLEGAL
+        if option.type == OptionType.EVOLVE and evo_offered:
+            # Non-Mega evolves (e.g. 66) while Mega Closing is live.
+            return _ATTACH_ILLEGAL
 
     # D2 — wrong Active: promote benched Mega-line Staryu.
     if need_promote_staryu:
@@ -2798,11 +3186,12 @@ def _munk_activation_hard_bonus(
     )
 
     # Ban Switch/Retreat off protected Staryu unless cutting to a ready Mega.
+    # Hard-illegal: soft −PATH was losing to ENERGY/Crispin/side-seat PATH.
     if protected and not can_cut_mega:
         if option.type == OptionType.PLAY and _hand_card_id(obs, option, mi) == _OC_SWITCH:
-            return -_DOMINATE_OPEN_PATH
+            return _ATTACH_ILLEGAL
         if option.type == OptionType.RETREAT and _active_can_retreat(obs, mi):
-            return -_DOMINATE_OPEN_PATH
+            return _ATTACH_ILLEGAL
         if option.type == OptionType.CARD:
             try:
                 ctx = int(obs.select.context)
@@ -2815,8 +3204,8 @@ def _munk_activation_hard_bonus(
                         obs, option.area, _si(getattr(option, "index", None)), mi,
                     )
                     pid = _si(getattr(pkm, "id", None)) if pkm else 0
-                    if pid in (_MUNKIDORI_ID, _BUDEW_ID):
-                        return -_DOMINATE_OPEN_PATH
+                    if pid and pid != _OC_MEGA_STARMIE:
+                        return _ATTACH_ILLEGAL
 
     mega_secured = bool(
         getattr(board, "mega_starmie_on_field", False)
@@ -3227,6 +3616,268 @@ def _must_attack_closeout_bonus(obs, option, sit: dict[str, Any]) -> float:
     return 0.0
 
 
+def _plan_primary_step(plan) -> str | None:
+    """Current TurnPlan gap the agent must execute this decision.
+
+    Recomputed every agent call from fresh facts. Returns a step id, or None
+    when combat closeout / draw / open-ended objectives own the turn instead.
+    """
+    if plan is None:
+        return None
+    if plan.combat.attack_required:
+        if plan.facts.active_ready_mega:
+            return None  # must_close / attack block owns Jetting
+        reqs = tuple(plan.combat.required_before_attack or ())
+        return reqs[0] if reqs else "DISPATCH"
+    if plan.objective == "DRAW":
+        return None
+    if plan.objective != "MAKE_ATTACKER":
+        return None
+    if plan.gap.need_base:
+        return "BASE"
+    if plan.gap.need_evolution:
+        if _OC_MEGA_STARMIE not in plan.facts.hand_ids:
+            return "DIG_EVOLUTION"
+        if plan.facts.staryu_can_evolve:
+            return "EVOLUTION"
+        return "WAIT_EVOLVE"
+    if plan.gap.need_energy:
+        return "ENERGY"
+    return None
+
+
+def _option_advances_plan_step(
+    obs, option, sit: dict[str, Any], step: str, plan,
+) -> bool:
+    """True when this option closes (or digs for) the current plan step."""
+    mi = sit["my_index"]
+    if step in ("ADRENA", "BOSS", "EVOLVE_104", "ATTACH_DARK", "DISPATCH"):
+        return _turn_plan_required_option(obs, option, sit, step)
+
+    if step == "EVOLUTION":
+        return bool(
+            option.type == OptionType.EVOLVE
+            and _evolve_to_mega_starmie(obs, option, mi)
+        )
+
+    if step == "DIG_EVOLUTION":
+        if option.type == OptionType.PLAY:
+            cid = _hand_card_id(obs, option, mi)
+            if cid == _OC_ULTRA_BALL and plan.acquire.ball_allowed:
+                return True
+            if cid in plan.acquire.sources or cid in plan.acquire.targets:
+                return True
+            if cid in (HILDA, SALVATOR) and not plan.facts.supporter_played:
+                return True
+            return False
+        if option.type == OptionType.CARD:
+            try:
+                ctx = int(obs.select.context)
+            except Exception:
+                ctx = -1
+            if ctx in (
+                int(SelectContext.TO_HAND),
+                int(SelectContext.TO_FIELD),
+                int(SelectContext.TO_BENCH),
+            ):
+                return _card_option_id(obs, option, mi) == _OC_MEGA_STARMIE
+        return False
+
+    if step == "BASE":
+        if option.type == OptionType.PLAY:
+            cid = _hand_card_id(obs, option, mi)
+            bench_open = int(getattr(sit.get("board"), "bench_open", 0) or 0)
+            if cid == _OC_STARYU and bench_open > 0:
+                return True
+            if cid in (_OC_POFFIN, _OC_POKE_PAD) and bench_open > 0:
+                return True
+            if cid == _OC_ULTRA_BALL and plan.acquire.ball_allowed:
+                return True
+            if cid in plan.acquire.sources or cid in plan.acquire.targets:
+                return True
+            if (
+                cid in (LILLIE, HILDA, SALVATOR)
+                and not plan.facts.supporter_played
+                and _OC_STARYU not in plan.facts.hand_ids
+            ):
+                return True
+        if option.type == OptionType.CARD:
+            try:
+                ctx = int(obs.select.context)
+            except Exception:
+                ctx = -1
+            if ctx == int(SelectContext.TO_BENCH):
+                return _card_option_id(obs, option, mi) == _OC_STARYU
+        return False
+
+    if step == "ENERGY":
+        water_in_hand = bool(set(plan.facts.hand_ids) & set(_WATER_ENERGY_IDS))
+        if option.type == OptionType.ATTACH:
+            eid = _attach_energy_id(obs, option, mi)
+            if eid not in _WATER_ENERGY_IDS:
+                return False
+            target = _attach_target_pokemon(obs, option, mi)
+            if not target:
+                return False
+            return _si(getattr(target, "id", None)) in (
+                _OC_STARYU, _OC_MEGA_STARMIE,
+            )
+        # Dig water only when none in hand — never treat broad acquire as ENERGY.
+        if option.type == OptionType.PLAY and not water_in_hand:
+            cid = _hand_card_id(obs, option, mi)
+            if cid == CRISPIN and not plan.facts.supporter_played:
+                return True
+            if cid == _OC_NIGHT_STRETCHER:
+                return True
+        if option.type == OptionType.CARD:
+            try:
+                ctx = int(obs.select.context)
+            except Exception:
+                ctx = -1
+            if ctx in (
+                int(SelectContext.TO_HAND),
+                int(SelectContext.TO_FIELD),
+                int(SelectContext.ATTACH_FROM),
+            ):
+                return _card_option_id(obs, option, mi) in _WATER_ENERGY_IDS
+        return False
+
+    return False
+
+
+# Steps enforced by `_plan_step_execute_bonus`.
+# ENERGY v2: tight advances (no Run Away; Crispin only if no water in hand).
+_PLAN_STEP_LOCKED: frozenset[str] = frozenset({"EVOLUTION", "ENERGY"})
+
+
+def _plan_step_has_advance(obs, sit: dict[str, Any], step: str, plan) -> bool:
+    """True when any currently offered option advances the plan step.
+
+    Empty/missing select_options → assume True (fail-closed demote), matching
+    unit tests and nested selects that omit the full MAIN list. When the live
+    agent sets select_options and nothing advances, return False so END is not
+    demoted (full-lock WR regression).
+    """
+    opts = sit.get("select_options")
+    if not opts:
+        return True
+    return any(
+        _option_advances_plan_step(obs, o, sit, step, plan) for o in opts
+    )
+
+
+def _plan_step_execute_bonus(obs, option, sit: dict[str, Any]) -> float:
+    """Strict TurnPlan step lock — current locked gap owns the decision.
+
+    Every agent call rebuilds the plan. Locked steps PATH advances and demote
+    distractors **only when an advancing option is actually offered**.
+    WAIT_EVOLVE + Mega held → freeze side board (gold T1 sick window).
+    EVOLUTION with Mega evolve offered → hard-illegal non-advances (Closing).
+    """
+    plan = sit.get("turn_plan")
+    step = _plan_primary_step(plan)
+    if plan is None or step is None:
+        return 0.0
+
+    # Gold: summoning-sick + Mega in hand → freeze junk; do not unlock soft layer.
+    if step == "WAIT_EVOLVE":
+        return _wait_evolve_freeze_bonus(obs, option, sit, plan)
+
+    board = sit.get("board")
+    mi = sit["my_index"]
+    mega_offered = _mega_evolve_option_offered(obs, sit)
+
+    # Closing knife can also fire on DIG_EVOLUTION when the engine already
+    # listed Mega evolve (gap/dig lag). EVOLUTION+ENERGY stay locked as usual.
+    if step not in _PLAN_STEP_LOCKED and not (
+        mega_offered and step == "DIG_EVOLUTION"
+    ):
+        return 0.0
+
+    # Going-second Budew stall: no Mega held/on-field — yield to gs_budew bonus.
+    if (
+        board is not None
+        and _going_second(board)
+        and _OC_MEGA_STARMIE not in plan.facts.hand_ids
+        and not plan.facts.mega_starmie_on_field
+        and not plan.facts.active_ready_mega
+    ):
+        return 0.0
+
+    # Going-second My-T1: Budew Itchy window — do not lock BASE construction.
+    if (
+        step == "BASE"
+        and board is not None
+        and _going_second(board)
+        and int(getattr(board, "my_turn_number", 0) or 0) == 1
+    ):
+        return 0.0
+
+    # Knife A: EVOLVE_66 available — dig supporters yield; evo66 PATH earlier.
+    # When Mega evolve is offered this decision, Closing owns the turn instead.
+    if (
+        step == "DIG_EVOLUTION"
+        and _dudunsparce_evolve_available(obs, mi, sit)
+        and not mega_offered
+    ):
+        if option.type == OptionType.PLAY:
+            cid = _hand_card_id(obs, option, mi)
+            if cid in (HILDA, SALVATOR, LILLIE, CRISPIN):
+                return -_DOMINATE_OPEN_PATH
+        return 0.0
+
+    # Mega Closing: option advances even if gap step still says DIG_EVOLUTION.
+    if mega_offered and _evolve_to_mega_starmie(obs, option, mi):
+        return _DOMINATE_OPEN_PATH
+
+    if _option_advances_plan_step(obs, option, sit, step, plan):
+        return _DOMINATE_OPEN_PATH
+
+    # Run Away must not steal EVOLUTION / ENERGY steps (illegal depth — soft
+    # scores were still picking −OPEN_PATH ties in energy_v2 gate).
+    if (
+        step in ("EVOLUTION", "ENERGY")
+        and option.type == OptionType.ABILITY
+        and _ability_source_id(obs, option, mi) == _CARDS["dudunsparce"]
+    ):
+        return _ATTACH_ILLEGAL
+
+    # No legal advance offered this decision — do not demote END/misc (WR leak).
+    # Mega Closing always has an advance (the evolve option itself).
+    if not mega_offered and not _plan_step_has_advance(obs, sit, step, plan):
+        return 0.0
+
+    # Closing: Mega evolve is on the table — hard-illegal everything else.
+    evo_closing = mega_offered and step in ("EVOLUTION", "DIG_EVOLUTION")
+    demote = _ATTACH_ILLEGAL if evo_closing else -_DOMINATE_OPEN_PATH
+
+    if option.type in (
+        OptionType.PLAY,
+        OptionType.ATTACH,
+        OptionType.EVOLVE,
+        OptionType.ABILITY,
+        OptionType.RETREAT,
+        OptionType.END,
+    ):
+        return demote
+    if option.type == OptionType.CARD and step in (
+        "EVOLUTION", "DIG_EVOLUTION", "BASE", "DISPATCH",
+    ):
+        try:
+            ctx = int(obs.select.context)
+        except Exception:
+            ctx = -1
+        if ctx in (
+            int(SelectContext.TO_HAND),
+            int(SelectContext.TO_FIELD),
+            int(SelectContext.TO_BENCH),
+            int(SelectContext.SWITCH),
+            int(SelectContext.TO_ACTIVE),
+        ):
+            return demote
+    return 0.0
+
+
 def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
     """Translate TurnPlan into the small hard overlay that legacy rules consume."""
     plan = sit.get("turn_plan")
@@ -3443,22 +4094,24 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
         ):
             return -_DOMINATE_OPEN_PATH
 
-    # F1a/F2b: ban basic attacks while MAKE_ATTACKER / mega-land path (non-must-attack).
+    # F1a/F2b / Wave U1: ban basic attacks — illegal depth so END never soft-ties.
     if option.type == OptionType.ATTACK:
         attack_id = _attack_id(option)
         if is_basic_attack_forbidden(
             plan.facts.active_id, plan, attack_id=attack_id,
         ):
-            return -_DOMINATE_OPEN_PATH
+            return _ATTACH_ILLEGAL
 
     # G1/G2: dig Mega at PATH; demote Munk/Snorunt/Boss while Mega gap open.
+    # Knife A: when EVOLVE_66 is available, dig supporters must not tie/beat it.
     need_mega = bool(plan.gap.need_evolution and _OC_MEGA_STARMIE not in plan.facts.hand_ids)
     gs_t1 = bool(
         board is not None
         and _going_second(board)
         and int(getattr(board, "my_turn_number", 0) or 0) == 1
     )
-    if need_mega and option.type == OptionType.PLAY and not gs_t1:
+    evo66_ready = _dudunsparce_evolve_available(obs, mi, sit)
+    if need_mega and option.type == OptionType.PLAY and not gs_t1 and not evo66_ready:
         cid = _hand_card_id(obs, option, mi)
         if cid == SALVATOR and not plan.facts.supporter_played:
             return _DOMINATE_OPEN_PATH
@@ -3470,6 +4123,10 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
             return -_DOMINATE_OPEN_PATH
         if cid in (_OC_MUNKIDORI, _OC_SNORUNT, _BUDEW_ID):
             return -_DOMINATE_OPEN_PATH
+    if evo66_ready and option.type == OptionType.PLAY:
+        cid = _hand_card_id(obs, option, mi)
+        if cid in (HILDA, SALVATOR, LILLIE) and not plan.combat.attack_required:
+            return -_DOMINATE_MID
 
     need_base = bool(plan.gap.need_base)
     going_first = bool(board is not None and not _going_second(board))
@@ -3528,6 +4185,16 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
     if plan.objective == "MAKE_ATTACKER" and not plan.facts.mega_starmie_on_field:
         if option.type == OptionType.PLAY:
             cid = _hand_card_id(obs, option, mi)
+            # Mega already held + evolvable: dig supporters must not PATH
+            # (plan-step EVOLUTION owns; belt if plan-step returned 0).
+            if (
+                cid in (SALVATOR, HILDA, CRISPIN)
+                and not plan.facts.supporter_played
+                and mega_held
+                and plan.facts.staryu_can_evolve
+                and plan.gap.need_evolution
+            ):
+                return -_DOMINATE_OPEN_PATH
             if cid in (SALVATOR, HILDA, CRISPIN) and not plan.facts.supporter_played:
                 return _DOMINATE_OPEN_PATH if need_mega and not gs_t1 else _DOMINATE_OPEN
             if cid == _OC_ULTRA_BALL and plan.acquire.ball_allowed:
@@ -3581,12 +4248,11 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
         cid = _hand_card_id(obs, option, mi)
         if cid == _OC_ULTRA_BALL:
             # Ball that closes the live Pokemon gap must beat dual-basic /
-            # side setup (OPEN_PATH), not sit at plain DOMINATE under Snorunt.
-            return (
-                _DOMINATE_OPEN_PATH
-                if plan.acquire.ball_allowed
-                else -_DOMINATE_OPEN_PATH
-            )
+            # side setup (OPEN_PATH). Wave U2: disallowed Ball is hard-illegal
+            # (demote alone still lost to soft PLAY on 90444305 / 90443511).
+            if plan.acquire.ball_allowed:
+                return _DOMINATE_OPEN_PATH
+            return _ATTACH_ILLEGAL
         if cid in plan.acquire.targets:
             return _DOMINATE_OPEN_PATH
         if cid in plan.acquire.sources:
@@ -3649,11 +4315,42 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
     if must_close != 0.0:
         return must_close
 
-    # Wave D Mega clock — evolve / promote line / ban switch-off (blocks RL
-    # second-water + Water Gun while Mega is held; see game_143).
+    # Knife A2 / OL-A2: protector wall before mega_clock D2 promote-to-Staryu.
+    protector_wall = _protector_wall_bonus(obs, option, sit)
+    if protector_wall != 0.0:
+        return protector_wall
+
+    # Anchor: never yank Active Staryu while Mega/water path is live (before
+    # plan-step ENERGY/Crispin can soft-path a cut-away).
+    anchor = _anchor_staryu_wall_bonus(obs, option, sit)
+    if anchor != 0.0:
+        return anchor
+
+    # Knife A (ops_firefix): EVOLVE_66 PATH before plan-step dig lock.
+    # Yield when Mega Starmie evolve is offered — Closing owns the decision.
+    if option.type == OptionType.EVOLVE and _evolve_to_dudunsparce(obs, option, mi):
+        plan_a = sit.get("turn_plan")
+        if (
+            (plan_a is None or not plan_a.combat.attack_required)
+            and not _mega_evolve_option_offered(obs, sit)
+        ):
+            return _DOMINATE_OPEN_PATH
+
+    # Plan-step executor: current TurnPlan gap owns the decision (recomputed
+    # every agent call). Mega-held EVOLUTION beats Hilda/Crispin dig.
+    plan_step = _plan_step_execute_bonus(obs, option, sit)
+    if plan_step != 0.0:
+        return plan_step
+
+    # Wave D Mega clock — belt behind plan-step (promote / ban switch-off).
     mega_clock = _mega_clock_hard_bonus(obs, option, sit)
     if mega_clock != 0.0:
         return mega_clock
+
+    # Dual Staryu OPENING seat (after evolve/clock; never outranks Mega evolve).
+    dual = _dual_staryu_opening_bonus(obs, option, sit)
+    if dual != 0.0:
+        return dual
 
     # When TurnPlan already named a rider/boss target, legacy selectors must
     # not preempt it (especially 51–80 HP riders that old DAMAGE scoring ranks
@@ -3713,6 +4410,11 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
     munk_seat = _munk_activation_hard_bonus(obs, option, sit, mi, board, plan)
     if munk_seat != 0.0:
         return munk_seat
+
+    # Wave U5: going-first My-T1 Active Budew stay (before GS dispatch).
+    gf_budew = _going_first_budew_stay_bonus(obs, option, sit)
+    if gf_budew != 0.0:
+        return gf_budew
 
     # Going-second Budew dispatch: play / promote / Itchy whenever legal.
     # Runs after TurnPlan so mega-must-attack and exact acquire targets win.
@@ -3905,16 +4607,15 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
                         return _DOMINATE_OPEN_PATH
                     return -_DOMINATE_OPEN_PATH
 
-    # Dudunsparce engine: only dominate when draw_axis authorizes the cycle.
-    # FORBID (DD-OPENING / DD-1/…) must outrank the old "hard PATH all phases".
+    # Dudunsparce engine (Knife A / ops_firefix): evolve 66 hard PATH all phases
+    # unless fueled Mega already owes an attack (handled earlier). TP-DRAW-HOLD
+    # FORBID must NOT demote EVOLVE_66. RunAway still respects draw_axis.
     draw = sit.get("draw_axis_dec")
     draw_action = getattr(draw, "action", None) if draw else None
     if option.type == OptionType.EVOLVE and _evolve_to_dudunsparce(obs, option, mi):
-        if draw_action == "FORBID":
-            return -_DOMINATE_OPEN_PATH
-        if draw_action == "EVOLVE_66":
-            return _planner_score(getattr(draw, "priority", 880.0))
-        # No authorize → do not force 66 during OPENING / unknown axis.
+        plan_u = sit.get("turn_plan")
+        if plan_u is None or not plan_u.combat.attack_required:
+            return _DOMINATE_OPEN_PATH
         return 0.0
     if (
         option.type == OptionType.ABILITY
@@ -3925,15 +4626,12 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
         if draw_action == "ABILITY_DRAW":
             return _planner_score(getattr(draw, "priority", 900.0))
         return 0.0
-    # Don't blank-end while authorized 66 evolve or Run Away is available.
-    if option.type == OptionType.END and draw_action in ("EVOLVE_66", "ABILITY_DRAW"):
-        if _hand_has_id(obs, mi, _CARDS["dudunsparce"]) and (
-            _bench_has_id(obs, mi, _CARDS["dunsparce_a"])
-            or _bench_has_id(obs, mi, _CARDS["dunsparce_b"])
-            or _bench_has_id(obs, mi, DUNSPARCE_A)
-            or _bench_has_id(obs, mi, DUNSPARCE_B)
-        ):
+    # Don't blank-end while 66 evolve is available (firefix).
+    if option.type == OptionType.END and _dudunsparce_evolve_available(obs, mi, sit):
+        plan_end = sit.get("turn_plan")
+        if plan_end is None or not plan_end.combat.attack_required:
             return -_DOMINATE
+    if option.type == OptionType.END and draw_action in ("EVOLVE_66", "ABILITY_DRAW"):
         if _bench_has_id(obs, mi, _CARDS["dudunsparce"]):
             return -_DOMINATE_MID
 
@@ -4684,7 +5382,27 @@ def _is_opening_path_rl_action(kind: str, primary, obs, option, mi: int) -> bool
 # ── Public agent factory ──────────────────────────────────────────────────────
 
 def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None) -> AgentFn:
-    """Build an AgentFn for the starmie_froslass deck."""
+    """Build an AgentFn for the starmie_froslass deck.
+
+    When ``OPENING_HANDOFF`` is on (default) and ``combat_loop/`` is vendored
+    next to this pilot, OPENING decisions use the frozen ~580 combat_loop agent;
+    after Active Mega+water, control returns to this HEAD pilot.
+    """
+    try:
+        from opening_handoff import (
+            build_handoff_agent,
+            combat_loop_dir,
+            handoff_enabled,
+            submission_root_from_pilot_file,
+        )
+        if handoff_enabled():
+            root = submission_root_from_pilot_file(__file__)
+            if combat_loop_dir(root).is_dir():
+                return build_handoff_agent(root, deck, weights)
+    except Exception:
+        # Fall through to HEAD-only if vendored pack / import fails.
+        pass
+
     w = dict(DEFAULT_WEIGHTS)
     if weights:
         w.update(weights)
@@ -4715,6 +5433,7 @@ def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None)
         "board_at_my_turn_3": None,
         "opening_complete_my_turn": None,
         "pending_crispin_energy_id": None,
+        "plan_trace": [],
     }
 
     def agent(obs_dict: dict[str, Any]) -> list[int]:
@@ -5066,6 +5785,8 @@ def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None)
                 ctx_now = int(obs.select.context)
             except Exception:
                 ctx_now = -1
+            plan = sit.get("turn_plan")
+            step = _plan_primary_step(plan)
             for idx in chosen:
                 opt = options[idx]
                 if opt.type == OptionType.ATTACK and _attack_id(opt) == _ATK_RESENTFUL:
@@ -5088,6 +5809,56 @@ def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None)
                         OptionType.PLAY,
                     ):
                         agent_state["pending_crispin_energy_id"] = None
+                # Plan-discipline trace (Phase 0) — one row per chosen option.
+                try:
+                    advances = bool(
+                        plan is not None
+                        and step is not None
+                        and step != "WAIT_EVOLVE"
+                        and _option_advances_plan_step(obs, opt, sit, step, plan)
+                    )
+                    locked = bool(step and step in _PLAN_STEP_LOCKED)
+                    has_adv = bool(
+                        plan is not None
+                        and step is not None
+                        and _plan_step_has_advance(obs, sit, step, plan)
+                    )
+                    cid = 0
+                    if opt.type == OptionType.PLAY:
+                        cid = _hand_card_id(obs, opt, sit["my_index"])
+                    elif opt.type == OptionType.EVOLVE:
+                        try:
+                            hand = obs.current.players[sit["my_index"]].hand or []
+                            idx = _si(getattr(opt, "index", None), -1)
+                            if 0 <= idx < len(hand) and hand[idx]:
+                                cid = _si(getattr(hand[idx], "id", None))
+                        except Exception:
+                            cid = 0
+                    elif opt.type == OptionType.CARD:
+                        cid = _card_option_id(obs, opt, sit["my_index"])
+                    elif opt.type == OptionType.ATTACH:
+                        cid = _attach_energy_id(obs, opt, sit["my_index"])
+                    elif opt.type == OptionType.ATTACK:
+                        cid = _attack_id(opt)
+                    board = sit.get("board")
+                    agent_state.setdefault("plan_trace", []).append({
+                        "turn": sit.get("turn"),
+                        "my_turn": int(getattr(board, "my_turn_number", 0) or 0)
+                        if board is not None else 0,
+                        "objective": getattr(plan, "objective", None) if plan else None,
+                        "primary_step": step,
+                        "locked": locked,
+                        "option_type": int(opt.type),
+                        "card_or_attack_id": cid,
+                        "advances_step": advances,
+                        "advance_available": has_adv,
+                        "plan_violation": bool(
+                            locked and step and not advances and has_adv
+                        ),
+                        "ctx": ctx_now,
+                    })
+                except Exception:
+                    pass
             return chosen
         except Exception:
             try:
@@ -5144,6 +5915,7 @@ def reset_agent_state(agent_state: dict[str, Any] | None) -> None:
     agent_state["alak_prev_my_had_budew"] = False
     agent_state["alak_last_my_turn"] = -1
     agent_state["prize_progress"] = {"last": 6, "turn": 0}
+    agent_state["plan_trace"] = []
 
 
 def reset_for_new_game() -> None:

@@ -374,7 +374,8 @@ def test_double_ko_80_orders_adrena_then_boss_and_preserves_rider():
     )
     plan = _plan(me, opp)
     assert plan.combat.mode == "DOUBLE_KO"
-    assert plan.combat.required_before_attack == ("ADRENA", "BOSS")
+    # Wave L: Boss gust prep outranks Adrena-Brain when both are live.
+    assert plan.combat.required_before_attack == ("BOSS", "ADRENA")
     assert plan.combat.rider_target.card_id == 901
     assert plan.combat.boss_target.card_id == 902
 
