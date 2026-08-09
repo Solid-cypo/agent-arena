@@ -8,14 +8,12 @@
 
 ## 当前状态（每次会话结束时更新此节）
 
-- **更新日期**：2026-08-07
-- **线上提交**：[`55299191`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions) Wave I+L freeze → publicScore **445.4**（对照 `55209165`=444.3 / `55202093`=483.3）；本机权威闸现为 **Wave I + L + U**（未再提交）
-- **对照**：baseline `/tmp/baseline_55202093_f07e541`（≈ `f07e541`）；H2H 权威仍记 Wave I n=400（`logs/h2h_audit_waveI_seat_b/` → **50.5% / A52 / B49**）；Wave U G0 已过
+- **更新日期**：2026-08-09
+- **线上提交**：[`55365769`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions) Opening engine seats（`f54dab6`）→ **PENDING**；前一完整分 [`55312234`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions)=**480.0**（Wave U+U5.1）；对照 `55202093`=483.3 / `55115028` fireform=516.8
+- **本地 Opening 闸**（vs `ops_fireform_55115028`，n=200 seed82000，`OPENING_HANDOFF=0`，TURN_START 去重）：硬指标 **81.5%**（先手≤T3 **86%** / 后手≤T2 **77%**）· WR **53.5%** · 三漏归零（`logs/h2h_audit_engineSeats_n200/`）
+- **对照**：历史最佳本地峰 `data/restore_peaks/ops_fireform_55115028`；H2H 权威仍记 Wave I n=400（`logs/h2h_audit_waveI_seat_b/` → **50.5% / A52 / B49**）
 - **卡组**：`data/decks/starmie_froslass.csv` — 3×海星星、无 306、5 水 + 3 恶
-- **OPENING 硬刀：挂起**（Wave J/K 已证 ROI 为负）
-  - **禁止**新的全局/半全局 OPENING demote、Poffin dual-fill trim、GS T1 Budew 改动、全局 END–ATTACK demote
-  - Poffin `maxCount=2` 仍可能在 PATH Staryu 后捞到 demoted Snorunt（`wrong_play_side_basic`）——**仅文档/观测**，不得再硬修直到有 seat-B 安全证伪
-  - 开局「够用闸」seat B≥55% **不当主阻塞**；OPENING 只读表（`wrong_play_side_basic` / `no_mega`）
+- **OPENING 座位预设（采用）**：打手底座×1 · 土龙×2 · 愿增猿×1 · 机动×1；填充不得压过贴水/底座；`opening_bench.py` 已纳入 `sync_starmie_submission.py`
 - **本包内容（Wave U，叠在 Wave I+L 上；修线上 90447438/90443511/90444305 簇）**：
   - U1：底座海星水枪硬禁（`_ATTACH_ILLEGAL`）；可进化节节在 MAKE_ATTACKER 压过 END
   - U2：UB 禁打时硬非法；手持 Mega 弃牌保护；`UB-forced-burn`（打出后不足 2 张非 Mega 弃牌）
