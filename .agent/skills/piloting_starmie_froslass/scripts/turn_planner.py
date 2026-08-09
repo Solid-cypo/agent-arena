@@ -21,6 +21,7 @@ from opening_cards import (
     FROSLASS,
     FAN_ROTOM,
     HILDA,
+    JUDGE,
     MEGA_FROSLASS,
     MEGA_STARMIE,
     MEOWTH_EX,
@@ -33,6 +34,7 @@ from opening_cards import (
     STARYU,
     SWITCH,
     ULTRA_BALL,
+    UNFAIR_STAMP,
     WATER_BASIC,
     LILLIE,
     SALVATOR,
@@ -829,11 +831,26 @@ def _acquire_targets(facts: TurnFacts, gap: TurnGap, objective: Objective) -> tu
             out.append(WATER_BASIC)
         out.append(MEGA_STARMIE)
         return tuple(out)
-    if gap.need_energy and not hand.intersection(_WATER_IDS):
-        return (WATER_BASIC,)
 
     line_online = _attacker_line_online(facts)
     mega_secured = bool(facts.mega_starmie_on_field or MEGA_STARMIE in hand)
+    meowth_online = MEOWTH_EX in facts.bench_ids or facts.active_id == MEOWTH_EX
+
+    # OpsOrder Wave D: post-Mega dry hand → Meowth (→ Lillie → Crispin) before
+    # bare water dig or DP Munk (online 91195724).
+    if (
+        facts.mega_starmie_on_field
+        and line_online
+        and not meowth_online
+        and MEOWTH_EX not in hand
+        and LILLIE not in hand
+        and CRISPIN not in hand
+        and len(facts.hand_ids) <= 4
+    ):
+        return (MEOWTH_EX,)
+
+    if gap.need_energy and not hand.intersection(_WATER_IDS):
+        return (WATER_BASIC,)
 
     # Hand Munk + line online + Mega secured → seat Munk (not dig side basics).
     if (
@@ -865,6 +882,14 @@ def _acquire_targets(facts: TurnFacts, gap: TurnGap, objective: Objective) -> tu
                 # Line not online yet: do not steal seats for Munk before base.
                 if not line_online and (
                     gap.need_base or gap.need_evolution or gap.need_energy
+                ):
+                    continue
+                # OpsOrder: Meowth cycle still open — do not Ball-dig Munk first.
+                if (
+                    facts.mega_starmie_on_field
+                    and not meowth_online
+                    and MEOWTH_EX not in hand
+                    and LILLIE not in hand
                 ):
                     continue
                 order.append(MUNKIDORI)
@@ -989,7 +1014,13 @@ def _acquire_plan(facts: TurnFacts, gap: TurnGap, objective: Objective, combat: 
         # Salvator fetches Evolution Pokémon — primary Mega dig supporter.
         if SALVATOR in hand and not facts.supporter_played and MEGA_STARMIE in targets:
             sources.append(SALVATOR)
-        if ULTRA_BALL in hand and any(t in (STARYU, MEGA_STARMIE, SNORUNT, FROSLASS, MEGA_FROSLASS, MUNKIDORI) for t in targets):
+        if ULTRA_BALL in hand and any(
+            t in (
+                STARYU, MEGA_STARMIE, SNORUNT, FROSLASS, MEGA_FROSLASS,
+                MUNKIDORI, MEOWTH_EX,
+            )
+            for t in targets
+        ):
             sources.append(ULTRA_BALL)
         # H1: missing Staryu — Lillie dig is a first-class source (Hilda cannot fetch Basics).
         if (
@@ -1042,6 +1073,13 @@ def _acquire_plan(facts: TurnFacts, gap: TurnGap, objective: Objective, combat: 
     else:
         ball_allowed, reason = True, "current Pokemon gap has no free exact search"
 
+    # UbSurplusDun-V1: field+hand Dunsparce line ≥3 → spare basic PATH-discardable.
+    duns_line = (
+        sum(1 for cid in facts.hand_ids if cid in (DUNSPARCE_A, DUNSPARCE_B, DUDUNSPARCE))
+        + sum(1 for cid in facts.bench_ids if cid in (DUNSPARCE_A, DUNSPARCE_B, DUDUNSPARCE))
+        + (1 if facts.active_id in (DUNSPARCE_A, DUNSPARCE_B, DUDUNSPARCE) else 0)
+    )
+
     values: dict[int, int] = {}
     for cid in set(facts.hand_ids):
         value = 100
@@ -1069,9 +1107,25 @@ def _acquire_plan(facts: TurnFacts, gap: TurnGap, objective: Objective, combat: 
             or (cid == MUNKIDORI and facts.munkidori_on_field)
         ):
             value = 30 if hand[cid] > 1 else 60
+        elif cid in (DUNSPARCE_A, DUNSPARCE_B) and duns_line >= 3:
+            value = 25
         elif cid == ULTRA_BALL and not ball_allowed:
             value = 25
         values[cid] = value
+
+    # HandQual-V1: when Ball is a live Mega dig, protect continuity capital
+    # (Lillie/Judge/Stamp; Poffin/Pad while bench open) from soft-discard.
+    # HandQual-V1.1 REJECTED (both knives): plan-step Ball demote → Opening 68%
+    # (Hilda soft-tied Evolve under mega_offered DIG lock); discard-protect
+    # Hilda/Salvator → Opening 73%. Keep V1 continuity set only.
+    if ball_allowed and need_mega_fetch:
+        for cid in (LILLIE, JUDGE, UNFAIR_STAMP):
+            if cid in hand:
+                values[cid] = max(values.get(cid, 100), 7_500)
+        if facts.bench_open > 0:
+            for cid in (POFFIN, POKE_PAD):
+                if cid in hand:
+                    values[cid] = max(values.get(cid, 100), 7_000)
 
     return AcquirePlan(
         targets=targets,

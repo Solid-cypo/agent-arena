@@ -272,8 +272,18 @@ def refresh_alakazam_matchup(
     pub = opp_public_pokemon_ids(obs, my_index)
     if pub & HARD_LINE:
         state["matchup_alakazam_confirmed"] = True
+    else:
+        # Alakazam-Online-V1 soft confirm (sticky): Stage-1 Active + Abra discarded.
+        try:
+            opp = obs.current.players[1 - my_index]
+            discard_ids = _ids_from_cards(getattr(opp, "discard", None) or [])
+        except Exception:
+            discard_ids = set()
+        if ABRA in discard_ids and opp_active_is_stage1(obs, my_index):
+            state["matchup_alakazam_confirmed"] = True
 
     confirmed = bool(state.get("matchup_alakazam_confirmed"))
+
     has_budew = my_has_budew(obs, my_index)
 
     # Mid-turn KO watch: the engine forces a promote select DURING the
@@ -402,11 +412,12 @@ def alakazam_plan_b_hard_bonus(
     if not sit.get("matchup_alakazam_confirmed"):
         return 0.0
 
-    # Matchup tactics may raise priorities, but never override the global
-    # ready-Mega attack/dispatch invariant owned by TurnPlan.
+    # Alakazam-Online-V1: keep wall/Stamp/Jetting under attack_required; skip
+    # LOCK construction so Poffin cannot soft-tie Jetting.
     turn_plan = sit.get("turn_plan")
-    if turn_plan is not None and turn_plan.combat.attack_required:
-        return 0.0
+    attack_required = bool(
+        turn_plan is not None and turn_plan.combat.attack_required
+    )
 
     mi = sit["my_index"]
     board = sit.get("board")
@@ -421,6 +432,12 @@ def alakazam_plan_b_hard_bonus(
             return dominate_attack + 10.0
         # short-circuit alternatives below Jetting but above baseline attacks
         return dominate_attack - 50.0
+
+    if attack_required and option.type == option_type_attack:
+        atk = attack_id_fn(option)
+        if atk == jetting_id:
+            return dominate_attack + 5.0
+        return -dominate_mid
 
     # ── Finisher / follow: Unfair Stamp (合法前提：上回合我方被击倒，含羞苞被打死) ──
     if option.type == option_type_play:
@@ -464,6 +481,9 @@ def alakazam_plan_b_hard_bonus(
             return -dominate_mid
         if option.type == option_type_play and hand_card_id_fn(obs, option, mi) == SWITCH_CARD:
             return -dominate_mid
+
+    if attack_required:
+        return 0.0
 
     # ── LOCK window: benched Budew must reach Active — Switch is x1, so also
     # allow paying retreat (TO_ACTIVE select then picks Budew at dominate_path).

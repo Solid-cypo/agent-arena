@@ -63,6 +63,11 @@ def main() -> int:
         action="store_true",
         help="Disable RL hybrid (RL_ENABLED=0) for lower agent-side noise",
     )
+    ap.add_argument(
+        "--allow-deck-diff",
+        action="store_true",
+        help="Allow baseline/current deck.csv mismatch (OpsOrder seat gate).",
+    )
     args = ap.parse_args()
 
     if args.rules_only:
@@ -100,7 +105,11 @@ def main() -> int:
 
     base_agent, base_reset, _bm, deck_base, _ = load_starmie_agent(args.baseline)
     cur_agent, cur_reset, _cm, deck_cur, cur_state = load_starmie_agent(args.current)
-    assert deck_base == deck_cur, "deck.csv mismatch"
+    if deck_base != deck_cur and not args.allow_deck_diff:
+        raise AssertionError("deck.csv mismatch (pass --allow-deck-diff to override)")
+    if deck_base != deck_cur:
+        print("WARN: deck.csv differs; continuing with --allow-deck-diff")
+
 
     wins_cur = wins_base = draws = trunc = 0
     rows: list[dict] = []

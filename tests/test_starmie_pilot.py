@@ -770,9 +770,16 @@ def test_harvest_ko_last_turn_detected():
 def test_control_meowth_play_when_leading():
     from phase_fsm import PhaseState
 
+    # HandQual: Meowth is demoted while need_base (MAKE_ATTACKER). Seat Mega
+    # first so CONTROL Meowth can PATH on a prize lead.
     meowth = NS(id=sp._CARDS["meowth_ex"])
-    munk = _pkm(sp._MUNKIDORI_ID)
-    me = _player(active=munk, bench=[_pkm(sp._CARDS["snorunt"])], hand=[meowth], prize_n=4)
+    mega = _pkm(sp._CARDS["mega_starmie_ex"])
+    me = _player(
+        active=mega,
+        bench=[_pkm(sp._CARDS["snorunt"])],
+        hand=[meowth],
+        prize_n=4,
+    )
     opp = _player(active=_pkm(999), prize_n=6)
     obs = _obs(turn=10, my_index=0, me=me, opp=opp)
     sit = sp._compute_situation(obs)
@@ -967,19 +974,23 @@ def test_ghost_adrena_prep_does_not_block_jetting():
 
 def test_opening_play_munk_when_mega_secured():
     # Mega on field but dry (not must-attack) — secured for Munk seat PATH.
-    # Fueled Mega must-attack would demote all PLAY; Wave D evolve owns the
-    # turn while Mega is only in hand + Staryu can evolve.
+    # HandQual: dry Mega digs water before Munk; Meowth cycle must be closed;
+    # hold water so acquire targets Munk (not WATER_BASIC).
+    water = int(EnergyType.WATER)
     me = _player(
         active=_pkm(sp._CARDS["mega_starmie_ex"]),
+        bench=[_pkm(sp._CARDS["meowth_ex"])],
         hand=[
             NS(id=sp._MUNKIDORI_ID),
             NS(id=sp._CARDS["snorunt"]),
+            NS(id=water),
         ],
     )
     obs = _obs(turn=5, my_index=0, me=me, opp=_player(active=_pkm(999)))
     sit = sp._compute_situation(obs)
     play_munk = NS(type=OptionType.PLAY, index=0)
     play_egg = NS(type=OptionType.PLAY, index=1)
+    assert sit["turn_plan"].acquire.targets == (sp._MUNKIDORI_ID,)
     assert sp._hard_rule_bonus(obs, play_munk, sit) >= sp._DOMINATE_OPEN_PATH - 30.0 - 1e-6
     assert sp._hard_rule_bonus(obs, play_munk, sit) > sp._hard_rule_bonus(obs, play_egg, sit)
 

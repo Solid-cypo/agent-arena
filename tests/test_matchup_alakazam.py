@@ -254,6 +254,73 @@ def test_shaymin_blocks_abra_rider_in_turn_plan():
     assert next(t for t in plan.facts.opp_bench if t.card_id == ABRA).attack_protected
 
 
+def test_soft_confirm_stage1_active_with_abra_discard():
+    state: dict = {}
+    me = _player(active=_pkm(alak.STARYU))
+    # Kadabra-like Stage-1 via preEvolution; Abra already discarded.
+    kadabra_like = _pkm(900, preEvolution=[ABRA])
+    opp = _player(active=kadabra_like, discard=(ABRA,))
+    obs = NS(
+        current=NS(turn=4, yourIndex=0, firstPlayer=1, players=[me, opp], stadium=[]),
+        select=NS(deck=[]),
+    )
+    frag = alak.refresh_alakazam_matchup(state, obs, 0, my_turn_number=2)
+    assert frag["matchup_alakazam_confirmed"]
+
+
+def test_plan_b_wall_survives_attack_required():
+    me = _player(
+        active=_pkm(alak.BUDEW),
+        bench=(_pkm(alak.MEGA_STARMIE, energies=(WATER,)),),
+        hand=(alak.SWITCH_CARD,),
+    )
+    opp = _player(active=_pkm(ABRA), discard=(ABRA,))
+    obs = NS(
+        current=NS(turn=5, yourIndex=0, firstPlayer=1, players=[me, opp], stadium=[]),
+        select=NS(deck=[], context=0),
+    )
+    plan = build_turn_plan(obs, build_board_snapshot(obs))
+    # Force attack_required overlay even if fueled bench Mega would dispatch.
+    combat = plan.combat
+    forced = NS(**{**combat.__dict__, "attack_required": True})
+    plan = NS(**{**plan.__dict__, "combat": forced})
+    sit = {
+        "matchup_alakazam_confirmed": True,
+        "my_index": 0,
+        "board": build_board_snapshot(obs),
+        "phase": NS(primary="AGGRESSION"),
+        "alak_finisher_window": False,
+        "alak_follow_window": False,
+        "turn_plan": plan,
+    }
+    retreat = NS(type=OptionType.RETREAT)
+    jetting = NS(type=OptionType.ATTACK, attackId=1487)
+    bonus_r = alak.alakazam_plan_b_hard_bonus(
+        obs, retreat, sit,
+        dominate=1000, dominate_mid=800, dominate_plus=1200,
+        dominate_open=1500, dominate_attack=2000,
+        hand_card_id_fn=sp._hand_card_id, attack_id_fn=sp._attack_id,
+        itchy_pollen_id=323, jetting_id=1487,
+        option_type_play=OptionType.PLAY, option_type_attack=OptionType.ATTACK,
+        option_type_evolve=OptionType.EVOLVE, option_type_card=OptionType.CARD,
+        select_switch_contexts=(int(SelectContext.SWITCH), int(SelectContext.TO_ACTIVE)),
+        option_type_retreat=OptionType.RETREAT,
+    )
+    bonus_j = alak.alakazam_plan_b_hard_bonus(
+        obs, jetting, sit,
+        dominate=1000, dominate_mid=800, dominate_plus=1200,
+        dominate_open=1500, dominate_attack=2000,
+        hand_card_id_fn=sp._hand_card_id, attack_id_fn=sp._attack_id,
+        itchy_pollen_id=323, jetting_id=1487,
+        option_type_play=OptionType.PLAY, option_type_attack=OptionType.ATTACK,
+        option_type_evolve=OptionType.EVOLVE, option_type_card=OptionType.CARD,
+        select_switch_contexts=(int(SelectContext.SWITCH), int(SelectContext.TO_ACTIVE)),
+        option_type_retreat=OptionType.RETREAT,
+    )
+    assert bonus_r < 0
+    assert bonus_j >= 2000
+
+
 if __name__ == "__main__":
     tests = [v for n, v in sorted(globals().items()) if n.startswith("test_")]
     failed = 0

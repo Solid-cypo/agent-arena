@@ -21,8 +21,10 @@ from opening_cards import (
     JUDGE,
     LILLIE,
     MEGA_STARMIE,
+    POFFIN,
     POKE_PAD,
     SNORUNT,
+    STARYU,
     UNFAIR_STAMP,
     WALLYS_COMPASSION,
     mega_ready_to_land,
@@ -201,6 +203,27 @@ def lillie_forbidden(
         supporter_played=hand.supporter_played,
     ):
         return True, "DR-MEGA-LAND"
+
+    # OpsOrder: seating item that can find+bench a needed basic beats shuffle-redraw.
+    if (
+        int(getattr(board, "bench_open", 0) or 0) > 0
+        and (POFFIN in hand.hand_ids or POKE_PAD in hand.hand_ids)
+    ):
+        gap = getattr(turn_plan, "gap", None) if turn_plan is not None else None
+        need_base = bool(getattr(gap, "need_base", False))
+        if need_base or (
+            not board.staryu_on_field and STARYU not in hand.hand_ids
+        ):
+            return True, "DR-SETUP-ITEM"
+
+    # OpsMid-V1: Staryu already in hand — seat before wash.
+    if (
+        STARYU in hand.hand_ids
+        and not board.staryu_on_field
+        and not board.mega_starmie_on_field
+        and int(getattr(board, "bench_open", 0) or 0) > 0
+    ):
+        return True, "DR-SEAT-BASE"
 
     return False, ""
 

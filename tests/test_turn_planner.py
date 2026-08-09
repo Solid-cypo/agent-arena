@@ -18,9 +18,13 @@ from opening_cards import (
     DARK_BASIC,
     DUDUNSPARCE,
     DUNSPARCE_A,
+    DUNSPARCE_B,
     FROSLASS,
+    JUDGE,
+    LILLIE,
     MEGA_FROSLASS,
     MEGA_STARMIE,
+    MEOWTH_EX,
     MUNKIDORI,
     NIGHT_STRETCHER,
     POFFIN,
@@ -310,10 +314,12 @@ def test_held_dudunsparce_poffin_targets_staryu_and_dunsparce():
 
 
 def test_held_munkidori_with_field_mega_targets_seat_first():
-    """Mega on field + held Munk → seat Munk first (not dig side basics)."""
+    """Mega on field + held Munk → seat Munk when Wave-D Meowth dig is closed."""
+    # HandQual/OpsOrder Wave D: thin hand digs Meowth first; close that path.
     plan = _plan(
         _player(
             active=_pkm(MEGA_STARMIE),  # no water → not attack_required
+            bench=(_pkm(MEOWTH_EX),),
             hand=(MUNKIDORI, WATER_BASIC, POFFIN),
         )
     )
@@ -323,11 +329,11 @@ def test_held_munkidori_with_field_mega_targets_seat_first():
 
 
 def test_field_munk_missing_dark_targets_dark():
-    """Munk on field without Dark → fetch Dark once line is online."""
+    """Munk on field without Dark → fetch Dark once Meowth cycle is closed."""
     plan = _plan(
         _player(
             active=_pkm(MEGA_STARMIE),
-            bench=(_pkm(MUNKIDORI),),
+            bench=(_pkm(MUNKIDORI), _pkm(MEOWTH_EX)),
             hand=(WATER_BASIC, POFFIN),
         )
     )
@@ -416,6 +422,50 @@ def test_dunsparce_budget_and_bad_hand_draw_gate():
         )
     )
     assert not good_hand.draw.allow_run_away_draw
+
+
+def test_ub_surplus_dunsparce_discardable_when_line_ge_3():
+    plan = _plan(
+        _player(
+            active=_pkm(MEGA_STARMIE, energies=(WATER_BASIC,)),
+            bench=(_pkm(DUNSPARCE_A), _pkm(DUNSPARCE_B)),
+            hand=(ULTRA_BALL, DUNSPARCE_A, WATER_BASIC),
+        )
+    )
+    assert discard_value(DUNSPARCE_A, plan) <= 30
+
+
+def test_ub_keeps_scarce_dunsparce_protected():
+    plan = _plan(
+        _player(
+            active=_pkm(MEGA_STARMIE, energies=(WATER_BASIC,)),
+            hand=(ULTRA_BALL, DUNSPARCE_A, WATER_BASIC),
+        )
+    )
+    assert discard_value(DUNSPARCE_A, plan) >= 100
+
+
+def test_runaway_v1_cancelled_keeps_f4_hold_on_open_path():
+    # RunAway-V1 NO-GO (WR); keep HandQual F4.
+    # Dry Mega + only energy gap → structured bad hand may draw.
+    dry_mega = _plan(
+        _player(
+            active=_pkm(MEGA_STARMIE),
+            bench=(_pkm(DUDUNSPARCE),),
+            hand=(WATER_BASIC,),
+        )
+    )
+    assert dry_mega.draw.allow_run_away_draw
+
+    # Pre-Mega multi-gap open path → HOLD.
+    pre_mega = _plan(
+        _player(
+            active=_pkm(STARYU),
+            bench=(_pkm(DUDUNSPARCE),),
+            hand=(WATER_BASIC,),
+        )
+    )
+    assert not pre_mega.draw.allow_run_away_draw
 
 
 def test_five_deck_main_bases_are_registered():

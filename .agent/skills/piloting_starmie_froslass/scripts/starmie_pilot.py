@@ -73,6 +73,7 @@ from opening_cards import (
     NIGHT_STRETCHER as _OC_NIGHT_STRETCHER,
     POKE_PAD as _OC_POKE_PAD,
     POFFIN as _OC_POFFIN,
+    POFFIN_IDS,
     POFFIN_OPENING_PRIORITY,
     PRISM as _OC_PRISM,
     RISKY_RUINS as _RISKY_RUINS,
@@ -1816,15 +1817,19 @@ def _going_second_budew_bonus(obs, option, sit: dict[str, Any]) -> float:
     bench_open = int(getattr(board, "bench_open", 0) or 0)
 
     # G3: after My-T1 dig Mega (My-T1 Budew keeps PATH).
+    # HandQual-V1: Hilda/Salvator outrank Ball (zero-discard Mega dig).
     if need_mega and not gs_t1 and option.type == OptionType.PLAY:
         cid = _hand_card_id(obs, option, mi)
         supp_done = bool(getattr(plan.facts, "supporter_played", False))
+        hq_sup = (not supp_done) and (
+            _hand_has_id(obs, mi, HILDA) or _hand_has_id(obs, mi, SALVATOR)
+        )
         if cid == SALVATOR and not supp_done:
             return _DOMINATE_OPEN_PATH
         if cid == HILDA and not supp_done:
             return _DOMINATE_OPEN_PATH
         if cid == _OC_ULTRA_BALL and plan.acquire.ball_allowed:
-            return _DOMINATE_OPEN_PATH
+            return -_DOMINATE_OPEN_PATH if hq_sup else _DOMINATE_OPEN_PATH
 
     # Wall: once Active, stay until the opponent breaks it (or Mega takes over).
     if budew_active and not sit.get("alak_finisher_window") and not sit.get(
@@ -3595,6 +3600,30 @@ def _must_attack_closeout_bonus(obs, option, sit: dict[str, Any]) -> float:
             return -_DOMINATE_OPEN_PATH
         return 0.0
 
+    # DpSeat-V1: held Munk seats before Jetting (same turn), then closeout
+    # attacks. Must-attack used to blanket-demote all PLAY and starve DP.
+    seat_munk = bool(
+        board.active_is_mega_starmie
+        and board.active_has_water
+        and not bool(getattr(board, "munkidori_on_field", False))
+        and int(getattr(board, "bench_open", 0) or 0) > 0
+        and _hand_has_id(obs, mi, _OC_MUNKIDORI)
+    )
+    if seat_munk:
+        if option.type == OptionType.PLAY and _hand_card_id(obs, option, mi) == _OC_MUNKIDORI:
+            return _DOMINATE_OPEN_PATH
+        if option.type in (
+            OptionType.ATTACK,
+            OptionType.END,
+            OptionType.PLAY,
+            OptionType.ATTACH,
+            OptionType.EVOLVE,
+            OptionType.ABILITY,
+            OptionType.RETREAT,
+        ):
+            return -_DOMINATE_OPEN_PATH
+        return 0.0
+
     if option.type == OptionType.END:
         return -_DOMINATE_OPEN_PATH
 
@@ -4180,6 +4209,10 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
                 else -_DOMINATE
             )
         if ctx == int(SelectContext.DISCARD):
+            # UbMegaDiscard-V1: Mega must never soft-tie with spare Staryu at
+            # -OPEN_PATH (opsMid g128 burned Mega while Dun/Sty were legal).
+            if cid == _OC_MEGA_STARMIE:
+                return _ATTACH_ILLEGAL
             value = discard_value(cid, plan)
             if value >= 8_000:
                 return -_DOMINATE_OPEN_PATH
@@ -4372,12 +4405,16 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
     evo66_ready = _dudunsparce_evolve_available(obs, mi, sit)
     if need_mega and option.type == OptionType.PLAY and not gs_t1 and not evo66_ready:
         cid = _hand_card_id(obs, option, mi)
+        # HandQual-V1: zero-discard Mega dig (Hilda/Salvator) before Ultra Ball.
+        hq_sup = (not plan.facts.supporter_played) and (
+            _hand_has_id(obs, mi, HILDA) or _hand_has_id(obs, mi, SALVATOR)
+        )
         if cid == SALVATOR and not plan.facts.supporter_played:
             return _DOMINATE_OPEN_PATH
         if cid == HILDA and not plan.facts.supporter_played:
             return _DOMINATE_OPEN_PATH
         if cid == _OC_ULTRA_BALL and plan.acquire.ball_allowed:
-            return _DOMINATE_OPEN_PATH
+            return -_DOMINATE_OPEN_PATH if hq_sup else _DOMINATE_OPEN_PATH
         if cid == _OC_BOSS:
             return -_DOMINATE_OPEN_PATH
         # Seat preset keeps Munk×1 open; only ban Snorunt/Budew over Mega dig.
@@ -4458,6 +4495,12 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
             if cid in (SALVATOR, HILDA, CRISPIN) and not plan.facts.supporter_played:
                 return _DOMINATE_OPEN_PATH if need_mega and not gs_t1 else _DOMINATE_OPEN
             if cid == _OC_ULTRA_BALL and plan.acquire.ball_allowed:
+                # HandQual-V1: do not soft-tie Ball with Hilda/Salvator on Mega gap.
+                hq_sup = (not plan.facts.supporter_played) and (
+                    _hand_has_id(obs, mi, HILDA) or _hand_has_id(obs, mi, SALVATOR)
+                )
+                if need_mega and not gs_t1 and hq_sup:
+                    return -_DOMINATE_OPEN_PATH
                 return _DOMINATE_OPEN_PATH if need_mega and not gs_t1 else _DOMINATE_OPEN
             if cid == _OC_SNORUNT:
                 if not plan.facts.staryu_on_field or need_mega:
@@ -4518,7 +4561,20 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
             # side setup (OPEN_PATH). Wave U2: disallowed Ball is hard-illegal
             # (demote alone still lost to soft PLAY on 90444305 / 90443511).
             if plan.acquire.ball_allowed:
-                return _DOMINATE_OPEN_PATH
+                # HandQual-V1: yield to live Hilda/Salvator on Mega dig.
+                need_mega_hq = bool(
+                    plan.gap.need_evolution
+                    and _OC_MEGA_STARMIE not in plan.facts.hand_ids
+                )
+                hq_sup = (
+                    need_mega_hq
+                    and not plan.facts.supporter_played
+                    and (
+                        _hand_has_id(obs, mi, HILDA)
+                        or _hand_has_id(obs, mi, SALVATOR)
+                    )
+                )
+                return -_DOMINATE_OPEN_PATH if hq_sup else _DOMINATE_OPEN_PATH
             return _ATTACH_ILLEGAL
         if cid in plan.acquire.targets:
             return _DOMINATE_OPEN_PATH
@@ -4556,6 +4612,175 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
     return 0.0
 
 
+_SHUFFLE_REDRAW_IDS = frozenset({LILLIE, JUDGE, UNFAIR_STAMP})
+
+
+def _setup_item_can_seat_now(obs, sit: dict[str, Any], plan) -> bool:
+    """True when Poffin/Pad can find and bench a needed basic this decision."""
+    if plan is None:
+        return False
+    board = sit.get("board")
+    if board is None or int(getattr(board, "bench_open", 0) or 0) <= 0:
+        return False
+    mi = sit["my_index"]
+    if not (
+        _hand_has_id(obs, mi, _OC_POFFIN) or _hand_has_id(obs, mi, _OC_POKE_PAD)
+    ):
+        return False
+    if bool(getattr(plan.gap, "need_base", False)):
+        return True
+    if not bool(getattr(plan.facts, "staryu_on_field", False)) and not _hand_has_id(
+        obs, mi, _OC_STARYU
+    ):
+        return True
+    targets = tuple(getattr(plan.acquire, "targets", ()) or ())
+    if targets and any(t in POFFIN_IDS for t in targets):
+        return True
+    # Engine seats still open under the Opening preset.
+    try:
+        from opening_bench import dunsparce_quota_open
+
+        active_id = int(getattr(board, "active_id", 0) or 0) or None
+        me = obs.current.players[mi]
+        bench_ids = tuple(
+            _si(getattr(p, "id", None))
+            for p in (me.bench or [])
+            if p
+        )
+        if dunsparce_quota_open(active_id, bench_ids) and (
+            bool(getattr(plan.facts, "staryu_on_field", False))
+            or _hand_has_id(obs, mi, _OC_STARYU)
+        ):
+            # Poffin can seat Dunsparce once attacker base exists.
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _hand_has_shuffle_redraw(obs, mi: int) -> bool:
+    return any(_hand_has_id(obs, mi, cid) for cid in _SHUFFLE_REDRAW_IDS)
+
+
+def _ops_order_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
+    """OpsOrder: 运转 > 铺场道具 > 洗回重抽 > 土龙节节抽卡.
+
+    Wave B/C/E — does not override fueled Mega must-attack closeout.
+    """
+    plan = sit.get("turn_plan")
+    board = sit.get("board")
+    if plan is None or board is None:
+        return 0.0
+    if _fueled_mega_must_attack(board, plan):
+        return 0.0
+
+    mi = sit["my_index"]
+    my_t = int(getattr(board, "my_turn_number", 0) or 0)
+    item_live = _setup_item_can_seat_now(obs, sit, plan)
+    redraw_in_hand = _hand_has_shuffle_redraw(obs, mi) and not bool(
+        getattr(plan.facts, "supporter_played", False)
+    )
+    bench_open = int(getattr(board, "bench_open", 0) or 0)
+    # OpsMid-V1: Staryu already in hand under MAKE_ATTACKER — seat before redraw
+    # / side basics (game_111: Pad+Poffin then Lillie while primary_step=BASE).
+    seat_base = bool(
+        getattr(plan, "objective", None) == "MAKE_ATTACKER"
+        and _hand_has_id(obs, mi, _OC_STARYU)
+        and not bool(getattr(plan.facts, "staryu_on_field", False))
+        and not bool(getattr(plan.facts, "mega_starmie_on_field", False))
+        and bench_open > 0
+    )
+    if seat_base:
+        if option.type == OptionType.PLAY:
+            cid = _hand_card_id(obs, option, mi)
+            if cid == _OC_STARYU:
+                return _DOMINATE_OPEN_PATH
+            if cid in _SHUFFLE_REDRAW_IDS:
+                return -_DOMINATE_OPEN_PATH
+            if cid in (_OC_MUNKIDORI, _OC_SNORUNT, _BUDEW_ID, _OC_MEOWTH_EX):
+                return -_DOMINATE_OPEN_PATH
+            # Extra Poffin/Pad can wait — close need_base first.
+            if cid in (_OC_POFFIN, _OC_POKE_PAD):
+                return -_DOMINATE_OPEN_PATH
+        if option.type == OptionType.END:
+            return -_DOMINATE_OPEN_PATH
+        if (
+            option.type == OptionType.ABILITY
+            and _ability_source_id(obs, option, mi) == _CARDS["dudunsparce"]
+        ):
+            return -_DOMINATE_OPEN_PATH
+
+    # Wave C: early Meowth yields to Poffin seating (二海星/雪童子).
+    meowth_yield = bool(
+        item_live
+        and my_t <= 2
+        and (
+            bool(getattr(plan.gap, "need_base", False))
+            or _staryu_field_count(obs, mi) < 2
+            or not bool(getattr(plan.facts, "snorunt_on_field", False))
+        )
+    )
+    if meowth_yield:
+        if option.type == OptionType.PLAY and _hand_card_id(obs, option, mi) == _OC_MEOWTH_EX:
+            return -_DOMINATE_OPEN_PATH
+        if (
+            option.type == OptionType.ABILITY
+            and _ability_source_id(obs, option, mi) == _OC_MEOWTH_EX
+        ):
+            return -_DOMINATE_OPEN_PATH
+
+    if option.type == OptionType.PLAY:
+        cid = _hand_card_id(obs, option, mi)
+        if item_live:
+            if cid in (_OC_POFFIN, _OC_POKE_PAD):
+                return _DOMINATE_OPEN_PATH
+            if cid in _SHUFFLE_REDRAW_IDS:
+                return -_DOMINATE_OPEN_PATH
+        # Wave E: Active Budew alone, no attacker base — break brick with seats/redraw.
+        if (
+            getattr(board, "active_id", None) == _BUDEW_ID
+            and not bool(getattr(plan.facts, "staryu_on_field", False))
+            and not bool(getattr(plan.facts, "mega_starmie_on_field", False))
+        ):
+            if cid == _OC_MUNKIDORI and _obs_can_bench_card(obs, mi, cid):
+                return _DOMINATE_OPEN_PATH
+            if cid in (_OC_POFFIN, _OC_POKE_PAD) and int(getattr(board, "bench_open", 0) or 0) > 0:
+                return _DOMINATE_OPEN_PATH
+            if cid in _SHUFFLE_REDRAW_IDS and not plan.facts.supporter_played:
+                return _DOMINATE_OPEN_PATH - 15.0
+            if cid == _OC_STARYU and int(getattr(board, "bench_open", 0) or 0) > 0:
+                return _DOMINATE_OPEN_PATH
+
+    # Wave B: Run Away after shuffle-redraw; always after seating items.
+    if (
+        option.type == OptionType.ABILITY
+        and _ability_source_id(obs, option, mi) == _CARDS["dudunsparce"]
+    ):
+        if item_live:
+            return -_DOMINATE_OPEN_PATH
+        if redraw_in_hand:
+            return -_DOMINATE_OPEN_PATH
+
+    if option.type == OptionType.END and item_live:
+        return -_DOMINATE_OPEN_PATH
+
+    # Wave E: never blank-END on solo Budew while redraw/seat tools exist.
+    if (
+        option.type == OptionType.END
+        and getattr(board, "active_id", None) == _BUDEW_ID
+        and not bool(getattr(plan.facts, "staryu_on_field", False))
+        and (
+            redraw_in_hand
+            or _hand_has_id(obs, mi, _OC_MUNKIDORI)
+            or _hand_has_id(obs, mi, _OC_POFFIN)
+            or _hand_has_id(obs, mi, _OC_STARYU)
+        )
+    ):
+        return -_DOMINATE_OPEN_PATH
+
+    return 0.0
+
+
 def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
     """Return dominate score if a hard rule fires; 0 otherwise."""
     mi = sit["my_index"]
@@ -4586,6 +4811,11 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
     must_close = _must_attack_closeout_bonus(obs, option, sit)
     if must_close != 0.0:
         return must_close
+
+    # OpsOrder: seating items > shuffle-redraw > Run Away (yields to Closing).
+    ops_order = _ops_order_hard_bonus(obs, option, sit)
+    if ops_order != 0.0:
+        return ops_order
 
     # Knife A2 / OL-A2: protector wall before mega_clock D2 promote-to-Staryu.
     protector_wall = _protector_wall_bonus(obs, option, sit)
