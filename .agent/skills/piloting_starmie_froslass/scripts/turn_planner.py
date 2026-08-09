@@ -47,6 +47,9 @@ from opening_cards import (
 )
 from opponent_roles import (
     ARCHALUDON_LINE_IDS,
+    DRAGAPULT_LINE_IDS,
+    LUCARIO_LINE_IDS,
+    TREVENANT_LINE_IDS,
     is_attack_damage_protected,
     opponent_role,
 )
@@ -144,8 +147,11 @@ class TurnFacts:
     opp_hand_count: int
     opp_active: OppTarget | None
     opp_bench: tuple[OppTarget, ...]
-    # Matchup / public-board gates (expert F3).
+    # Matchup / public-board gates (expert F3 / MidOps).
     opp_archaludon_threat: bool = False
+    opp_dragapult_threat: bool = False
+    opp_trevenant_threat: bool = False
+    opp_lucario_threat: bool = False
     opp_munk_dp_online: bool = False
     ban_froslass_line: bool = False
     two_turn_mega_path: bool = False
@@ -309,6 +315,9 @@ def build_turn_facts(
     )
     opp_field_card_ids = frozenset(_si(getattr(p, "id", None)) for p in opp_field)
     opp_archaludon_threat = bool(opp_field_card_ids & ARCHALUDON_LINE_IDS)
+    opp_dragapult_threat = bool(opp_field_card_ids & DRAGAPULT_LINE_IDS)
+    opp_trevenant_threat = bool(opp_field_card_ids & TREVENANT_LINE_IDS)
+    opp_lucario_threat = bool(opp_field_card_ids & LUCARIO_LINE_IDS)
     opp_has_munk = MUNKIDORI in opp_field_card_ids
     opp_munk_has_dark = any(
         _si(getattr(p, "id", None)) == MUNKIDORI and _has_energy(p, _DARK_IDS)
@@ -318,9 +327,12 @@ def build_turn_facts(
         opp_field_card_ids & {FROSLASS, MEGA_FROSLASS}
     ) or risky_ruins_online
     opp_munk_dp_online = opp_has_munk and (opp_munk_has_dark or opp_has_placer)
+    # Control / steel-dragon / opp DP: stay on Mega Starmie. Lucario is NOT banned.
     ban_froslass_line = bool(
         matchup == "alakazam"
         or opp_archaludon_threat
+        or opp_dragapult_threat
+        or opp_trevenant_threat
         or opp_munk_dp_online
     )
     two_turn_mega = two_turn_mega_path_ok(
@@ -411,6 +423,9 @@ def build_turn_facts(
         opp_active=opp_active,
         opp_bench=opp_bench,
         opp_archaludon_threat=opp_archaludon_threat,
+        opp_dragapult_threat=opp_dragapult_threat,
+        opp_trevenant_threat=opp_trevenant_threat,
+        opp_lucario_threat=opp_lucario_threat,
         opp_munk_dp_online=opp_munk_dp_online,
         ban_froslass_line=ban_froslass_line,
         two_turn_mega_path=two_turn_mega,
@@ -675,9 +690,14 @@ def _combat_plan(facts: TurnFacts) -> CombatPlan:
         expected_f >= facts.prize_self
         or (froslass_can_attack and not starmie_can_attack)
     )
+    # MidOps: Lucario fast pressure opens 861 even when expected_f dips <2.
     froslass_allowed = (
         not facts.ban_froslass_line
-        and (expected_f >= 2 or froslass_exception)
+        and (
+            expected_f >= 2
+            or froslass_exception
+            or bool(facts.opp_lucario_threat)
+        )
     )
 
     if facts.active_ready_mega and facts.active_id == MEGA_STARMIE:
@@ -702,6 +722,7 @@ def _combat_plan(facts: TurnFacts) -> CombatPlan:
             facts, rider=rider, candidate=candidate,
         )
         # Wave L: Boss before DP prep so prize gust is not starved by 104/Adrena.
+        # (CombatClose-V2 Adrena→Boss 已证伪回滚 — 勿再改此序。)
         if boss is not None:
             required = ["BOSS", *required]
         mode: CombatMode = "DOUBLE_KO" if rider else "MEGA_MUST_ATTACK"
@@ -1171,6 +1192,41 @@ def _draw_plan(facts: TurnFacts, gap: TurnGap, combat: CombatPlan) -> DrawPlan:
         reason = "structured single-gap bad hand" if allow_draw else (
             "hand preserves a live path"
         )
+    # MidOps: post-Mega 66 may cycle when the attacker line is closed AND the
+    # hand cannot seat/redraw progress (not RunAway-V1 default post-Mega draw).
+    dud_online = (
+        DUDUNSPARCE in facts.bench_ids or facts.active_id == DUDUNSPARCE
+    )
+    if (
+        not allow_draw
+        and not combat.attack_required
+        and not ready_land
+        and dud_online
+        and facts.mega_starmie_on_field
+        and not path_open
+        and len(facts.hand_ids) <= 4
+    ):
+        hand_set = set(facts.hand_ids)
+        can_seat_munk = (
+            "MUNKIDORI" in gap.dp_gaps
+            and MUNKIDORI in hand_set
+            and facts.bench_open > 0
+        )
+        can_seat_snorunt = (
+            gap.need_second_attacker
+            and not facts.ban_froslass_line
+            and SNORUNT in hand_set
+            and facts.bench_open > 0
+            and not facts.snorunt_on_field
+        )
+        has_redraw = (
+            not facts.supporter_played
+            and bool(hand_set & {LILLIE, JUDGE})
+        )
+        if not can_seat_munk and not can_seat_snorunt and not has_redraw:
+            if gap.dp_gaps or gap.need_second_attacker or len(facts.hand_ids) <= 2:
+                allow_draw = True
+                reason = "post-mega 66: no seatable/redraw cover"
     # Seat preset: Dunsparce-line ≤2. Do not park the first copy over a base gap.
     under_duns_cap = duns_count < 2 and facts.bench_open > 0
     first = duns_count == 0 and under_duns_cap and not gap.need_base

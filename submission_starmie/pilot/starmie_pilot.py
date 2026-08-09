@@ -1200,16 +1200,26 @@ def _starmie_in_danger(obs, my_index: int) -> bool:
         return False
 
 
-def _mega_froslass_window_open(obs, my_index: int, board, phase) -> bool:
+def _mega_froslass_window_open(obs, my_index: int, board, phase, plan=None) -> bool:
     """S2/S4 shared gate: is building/fetching 861 currently sanctioned?
 
-    Insurance only — HARVEST / Starmie gone / Starmie dying. DP completion
-    no longer opens the window (user tightened 2026-08-01). Online A/B
-    (deck-fixed): insurance-only vs surplus (`or _synergy_core_ready(board)`
-    appended below)."""
+    Base: HARVEST / Starmie gone / Starmie dying (insurance). MidOps: also
+    open vs Lucario when the froslass line is not banned — second attacker
+    while Starmie is still healthy.
+    """
     if phase.primary == "HARVEST" or not board.mega_starmie_on_field:
         return True
-    return _starmie_in_danger(obs, my_index)
+    if _starmie_in_danger(obs, my_index):
+        return True
+    if plan is not None:
+        facts = getattr(plan, "facts", None)
+        if (
+            facts is not None
+            and bool(getattr(facts, "opp_lucario_threat", False))
+            and not bool(getattr(facts, "ban_froslass_line", False))
+        ):
+            return True
+    return False
 
 
 def _evolve_mega_froslass_targets_snorunt(obs, option, my_index: int) -> bool:
@@ -2314,13 +2324,6 @@ def _compute_situation(
         sit["hand"] = hand
         sit["resources"] = resources
 
-        # Cross-turn epoch memory (G1→…→DONE sticky task).
-        # Use ever-complete so Starmie KO does not roll epoch back to G1.
-        # S-strategy: publish the 861 window so SF2 (insurance Mega) yields
-        # to SF3 (DP set) while Starmie is healthy and DP incomplete.
-        set_mega_froslass_window(
-            _mega_froslass_window_open(obs, mi, board, phase)
-        )
         if agent_state is not None:
             mem = agent_state.setdefault("epoch_memory", default_epoch_memory())
             refresh_epoch_memory(
@@ -2349,6 +2352,12 @@ def _compute_situation(
         )
         sit["doublekill_ready"] = (
             sit["turn_plan"].combat.mode == "DOUBLE_KO"
+        )
+        # S-strategy / MidOps: publish 861 window after TurnPlan (needs lucario flag).
+        set_mega_froslass_window(
+            _mega_froslass_window_open(
+                obs, mi, board, phase, plan=sit["turn_plan"],
+            )
         )
 
         d66_bench = _bench_has_id(obs, mi, _CARDS["dudunsparce"])
@@ -3879,6 +3888,74 @@ def _gs_mega_seat_bonus(obs, option, sit: dict[str, Any]) -> float:
     return 0.0
 
 
+def _post_mega_seat_progress_bonus(obs, option, sit: dict[str, Any]) -> float:
+    """OL-E2 / midgame stall: after Mega Starmie, seat unmet roles before END.
+
+    Narrow: only PATH hand pieces that close live gaps (Munk / Snorunt /
+    Dunsparce under draw seat). Does not lift ATTACH_DARK or Boss (Wave M).
+    Yields to fueled must-close. Never unlocks Run Away (RunAway-V1 NO-GO).
+    """
+    board = sit.get("board")
+    plan = sit.get("turn_plan")
+    if board is None or plan is None:
+        return 0.0
+    if not bool(getattr(board, "mega_starmie_on_field", False)):
+        return 0.0
+    if _fueled_mega_must_attack(board, plan):
+        return 0.0
+    mi = sit["my_index"]
+    bench_open = int(getattr(board, "bench_open", 0) or 0)
+    if bench_open <= 0:
+        return 0.0
+
+    seats: list[int] = []
+    if (
+        not bool(getattr(board, "munkidori_on_field", False))
+        and _hand_has_id(obs, mi, _OC_MUNKIDORI)
+        and _obs_can_bench_card(obs, mi, _OC_MUNKIDORI)
+    ):
+        seats.append(_OC_MUNKIDORI)
+    if (
+        plan.gap.need_second_attacker
+        and not plan.facts.ban_froslass_line
+        and not plan.facts.snorunt_on_field
+        and _hand_has_id(obs, mi, _OC_SNORUNT)
+        and _obs_can_bench_card(obs, mi, _OC_SNORUNT)
+    ):
+        seats.append(_OC_SNORUNT)
+    duns_count = sum(
+        1
+        for cid in (plan.facts.bench_ids + (plan.facts.active_id,))
+        if cid in (DUNSPARCE_A, DUNSPARCE_B, _CARDS["dudunsparce"])
+    )
+    if (
+        duns_count < 2
+        and (
+            plan.draw.allow_first_dunsparce
+            or plan.draw.allow_second_dunsparce
+            or duns_count == 0
+        )
+    ):
+        for dun_id in (DUNSPARCE_A, DUNSPARCE_B):
+            if _hand_has_id(obs, mi, dun_id) and _obs_can_bench_card(obs, mi, dun_id):
+                seats.append(dun_id)
+                break
+
+    if not seats:
+        return 0.0
+
+    if option.type == OptionType.PLAY:
+        cid = _hand_card_id(obs, option, mi)
+        if cid in seats:
+            return _DOMINATE_OPEN_PATH - float(seats.index(cid))
+    if option.type == OptionType.END:
+        return -_DOMINATE_OPEN_PATH
+    # Evolve hand Dunsparce → 66 when already seated (progress, not Run Away).
+    if option.type == OptionType.EVOLVE and _evolve_to_dudunsparce(obs, option, mi):
+        return _DOMINATE_OPEN_PATH - 5.0
+    return 0.0
+
+
 def _opening_engine_seat_bonus(obs, option, sit: dict[str, Any]) -> float:
     """OPENING engine fill: play Dunsparce≤2, evolve 66, bench Munk×1.
 
@@ -4920,6 +4997,11 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
     if engine_seat != 0.0:
         return engine_seat
 
+    # MidOps / OL-E2: post-Mega seat Munk/Snorunt/Duns before END (not Run Away).
+    mid_seat = _post_mega_seat_progress_bonus(obs, option, sit)
+    if mid_seat != 0.0:
+        return mid_seat
+
     # When TurnPlan already named a rider/boss target, legacy selectors must
     # not preempt it (especially 51–80 HP riders that old DAMAGE scoring ranks
     # by lowest HP instead of role priority).
@@ -5525,7 +5607,9 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
             if not board.froslass_104_on_field:
                 reserve_for_861 = (
                     _hand_has_id(obs, mi, _CARDS["mega_froslass_ex"])
-                    and _mega_froslass_window_open(obs, mi, board, phase)
+                    and _mega_froslass_window_open(
+                        obs, mi, board, phase, plan=sit.get("turn_plan"),
+                    )
                     and not getattr(board, "mega_froslass_on_field", False)
                     and _snorunt_field_count(obs, mi) < 2
                 )
@@ -5536,6 +5620,15 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
             # PATH when recovering / setting up second attacker.
             if phase.primary == "HARVEST" or not board.mega_starmie_on_field:
                 return _DOMINATE_OPEN_PATH
+            plan_f = sit.get("turn_plan")
+            if (
+                plan_f is not None
+                and plan_f.combat.froslass_build_allowed
+                and _mega_froslass_window_open(
+                    obs, mi, board, phase, plan=plan_f,
+                )
+            ):
+                return _DOMINATE_OPEN_PATH  # MidOps Lucario / open window
             return _DOMINATE_OPEN  # post-Mega setup while Starmie still Active
 
     # HR-6  Mega Starmie attack — fueled Active must close with Jetting/Nebula.

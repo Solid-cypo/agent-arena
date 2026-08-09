@@ -94,6 +94,15 @@ OPPONENT_ROLES: dict[int, OpponentRoleProfile] = {
 # Public-card IDs that confirm an Archaludon/Duraludon line.
 ARCHALUDON_LINE_IDS = frozenset({169, 170, 190, 839, 840, 992})
 
+# Hop's Trevenant control — keep Mega Starmie; never pivot into 861.
+TREVENANT_LINE_IDS = frozenset({878, 879})
+
+# Dragapult (烈箭 / 「桥龙」侧) — 861 is a bad second attacker.
+DRAGAPULT_LINE_IDS = frozenset({119, 120, 121})
+
+# Mega Lucario fast — prefer Mega Froslass as second attacker while Starmie lives.
+LUCARIO_LINE_IDS = frozenset({677, 678})
+
 # Optional sticky matchup boosts layered on the card table.  Keys are card ids.
 _MATCHUP_OVERRIDES: dict[str, dict[int, tuple[int, int]]] = {
     # (delta_boss, delta_rider)

@@ -13,8 +13,10 @@
 - **P0（已冻结）**：G0 [`logs/h2h_audit_p0CrispinWater_n200/GATE.md`](logs/h2h_audit_p0CrispinWater_n200/GATE.md) WR **58.5%** / B**61** / Opening **80.5%**；公局初审 n=3 WR2/3、零 Jetting=0 → [`logs/diagnose_p0CrispinWater_55386951/REVIEW.md`](logs/diagnose_p0CrispinWater_55386951/REVIEW.md)
 - **P1 fade（已修）**：`(attackId,serial)` 去重；旧包 55381818 真零 Jetting 1/12
 - **P2 Boss→Jetting（HOLD）**：[`logs/diagnose_p2_boss_jetting/HOLD.md`](logs/diagnose_p2_boss_jetting/HOLD.md)
-- **下一刀**：等 55386951 公局≥12–15 再 SOP-D；勿重开中盘 DP/CombatClose
+- **下一刀**：等 55386951 公局≥12–15 再 SOP-D；勿重开中盘 DP/CombatClose-V1/V2；MidOps 已 SHIP 勿叠 RunAway-V1
 - **本地 Opening 闸**（vs `ops_fireform_55115028`，n=200 seed82000，`OPENING_HANDOFF=0`，TURN_START 去重）：硬指标 **81.5%**（先手≤T3 **86%** / 后手≤T2 **77%**）· WR **53.5%** · 三漏归零（`logs/h2h_audit_engineSeats_n200/`）
+- **中盘 CombatClose-V2（证伪已回滚）**：Adrena→Boss + first-prep PATH（无锁）→ prep_ok 54.8%→**42.4%**、负局无有效 Boss↑；Opening 合计持 80.5%；见 [`logs/diagnose_combat_v2/AUTOPSY.md`](logs/diagnose_combat_v2/AUTOPSY.md) · [`logs/h2h_audit_combatV2_n200/GATE.md`](logs/h2h_audit_combatV2_n200/GATE.md)。**已证伪**：无锁窄 PATH 亦不足以抬双穿序
+- **MidOps-V1（SHIP）**：第二打手 matchup（控场/烈箭/铝钢禁 861；路卡开窗）+ OL-E2 厚手铺场 + 窄 post-Mega 66 抽；G0 [`logs/h2h_audit_midOps_n200/GATE.md`](logs/h2h_audit_midOps_n200/GATE.md) Opening 合计 **75.5%** / 先≤T3 **81%** / B**54** / WR 56.5%
 - **中盘 CombatClose-V1（证伪已回滚）**：露面+锁 ADRENA/BOSS/DISPATCH → prep_ok 31→29%、Opening 合计 81.5→**77.5%**；见 [`logs/diagnose_combat_expert_gap/DIAGNOSE.md`](logs/diagnose_combat_expert_gap/DIAGNOSE.md) · [`logs/h2h_audit_combatClose_n200/GATE.md`](logs/h2h_audit_combatClose_n200/GATE.md)。**已证伪**：仅靠 primary_step 锁修双穿序
 - **对照**：历史最佳本地峰 `data/restore_peaks/ops_fireform_55115028`；H2H 权威仍记 Wave I n=400（`logs/h2h_audit_waveI_seat_b/` → **50.5% / A52 / B49**）
 - **卡组**：`data/decks/starmie_froslass.csv` — 3×海星星、无 306、5 水 + 3 恶

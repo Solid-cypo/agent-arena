@@ -115,6 +115,42 @@ def test_archaludon_bans_froslass_line():
     assert not plan.combat.froslass_build_allowed
 
 
+def test_dragapult_bans_froslass_line():
+    me = _player(active=_pkm(MEGA_STARMIE, energies=(WATER_BASIC,)))
+    opp = _player(active=_pkm(121, hp=300, ex=True), hand_count=4)
+    plan = _plan(me, opp)
+    assert plan.facts.opp_dragapult_threat
+    assert plan.facts.ban_froslass_line
+    assert not plan.combat.froslass_build_allowed
+
+
+def test_trevenant_bans_froslass_line():
+    me = _player(active=_pkm(MEGA_STARMIE, energies=(WATER_BASIC,)))
+    opp = _player(active=_pkm(879, hp=280), hand_count=5)
+    plan = _plan(me, opp)
+    assert plan.facts.opp_trevenant_threat
+    assert plan.facts.ban_froslass_line
+    assert not plan.gap.need_second_attacker
+
+
+def test_lucario_allows_second_attacker_and_opens_861_window():
+    me = _player(
+        active=_pkm(MEGA_STARMIE, energies=(WATER_BASIC,)),
+        hand=(MEGA_FROSLASS, SNORUNT),
+    )
+    opp = _player(active=_pkm(678, hp=300, ex=True), hand_count=4)
+    plan = _plan(me, opp)
+    assert plan.facts.opp_lucario_threat
+    assert not plan.facts.ban_froslass_line
+    assert plan.gap.need_second_attacker
+    assert plan.combat.froslass_build_allowed
+    obs = _obs(me, opp)
+    sit = sp._compute_situation(obs)
+    assert sp._mega_froslass_window_open(
+        obs, 0, sit["board"], sit["phase"], plan=sit["turn_plan"],
+    )
+
+
 def test_alakazam_matchup_bans_froslass_line():
     me = _player(active=_pkm(MEGA_STARMIE, energies=(WATER_BASIC,)))
     opp = _player(active=_pkm(743, hp=300), hand_count=4)
@@ -164,3 +200,38 @@ def test_draw_hold_when_mega_path_live():
     )
     plan = _plan(me)
     assert not plan.draw.allow_run_away_draw
+
+
+def test_post_mega_66_allows_draw_when_hand_cannot_seat():
+    """66 online + Mega on bench + cannot dispatch + no seatable → Run Away."""
+    from opening_cards import BOSS_ORDERS
+
+    me = _player(
+        active=_pkm(MUNKIDORI),
+        bench=(
+            _pkm(MEGA_STARMIE, energies=(WATER_BASIC,)),
+            _pkm(66),
+        ),
+        hand=(BOSS_ORDERS,),
+    )
+    me.energyAttached = True  # cannot attach for retreat → no dispatch
+    plan = _plan(me)
+    assert plan.facts.mega_starmie_on_field
+    assert not plan.combat.attack_required
+    assert plan.draw.allow_run_away_draw
+    assert "post-mega 66" in plan.draw.reason
+
+
+def test_post_mega_seat_munk_beats_end():
+    """OL-E2: dry Mega online + Munk in hand → PLAY ≻ END (not must-close)."""
+    me = _player(
+        active=_pkm(MEGA_STARMIE),  # dry — not attack_required
+        hand=(MUNKIDORI,),
+    )
+    obs = _obs(me)
+    sit = sp._compute_situation(obs)
+    play = NS(type=OptionType.PLAY, index=0)
+    end = NS(type=OptionType.END)
+    sit["select_options"] = [play, end]
+    assert sp._hard_rule_bonus(obs, play, sit) >= sp._DOMINATE_OPEN_PATH - 1.0
+    assert sp._hard_rule_bonus(obs, end, sit) <= -sp._DOMINATE_OPEN_PATH + 1.0

@@ -300,6 +300,7 @@ def test_adrena_brain_beats_jetting_when_damaged():
     assert sp._hard_rule_bonus(obs, ab, sit) > sp._hard_rule_bonus(obs, jet, sit)
 
 
+
 def test_ready_mega_prepares_munk_dark_before_attack():
     munk = _pkm(sp._MUNKIDORI_ID)
     dark = NS(id=int(EnergyType.DARKNESS))
