@@ -3616,11 +3616,15 @@ def _must_attack_closeout_bonus(obs, option, sit: dict[str, Any]) -> float:
     return 0.0
 
 
-def _plan_primary_step(plan) -> str | None:
+def _plan_primary_step(plan, obs=None, sit: dict[str, Any] | None = None) -> str | None:
     """Current TurnPlan gap the agent must execute this decision.
 
     Recomputed every agent call from fresh facts. Returns a step id, or None
     when combat closeout / draw / open-ended objectives own the turn instead.
+
+    When ``sit['select_options']`` is a non-empty MAIN list, evolution steps are
+    grounded on the engine offer (avoids fake EVOLUTION → unlock → END).
+    Empty/missing options keep facts-only labeling (unit tests / nested selects).
     """
     if plan is None:
         return None
@@ -3638,12 +3642,144 @@ def _plan_primary_step(plan) -> str | None:
     if plan.gap.need_evolution:
         if _OC_MEGA_STARMIE not in plan.facts.hand_ids:
             return "DIG_EVOLUTION"
+        # Knife 1: ground EVOLUTION on live MAIN offers when available.
+        grounded = _ground_evolution_step(plan, obs, sit)
+        if grounded is not None:
+            return grounded
         if plan.facts.staryu_can_evolve:
             return "EVOLUTION"
         return "WAIT_EVOLVE"
     if plan.gap.need_energy:
         return "ENERGY"
     return None
+
+
+def _select_context_id(obs) -> int:
+    try:
+        return int(obs.select.context)
+    except Exception:
+        return -1
+
+
+def _ground_evolution_step(plan, obs, sit: dict[str, Any] | None) -> str | None:
+    """Re-label EVOLUTION/WAIT from engine offers on MAIN decisions.
+
+    Returns None when grounding does not apply (no MAIN option list).
+    """
+    if sit is None or obs is None:
+        return None
+    opts = sit.get("select_options")
+    if not opts:
+        return None
+    ctx = _select_context_id(obs)
+    if ctx not in (-1, 0, int(SelectContext.MAIN)):
+        return None
+    if _mega_evolve_option_offered(obs, sit):
+        return "EVOLUTION"
+    # Mega in hand but no evolve offer: sick / missing seat — never fake Closing.
+    if bool(getattr(plan.facts, "staryu_on_field", False)):
+        return "WAIT_EVOLVE"
+    return "BASE"
+
+
+def _gs_mega_seat_bonus(obs, option, sit: dict[str, Any]) -> float:
+    """Going-second: Mega in hand but not evolvable yet → seat Staryu, ban END.
+
+    Gold CLEAN_T2: T1 places/digs Staryu (may be summoning-sick), T2 evolves.
+    After Hilda/Salvator dig, fake EVOLUTION used to unlock and END the turn.
+    """
+    board = sit.get("board")
+    plan = sit.get("turn_plan")
+    if board is None or plan is None:
+        return 0.0
+    if not _going_second(board):
+        return 0.0
+    if plan.objective != "MAKE_ATTACKER":
+        return 0.0
+    if _OC_MEGA_STARMIE not in plan.facts.hand_ids:
+        return 0.0
+    if bool(getattr(plan.facts, "mega_starmie_on_field", False)):
+        return 0.0
+    if _mega_evolve_option_offered(obs, sit):
+        return 0.0  # true Closing owns the decision
+
+    step = _plan_primary_step(plan, obs, sit)
+    # WAIT_EVOLVE freeze already owns the sick window (END allowed).
+    if step == "WAIT_EVOLVE":
+        return 0.0
+
+    mi = sit["my_index"]
+    bench_open = int(getattr(board, "bench_open", 0) or 0)
+
+    if option.type == OptionType.END:
+        return _ATTACH_ILLEGAL
+    if option.type == OptionType.EVOLVE:
+        if _evolve_to_mega_starmie(obs, option, mi):
+            return _DOMINATE_OPEN_PATH
+        return _ATTACH_ILLEGAL
+    if option.type == OptionType.PLAY:
+        cid = _hand_card_id(obs, option, mi)
+        if cid == _OC_STARYU and bench_open > 0:
+            return _DOMINATE_OPEN_PATH
+        if cid in (_OC_POFFIN, _OC_POKE_PAD) and bench_open > 0:
+            if not _hand_has_id(obs, mi, _OC_STARYU):
+                return _DOMINATE_OPEN_PATH - 5.0
+            return -_DOMINATE_OPEN_PATH
+        if cid == SALVATOR and not plan.facts.supporter_played:
+            # Mega already held — Salvator dig is wrong; seat first.
+            return _ATTACH_ILLEGAL
+        if cid in (HILDA, LILLIE, CRISPIN) and not plan.facts.supporter_played:
+            return _ATTACH_ILLEGAL
+        if cid in (_BUDEW_ID, _OC_SNORUNT, _OC_MUNKIDORI, _BOSS_ID):
+            return _ATTACH_ILLEGAL
+        if cid == _OC_SWITCH:
+            return _ATTACH_ILLEGAL
+        return -_DOMINATE_OPEN_PATH
+    if option.type == OptionType.ATTACH:
+        eid = _attach_energy_id(obs, option, mi)
+        if eid in _WATER_ENERGY_IDS:
+            target = _attach_target_pokemon(obs, option, mi)
+            if target and _si(getattr(target, "id", None)) in (
+                _OC_STARYU, _OC_MEGA_STARMIE,
+            ):
+                return _DOMINATE_OPEN - 40.0
+        return _ATTACH_ILLEGAL
+    if option.type == OptionType.RETREAT:
+        return _ATTACH_ILLEGAL
+    if option.type == OptionType.ABILITY:
+        return -_DOMINATE_OPEN_PATH
+    return 0.0
+
+
+def _gs_t2_evolve_deadline_bonus(obs, option, sit: dict[str, Any]) -> float:
+    """Going-second My-T2+: Mega evolvable offer → hard Closing (T2 dead-line)."""
+    board = sit.get("board")
+    plan = sit.get("turn_plan")
+    if board is None or plan is None:
+        return 0.0
+    if not _going_second(board):
+        return 0.0
+    if int(getattr(board, "my_turn_number", 0) or 0) < 2:
+        return 0.0
+    if _OC_MEGA_STARMIE not in plan.facts.hand_ids:
+        return 0.0
+    if bool(getattr(plan.facts, "mega_starmie_on_field", False)):
+        return 0.0
+    if not _mega_evolve_option_offered(obs, sit):
+        return 0.0
+    mi = sit["my_index"]
+    if _evolve_to_mega_starmie(obs, option, mi):
+        return _DOMINATE_OPEN_PATH
+    if option.type in (
+        OptionType.PLAY,
+        OptionType.ATTACH,
+        OptionType.EVOLVE,
+        OptionType.ABILITY,
+        OptionType.RETREAT,
+        OptionType.END,
+    ):
+        return _ATTACH_ILLEGAL
+    return 0.0
 
 
 def _option_advances_plan_step(
@@ -3775,7 +3911,7 @@ def _plan_step_execute_bonus(obs, option, sit: dict[str, Any]) -> float:
     EVOLUTION with Mega evolve offered → hard-illegal non-advances (Closing).
     """
     plan = sit.get("turn_plan")
-    step = _plan_primary_step(plan)
+    step = _plan_primary_step(plan, obs, sit)
     if plan is None or step is None:
         return 0.0
 
@@ -3783,12 +3919,18 @@ def _plan_step_execute_bonus(obs, option, sit: dict[str, Any]) -> float:
     if step == "WAIT_EVOLVE":
         return _wait_evolve_freeze_bonus(obs, option, sit, plan)
 
+    # Going-second: Mega held, not yet evolvable — seat Staryu before END/junk.
+    gs_seat = _gs_mega_seat_bonus(obs, option, sit)
+    if gs_seat != 0.0:
+        return gs_seat
+
     board = sit.get("board")
     mi = sit["my_index"]
     mega_offered = _mega_evolve_option_offered(obs, sit)
 
     # Closing knife can also fire on DIG_EVOLUTION when the engine already
     # listed Mega evolve (gap/dig lag). EVOLUTION+ENERGY stay locked as usual.
+    # Grounded BASE (Mega held, no Staryu yet) is handled by gs_seat above.
     if step not in _PLAN_STEP_LOCKED and not (
         mega_offered and step == "DIG_EVOLUTION"
     ):
@@ -4325,6 +4467,11 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
     anchor = _anchor_staryu_wall_bonus(obs, option, sit)
     if anchor != 0.0:
         return anchor
+
+    # Going-second T2+ Closing dead-line (before Knife A 66 can steal the turn).
+    gs_t2 = _gs_t2_evolve_deadline_bonus(obs, option, sit)
+    if gs_t2 != 0.0:
+        return gs_t2
 
     # Knife A (ops_firefix): EVOLVE_66 PATH before plan-step dig lock.
     # Yield when Mega Starmie evolve is offered — Closing owns the decision.
@@ -5786,7 +5933,7 @@ def make_starmie_agent(deck: list[int], weights: dict[str, float] | None = None)
             except Exception:
                 ctx_now = -1
             plan = sit.get("turn_plan")
-            step = _plan_primary_step(plan)
+            step = _plan_primary_step(plan, obs, sit)
             for idx in chosen:
                 opt = options[idx]
                 if opt.type == OptionType.ATTACK and _attack_id(opt) == _ATK_RESENTFUL:

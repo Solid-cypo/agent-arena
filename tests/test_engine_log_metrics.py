@@ -206,3 +206,23 @@ def test_wrong_active_miss_switch_and_solo_exposed():
     assert m["setup_miss_counts"].get("miss_switch", 0) == 1
     assert m["ever_staryu_solo_exposed"] is True
     assert m["staryu_solo_exposed_turns"] >= 1
+
+
+def test_dual_turn_start_does_not_inflate_gs_mega_clock():
+    """Combat dual-render emits two TURN_START per logical my-turn."""
+    # GS seat pi=1: opp T1, our T1 (dual), opp T2, our T2 (dual) evolve.
+    logs = [
+        _ts(0), _snap(0, 6, 6),
+        _ts(1), _ts(1), _snap(1, 6, 6),  # dual our T1
+        _ts(0), _snap(0, 6, 6),
+        _ts(1), _ts(1), _snap(1, 6, 6),  # dual our T2
+        {
+            "type": LT_EVOLVE,
+            "playerIndex": 1,
+            "cardId": MEGA_STARMIE,
+            "cardIdTarget": STARYU,
+        },
+    ]
+    m = derive_path_metrics(logs, 1)
+    assert m["mega_evo_my_t"] == 2
+    assert m["path_bucket"] == "fast_mega_t≤3"

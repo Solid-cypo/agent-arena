@@ -191,7 +191,10 @@ def derive_path_metrics(
 
     ``pi`` is the playerIndex of the seat under analysis (0 or 1).
     """
-    my_turn = 0  # increments on our TURN_START
+    my_turn = 0  # increments on our logical TURN_START
+    # Engine dual-renders many turns (two TURN_START per logical my-turn).
+    # Only open a new my-turn after setup or after the opponent's TURN_START.
+    saw_other_turn_start = True
     mega_evo_my_t: int | None = None
     mega_atk_my_t: int | None = None
     water_attach_pre_mega = False
@@ -270,11 +273,19 @@ def derive_path_metrics(
         t = _si(t, -1)
         lg_pi = _si(lg.get("playerIndex"), -1)
 
+        if t == LT_TURN_START and lg_pi != pi:
+            saw_other_turn_start = True
+            continue
+
         if t == LT_TURN_START and lg_pi == pi:
+            # Skip the duplicate TURN_START from combat dual-render.
+            if my_turn > 0 and not saw_other_turn_start:
+                continue
             # Closing previous our-turn before opening a new one.
             if my_turn > 0:
                 _close_turn()
             my_turn += 1
+            saw_other_turn_start = False
             turn_pre_mega = not mega_seen
             turn_plays = []
             continue

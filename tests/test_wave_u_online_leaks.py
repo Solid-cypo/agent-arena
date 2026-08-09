@@ -214,7 +214,7 @@ def test_plan_step_dig_and_base_advances_mapping():
 
 
 def test_plan_step_evolution_no_demote_when_advance_unavailable():
-    """WR fix: do not demote END when evolve is not among offered options."""
+    """Knife 1: no Mega EVOLVE in MAIN list → WAIT_EVOLVE; END allowed, not demoted."""
     me = _player(
         active=_pkm(STARYU, energies=(WATER_BASIC,)),
         hand=(MEGA_STARMIE, HILDA),
@@ -222,11 +222,12 @@ def test_plan_step_evolution_no_demote_when_advance_unavailable():
     plan, obs = _plan(me, turn=4)
     sit = sp._compute_situation(obs)
     assert sp._plan_primary_step(sit["turn_plan"]) == "EVOLUTION"
-    # Only END offered — no evolve in select_options.
+    # Only END offered — no evolve in select_options → ground to WAIT.
     sit["select_options"] = [NS(type=OptionType.END)]
-    assert sp._plan_step_execute_bonus(
-        obs, NS(type=OptionType.END), sit,
-    ) == 0.0
+    assert sp._plan_primary_step(sit["turn_plan"], obs, sit) == "WAIT_EVOLVE"
+    end_s = sp._plan_step_execute_bonus(obs, NS(type=OptionType.END), sit)
+    assert end_s >= sp._DOMINATE_MID
+    assert end_s > -sp._DOMINATE_OPEN_PATH
 
 
 def test_knife_a_evolve66_beats_hilda_despite_tp_draw_hold():
