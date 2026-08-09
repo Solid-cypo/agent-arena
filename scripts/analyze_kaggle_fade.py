@@ -55,15 +55,81 @@ ARCH_RULES: list[tuple[str, frozenset[int] | frozenset[str]]] = [
 ]
 
 
-def uniq_logs(d: dict) -> list[dict]:
-    by: dict[int, dict] = {}
+def iter_raw_logs(d: dict):
+    """Yield every log dict from every seat observation (sliding windows overlap)."""
     for step in d.get("steps") or []:
         for side in step:
             for lg in (side.get("observation") or {}).get("logs") or []:
-                s = lg.get("serial")
-                if s is not None:
-                    by[int(s)] = lg
+                if isinstance(lg, dict):
+                    yield lg
+
+
+def uniq_logs(d: dict) -> list[dict]:
+    """Serial-uniq for non-attack events. Prefer keeping type=15 attack rows.
+
+    Sliding windows often re-emit the same serial with a later non-attack payload;
+    overwriting blindly deleted Jetting (55381818: 9/12 false zero-jet losses).
+    """
+    by: dict[int, dict] = {}
+    for lg in iter_raw_logs(d):
+        s = lg.get("serial")
+        if s is None:
+            continue
+        sid = int(s)
+        prev = by.get(sid)
+        if prev is None:
+            by[sid] = lg
+            continue
+        # Never let a non-attack clobber an attack at the same serial.
+        if prev.get("type") == 15 and lg.get("type") != 15:
+            continue
+        by[sid] = lg
     return sorted(by.values(), key=lambda x: int(x["serial"]))
+
+
+def uniq_attacks(d: dict, player_index: int | None = None) -> list[dict]:
+    """Dedupe attacks by (attackId, serial); optional filter by playerIndex."""
+    by: dict[tuple[int, int], dict] = {}
+    for lg in iter_raw_logs(d):
+        if lg.get("type") != 15:
+            continue
+        aid, serial = lg.get("attackId"), lg.get("serial")
+        if aid is None or serial is None:
+            continue
+        key = (int(aid), int(serial))
+        prev = by.get(key)
+        if prev is None:
+            by[key] = lg
+            continue
+        # Prefer the copy that carries a playerIndex (some windows omit it).
+        if prev.get("playerIndex") is None and lg.get("playerIndex") is not None:
+            by[key] = lg
+    out = list(by.values())
+    if player_index is not None:
+        out = [lg for lg in out if lg.get("playerIndex") == player_index]
+    return sorted(out, key=lambda x: int(x["serial"]))
+
+
+def field_has_card(d: dict, player_index: int, card_id: int) -> bool:
+    """True when card_id appears on Active/Bench in any step observation."""
+    for step in d.get("steps") or []:
+        if not step:
+            continue
+        # Prefer our seat's observation; fall back to any side with players.
+        sides = []
+        if 0 <= player_index < len(step):
+            sides.append(step[player_index])
+        sides.extend(step)
+        for side in sides:
+            cur = (side.get("observation") or {}).get("current") or {}
+            players = cur.get("players") or []
+            if player_index >= len(players) or not players[player_index]:
+                continue
+            pl = players[player_index]
+            for p in list(pl.get("active") or []) + list(pl.get("bench") or []):
+                if p and p.get("id") == card_id:
+                    return True
+    return False
 
 
 def card_names_from_logs(logs: list[dict], pi: int) -> list[str]:
@@ -125,6 +191,8 @@ def analyze_game(path: Path, ep_type: str | None) -> dict:
     logs = uniq_logs(d)
     ours = [lg for lg in logs if lg.get("playerIndex") == mi]
     opps = [lg for lg in logs if lg.get("playerIndex") == oi]
+    # Attacks: (attackId, serial) — serial-only uniq was deleting Jetting rows.
+    our_atks = uniq_attacks(d, mi)
 
     # Sliding log windows often drop EVOLVE; count field presence / KO / attacks.
     def _on_field(lg: dict, cid: int) -> bool:
@@ -134,10 +202,15 @@ def analyze_game(path: Path, ep_type: str | None) -> dict:
             or lg.get("toArea") in (4, 5)
         )
 
-    ever_mega = any(_on_field(lg, MEGA_STARMIE) for lg in ours) or any(
-        lg.get("type") == 15 and lg.get("attackId") == ATK_JETTING for lg in ours
+    jetting = sum(1 for lg in our_atks if lg.get("attackId") == ATK_JETTING)
+    ever_mega = (
+        field_has_card(d, mi, MEGA_STARMIE)
+        or any(_on_field(lg, MEGA_STARMIE) for lg in ours)
+        or jetting > 0
     )
-    ever_861 = any(_on_field(lg, MEGA_FROSLASS) for lg in ours)
+    ever_861 = field_has_card(d, mi, MEGA_FROSLASS) or any(
+        _on_field(lg, MEGA_FROSLASS) for lg in ours
+    )
     mega_ko_active = any(
         lg.get("type") == 6
         and lg.get("cardId") == MEGA_STARMIE
@@ -175,25 +248,15 @@ def analyze_game(path: Path, ep_type: str | None) -> dict:
     )
     boss_n = sum(1 for lg in ours if lg.get("type") == 10 and lg.get("cardId") == BOSS)
     st_atk = sum(
-        1
-        for lg in ours
-        if lg.get("type") == 15 and lg.get("cardId") in (STARYU, MEGA_STARMIE)
+        1 for lg in our_atks if lg.get("cardId") in (STARYU, MEGA_STARMIE)
     )
-    mf_atk = sum(
-        1 for lg in ours if lg.get("type") == 15 and lg.get("cardId") == MEGA_FROSLASS
-    )
+    mf_atk = sum(1 for lg in our_atks if lg.get("cardId") == MEGA_FROSLASS)
     water_gun = sum(
         1
-        for lg in ours
-        if lg.get("type") == 15
-        and lg.get("attackId") == ATK_WATER_GUN
-        and lg.get("cardId") == STARYU
+        for lg in our_atks
+        if lg.get("attackId") == ATK_WATER_GUN and lg.get("cardId") == STARYU
     )
-    jetting = sum(
-        1
-        for lg in ours
-        if lg.get("type") == 15 and lg.get("attackId") == ATK_JETTING
-    )
+    any_atk = len(our_atks)
     ub_n = sum(1 for lg in ours if lg.get("type") == 10 and lg.get("cardId") == ULTRA_BALL)
     # Night stretcher recover water while Mega previously discarded from hand/field
     ns_water_over_mega = 0
@@ -259,7 +322,8 @@ def analyze_game(path: Path, ep_type: str | None) -> dict:
     tags: list[str] = []
     if boss_n == 0:
         tags.append("zero_boss")
-    if st_atk + mf_atk == 0:
+    # Any type=15 after (attackId, serial) dedupe — not serial-clobbered ours.
+    if any_atk == 0:
         tags.append("no_attack")
     if not ever_mega:
         tags.append("no_mega")
@@ -300,6 +364,7 @@ def analyze_game(path: Path, ep_type: str | None) -> dict:
         "boss_n": boss_n,
         "st_atk": st_atk,
         "mf_atk": mf_atk,
+        "any_atk": any_atk,
         "jetting": jetting,
         "water_gun": water_gun,
         "ub_n": ub_n,
@@ -384,6 +449,8 @@ def main() -> int:
             for g in losses
             if g.get("mega_ko_active") and g.get("jetting", 0) == 0
         ),
+        "zero_jetting_losses": sum(1 for g in losses if g.get("jetting", 0) == 0),
+        "no_attack_losses": sum(1 for g in losses if g.get("any_atk", 0) == 0),
         "wr_with_mega": (
             sum(g["won"] for g in mega_games) / len(mega_games) if mega_games else 0
         ),
@@ -450,6 +517,23 @@ def main() -> int:
         f"- 有 Mega 时胜率：{structure['wr_with_mega']:.0%}｜无 Mega：{structure['wr_no_mega']:.0%}",
         f"- **OL-A1 水枪局**：{structure['water_gun_games']}/{n}",
         f"- **OL-B2 UB 烧 Mega 局**：{structure['ub_burn_mega_games']}/{n}",
+        f"- **负局真零 Jetting**（attackId=1487+serial 去重）：{structure['zero_jetting_losses']}/{len(losses)}",
+        f"- **负局真 no_attack**（任意 type=15）：{structure['no_attack_losses']}/{len(losses)}",
+        f"- mega_ko 且零 Jetting：{structure['mega_ko_no_jet_losses']}/{len(losses)}",
+        "",
+        "## 负局 Jetting 表（纠偏后）",
+        "",
+        "| eid | jetting | any_atk | ever_mega | tags |",
+        "|---:|---:|---:|---|---|",
+    ]
+    for g in sorted(losses, key=lambda x: x["eid"]):
+        tags = ",".join(g["tags"]) or "—"
+        lines.append(
+            f"| {g['eid']} | {g.get('jetting', 0)} | {g.get('any_atk', 0)} | "
+            f"{g.get('ever_mega')} | `{tags}` |"
+        )
+
+    lines += [
         "",
         "## 分卡组",
         "",

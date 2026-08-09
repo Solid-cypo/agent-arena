@@ -2545,6 +2545,25 @@ def _pokemon_energy_count(pkm) -> int:
         return 0
 
 
+def _attacker_line_water_refill(target, eid: int) -> bool:
+    """True when Water may break a wrong-color HR-E1 lock on an attacker line.
+
+    Online 91350842: Crispin parked Dark on Mega → HR-E1 forbade Water → no Jetting.
+    """
+    tid = _si(getattr(target, "id", None))
+    if tid not in (
+        _OC_STARYU,
+        _CARDS["mega_starmie_ex"],
+        _OC_SNORUNT,
+        _OC_FROSLASS,
+        _CARDS["mega_froslass_ex"],
+    ):
+        return False
+    if eid not in (WATER_BASIC, int(EnergyType.WATER)):
+        return False
+    return not _has_water_energy(target)
+
+
 def _attach_hard_ban_bonus(obs, option, mi: int) -> float:
     """Global ATTACH bans: ≤1 energy per Pokémon; attacker lines = Water Basic only."""
     if option.type != OptionType.ATTACH:
@@ -2556,7 +2575,10 @@ def _attach_hard_ban_bonus(obs, option, mi: int) -> float:
     tid = _si(getattr(target, "id", None))
 
     # HR-E1  At most one energy on any Pokémon.
+    # Exception: attacker stuck on non-Water may take Water (Jetting/Resentful unlock).
     if _pokemon_energy_count(target) >= 1:
+        if _attacker_line_water_refill(target, eid):
+            return _DOMINATE_OPEN_PATH
         return _ATTACH_ILLEGAL
 
     # HR-E2  Starmie line: Water Basic ONLY (never Dark/Prism/Ignition).
@@ -2659,7 +2681,10 @@ def _attach_priority_bonus(
     if not target or eid not in _ENERGY_IDS:
         return 0.0
     tid = _si(getattr(target, "id", None))
+    # Wrong-color lock escape: Water onto attacker that still lacks Water.
     if _pokemon_energy_count(target) >= 1:
+        if _attacker_line_water_refill(target, eid):
+            return _DOMINATE_OPEN_PATH
         return 0.0
 
     dry_atk = _dry_attacker_needs_water(obs, mi)
@@ -3380,8 +3405,19 @@ def _attach_retreat_fuel_bonus(obs, option, mi: int, board, phase) -> float:
     return 0.0
 
 
+def _select_effect_card_id(obs) -> int:
+    """Card id of the effect resolving the current select (e.g. Crispin 1198)."""
+    try:
+        eff = getattr(obs.select, "effect", None)
+        if eff is not None:
+            return _si(getattr(eff, "id", None))
+    except Exception:
+        pass
+    return 0
+
+
 def _crispin_attach_select_bonus(obs, option, sit: dict[str, Any]) -> float:
-    """Hard bans for Crispin nested ATTACH_TO / ATTACH_FROM (not MAIN ATTACH)."""
+    """Hard bans for Crispin nested TO_HAND / ATTACH_TO / ATTACH_FROM."""
     if option.type != OptionType.CARD:
         return 0.0
     try:
@@ -3389,16 +3425,30 @@ def _crispin_attach_select_bonus(obs, option, sit: dict[str, Any]) -> float:
     except Exception:
         return 0.0
     mi = sit["my_index"]
+    dry_need = _dry_attacker_needs_water(obs, mi) or _field_has_dry_mega(obs, mi)
+
+    # Crispin: first pick is TO_HAND, second different-type is ATTACH_TO.
+    # Online 91350842 si=29–31: Water→hand then Dark→Mega locked Jetting under HR-E1.
+    # Pocket Dark when a dry attacker needs Water so ATTACH_TO can fuel Jetting.
+    if ctx == int(SelectContext.TO_HAND) and _select_effect_card_id(obs) == CRISPIN:
+        eid = _card_option_id(obs, option, mi)
+        if dry_need:
+            if eid == DARK_BASIC:
+                return _DOMINATE_OPEN_PATH
+            if eid == WATER_BASIC:
+                return -_DOMINATE_MID
+        return 0.0
 
     if ctx == int(SelectContext.ATTACH_TO):
         eid = _card_option_id(obs, option, mi)
         if eid == DARK_BASIC:
+            # Dry attacker owns the attach seat; never park Dark while Water is needed.
+            if dry_need:
+                return _ATTACH_ILLEGAL
             if _munk_needs_dark(obs, mi):
                 return 0.0
             return _ATTACH_ILLEGAL
-        if eid == WATER_BASIC and (
-            _dry_attacker_needs_water(obs, mi) or _field_has_dry_mega(obs, mi)
-        ):
+        if eid == WATER_BASIC and dry_need:
             return _DOMINATE_OPEN_PATH
         return 0.0
 
@@ -3406,8 +3456,14 @@ def _crispin_attach_select_bonus(obs, option, sit: dict[str, Any]) -> float:
         agent_state = sit.get("agent_state") or {}
         eid = agent_state.get("pending_crispin_energy_id")
         if eid is None:
-            # Fallback: if ATTACH_TO left a single energy visible in select.deck
-            # matching prior choice — otherwise stay neutral.
+            # Fallback: contextCard from engine (ATTACH_TO already committed).
+            try:
+                cc = getattr(obs.select, "contextCard", None)
+                if cc is not None:
+                    eid = _si(getattr(cc, "id", None))
+            except Exception:
+                eid = None
+        if eid is None:
             return 0.0
         tid = _card_option_id(obs, option, mi)
         if eid == DARK_BASIC:

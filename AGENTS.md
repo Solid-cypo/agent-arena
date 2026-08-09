@@ -8,8 +8,11 @@
 
 ## 当前状态（每次会话结束时更新此节）
 
-- **更新日期**：2026-08-09
-- **线上提交**：[`55365769`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions) Opening engine seats（`f54dab6`）→ publicScore **600.0**；前一完整分 [`55312234`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions)=**480.0**（Wave U+U5.1）；对照 `55202093`=483.3 / `55115028` fireform=516.8
+- **更新日期**：2026-08-10
+- **线上提交**：[`55386951`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions) **P0 CrispinWater** → publicScore **610.4**（权威峰）；前包 [`55381818`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions) HandQual+AB → **478.1**；对照 `55115028` fireform=516.8
+- **P0 Crispin 错色/补水（G0 绿·已上线）**：闸 [`logs/h2h_audit_p0CrispinWater_n200/GATE.md`](logs/h2h_audit_p0CrispinWater_n200/GATE.md) → WR **58.5%** / B**61** · Opening 合计 **80.5%**
+- **P1 fade 计数（已修）**：[`scripts/analyze_kaggle_fade.py`](scripts/analyze_kaggle_fade.py) 按 `(attackId,serial)` 去重；55381818 负局真零 Jetting **1/12**（仅 91350842）；旧 `no_attack:9` 作废。见 [`data/kaggle_episodes/review_HandQual_AB_P1fix_55381818/FADE_ANALYSIS.md`](data/kaggle_episodes/review_HandQual_AB_P1fix_55381818/FADE_ANALYSIS.md)
+- **P2 Boss→Jetting（HOLD）**：纠偏后无新刀口；`91352703` si=61 线上 END，本地 HEAD 已 Jetting≫END。见 [`logs/diagnose_p2_boss_jetting/HOLD.md`](logs/diagnose_p2_boss_jetting/HOLD.md)
 - **本地 Opening 闸**（vs `ops_fireform_55115028`，n=200 seed82000，`OPENING_HANDOFF=0`，TURN_START 去重）：硬指标 **81.5%**（先手≤T3 **86%** / 后手≤T2 **77%**）· WR **53.5%** · 三漏归零（`logs/h2h_audit_engineSeats_n200/`）
 - **中盘 CombatClose-V1（证伪已回滚）**：露面+锁 ADRENA/BOSS/DISPATCH → prep_ok 31→29%、Opening 合计 81.5→**77.5%**；见 [`logs/diagnose_combat_expert_gap/DIAGNOSE.md`](logs/diagnose_combat_expert_gap/DIAGNOSE.md) · [`logs/h2h_audit_combatClose_n200/GATE.md`](logs/h2h_audit_combatClose_n200/GATE.md)。**已证伪**：仅靠 primary_step 锁修双穿序
 - **对照**：历史最佳本地峰 `data/restore_peaks/ops_fireform_55115028`；H2H 权威仍记 Wave I n=400（`logs/h2h_audit_waveI_seat_b/` → **50.5% / A52 / B49**）

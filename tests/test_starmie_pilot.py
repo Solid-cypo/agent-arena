@@ -1163,6 +1163,78 @@ def test_wave_d_opening_ban_munk_to_active_select():
     assert sp._hard_rule_bonus(obs, pick_munk, sit) <= -sp._DOMINATE_OPEN_PATH + 1e-6
 
 
+# ── P0 Crispin wrong-color / HR-E1 water refill (Kaggle 91350842) ─────────────
+
+def test_crispin_to_hand_pockets_dark_when_dry_mega_needs_water():
+    """91350842 si=29: pocket Dark so ATTACH_TO can fuel Mega with Water."""
+    from cg.api import SelectContext
+
+    water, dark = 3, 7
+    me = _player(
+        active=_pkm(sp._CARDS["mega_starmie_ex"]),
+        hand=[NS(id=dark)],
+    )
+    obs = _obs(turn=4, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    deck = [NS(id=water), NS(id=dark), NS(id=water)]
+    obs.select = NS(
+        context=int(SelectContext.TO_HAND),
+        deck=deck,
+        effect=NS(id=sp.CRISPIN),
+        minCount=0,
+        maxCount=1,
+    )
+    sit = sp._compute_situation(obs)
+    pick_water = NS(type=OptionType.CARD, area=AreaType.DECK, index=0, playerIndex=0)
+    pick_dark = NS(type=OptionType.CARD, area=AreaType.DECK, index=1, playerIndex=0)
+    assert sp._hard_rule_bonus(obs, pick_dark, sit) >= sp._DOMINATE_OPEN_PATH - 1e-6
+    assert sp._hard_rule_bonus(obs, pick_water, sit) <= -sp._DOMINATE_MID + 1e-6
+    assert sp._hard_rule_bonus(obs, pick_dark, sit) > sp._hard_rule_bonus(
+        obs, pick_water, sit
+    )
+
+
+def test_hr_e1_allows_water_refill_on_mega_with_dark_only():
+    """After wrong-color lock, MAIN Water attach must beat END (Jetting unlock)."""
+    water, dark = 3, 7
+    me = _player(
+        active=_pkm(sp._CARDS["mega_starmie_ex"], energies=[dark]),
+        hand=[NS(id=water)],
+    )
+    me.energyAttached = False
+    obs = _obs(turn=4, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    attach_water = NS(
+        type=OptionType.ATTACH,
+        inPlayArea=AreaType.ACTIVE,
+        inPlayIndex=0,
+        handIndex=0,
+        index=0,
+    )
+    end = NS(type=OptionType.END)
+    assert sp._attach_hard_ban_bonus(obs, attach_water, 0) == sp._DOMINATE_OPEN_PATH
+    assert sp._hard_rule_bonus(obs, attach_water, sit) >= sp._DOMINATE_OPEN_PATH - 1e-6
+    assert sp._hard_rule_bonus(obs, attach_water, sit) > sp._hard_rule_bonus(
+        obs, end, sit
+    )
+
+
+def test_hr_e1_still_bans_second_non_water_on_mega():
+    water, dark = 3, 7
+    me = _player(
+        active=_pkm(sp._CARDS["mega_starmie_ex"], energies=[water]),
+        hand=[NS(id=dark)],
+    )
+    obs = _obs(turn=4, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    attach_dark = NS(
+        type=OptionType.ATTACH,
+        inPlayArea=AreaType.ACTIVE,
+        inPlayIndex=0,
+        handIndex=0,
+        index=0,
+    )
+    assert sp._attach_hard_ban_bonus(obs, attach_dark, 0) == sp._ATTACH_ILLEGAL
+
+
 if __name__ == "__main__":
     import traceback
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
