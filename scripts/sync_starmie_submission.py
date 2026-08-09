@@ -18,6 +18,7 @@ PILOT_MODULES = (
     "hand_snapshot.py",
     "phase_fsm.py",
     "opening_cards.py",
+    "opening_bench.py",
     "deck_resources.py",
     "draw_axis.py",
     "supporter_planner.py",

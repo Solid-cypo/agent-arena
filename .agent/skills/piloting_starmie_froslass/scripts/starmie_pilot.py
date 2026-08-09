@@ -2915,6 +2915,25 @@ def _wait_evolve_freeze_bonus(obs, option, sit: dict[str, Any], plan) -> float:
     mi = sit["my_index"]
 
     if option.type == OptionType.END:
+        # Blank END loses to engine fill (土龙 / 66 / 愿增猿) under seat preset.
+        if _dudunsparce_evolve_available(obs, mi, sit):
+            return _ATTACH_ILLEGAL
+        bench_open = int(getattr(board, "bench_open", 0) or 0)
+        if bench_open > 0:
+            if (
+                (_hand_has_id(obs, mi, DUNSPARCE_A) or _hand_has_id(obs, mi, DUNSPARCE_B))
+                and (
+                    _obs_can_bench_card(obs, mi, DUNSPARCE_A)
+                    or _obs_can_bench_card(obs, mi, DUNSPARCE_B)
+                )
+            ):
+                return _ATTACH_ILLEGAL
+            if (
+                _hand_has_id(obs, mi, _OC_MUNKIDORI)
+                and _munkidori_count_on_field(obs, mi) <= 0
+                and _obs_can_bench_card(obs, mi, _OC_MUNKIDORI)
+            ):
+                return _ATTACH_ILLEGAL
         return _DOMINATE_MID
     if option.type == OptionType.ATTACH:
         eid = _attach_energy_id(obs, option, mi)
@@ -2927,9 +2946,11 @@ def _wait_evolve_freeze_bonus(obs, option, sit: dict[str, Any], plan) -> float:
             return _DOMINATE_OPEN_PATH - 20.0
         return _ATTACH_ILLEGAL
     if option.type == OptionType.EVOLVE:
-        # Cannot Mega yet; ban other evolves stealing the sick window.
         if _evolve_to_mega_starmie(obs, option, mi):
             return _DOMINATE_OPEN_PATH
+        # Engine: Dunsparce → 66 is allowed in the sick window.
+        if _evolve_to_dudunsparce(obs, option, mi):
+            return _DOMINATE_OPEN_PATH - 10.0
         return _ATTACH_ILLEGAL
     if option.type == OptionType.RETREAT:
         return _ATTACH_ILLEGAL
@@ -2939,13 +2960,19 @@ def _wait_evolve_freeze_bonus(obs, option, sit: dict[str, Any], plan) -> float:
             return _ATTACH_ILLEGAL
         if cid == _OC_STARYU:
             return _DOMINATE_OPEN_PATH - 5.0  # dual Staryu insurance
+        # Bench engine fill under seat preset (土龙×2 / 愿增猿×1).
+        if cid in (DUNSPARCE_A, DUNSPARCE_B) and _obs_can_bench_card(obs, mi, cid):
+            return _DOMINATE_OPEN - 25.0
+        if cid == _OC_MUNKIDORI and _obs_can_bench_card(obs, mi, cid):
+            if _munkidori_count_on_field(obs, mi) <= 0:
+                return _DOMINATE_OPEN - 30.0
+            return _ATTACH_ILLEGAL
         if cid in (_OC_POFFIN, _OC_POKE_PAD) and not _hand_has_id(obs, mi, _OC_STARYU):
-            # Only if under dual-Staryu cap (second seat).
             if _count_staryu_on_field(obs, mi) < 2:
                 return _DOMINATE_OPEN - 30.0
             return _ATTACH_ILLEGAL
         if cid in (
-            _BUDEW_ID, _OC_SNORUNT, _OC_MUNKIDORI, _BOSS_ID,
+            _BUDEW_ID, _OC_SNORUNT, _BOSS_ID,
             LILLIE, CRISPIN, _OC_ULTRA_BALL,
         ):
             return _ATTACH_ILLEGAL
@@ -3711,11 +3738,15 @@ def _gs_mega_seat_bonus(obs, option, sit: dict[str, Any]) -> float:
     mi = sit["my_index"]
     bench_open = int(getattr(board, "bench_open", 0) or 0)
 
+    staryu_field = bool(getattr(plan.facts, "staryu_on_field", False))
+
     if option.type == OptionType.END:
         return _ATTACH_ILLEGAL
     if option.type == OptionType.EVOLVE:
         if _evolve_to_mega_starmie(obs, option, mi):
             return _DOMINATE_OPEN_PATH
+        if _evolve_to_dudunsparce(obs, option, mi):
+            return _DOMINATE_OPEN_PATH - 10.0
         return _ATTACH_ILLEGAL
     if option.type == OptionType.PLAY:
         cid = _hand_card_id(obs, option, mi)
@@ -3725,12 +3756,23 @@ def _gs_mega_seat_bonus(obs, option, sit: dict[str, Any]) -> float:
             if not _hand_has_id(obs, mi, _OC_STARYU):
                 return _DOMINATE_OPEN_PATH - 5.0
             return -_DOMINATE_OPEN_PATH
+        # After Staryu is seated: fill engine seats below water attach.
+        if staryu_field:
+            if cid in (DUNSPARCE_A, DUNSPARCE_B) and _obs_can_bench_card(obs, mi, cid):
+                return _DOMINATE_OPEN - 25.0
+            if (
+                cid == _OC_MUNKIDORI
+                and _munkidori_count_on_field(obs, mi) <= 0
+                and _obs_can_bench_card(obs, mi, cid)
+            ):
+                return _DOMINATE_OPEN - 30.0
         if cid == SALVATOR and not plan.facts.supporter_played:
-            # Mega already held — Salvator dig is wrong; seat first.
             return _ATTACH_ILLEGAL
         if cid in (HILDA, LILLIE, CRISPIN) and not plan.facts.supporter_played:
             return _ATTACH_ILLEGAL
-        if cid in (_BUDEW_ID, _OC_SNORUNT, _OC_MUNKIDORI, _BOSS_ID):
+        if cid in (_BUDEW_ID, _OC_SNORUNT, _BOSS_ID):
+            return _ATTACH_ILLEGAL
+        if cid == _OC_MUNKIDORI and not staryu_field:
             return _ATTACH_ILLEGAL
         if cid == _OC_SWITCH:
             return _ATTACH_ILLEGAL
@@ -3742,12 +3784,87 @@ def _gs_mega_seat_bonus(obs, option, sit: dict[str, Any]) -> float:
             if target and _si(getattr(target, "id", None)) in (
                 _OC_STARYU, _OC_MEGA_STARMIE,
             ):
-                return _DOMINATE_OPEN - 40.0
+                # Water fuel > engine bench fill (keep GS Mega clock).
+                return _DOMINATE_OPEN_PATH - 20.0
         return _ATTACH_ILLEGAL
     if option.type == OptionType.RETREAT:
         return _ATTACH_ILLEGAL
     if option.type == OptionType.ABILITY:
         return -_DOMINATE_OPEN_PATH
+    return 0.0
+
+
+def _opening_engine_seat_bonus(obs, option, sit: dict[str, Any]) -> float:
+    """OPENING engine fill: play Dunsparce≤2, evolve 66, bench Munk×1.
+
+    Bench preset: attacker-base×1 · Dunsparce×2 · Munk×1 · flex×1.
+    Never outranks Mega Closing / ENERGY / attacker-base seating.
+    """
+    board = sit.get("board")
+    phase = sit.get("phase")
+    plan = sit.get("turn_plan")
+    if board is None or phase is None:
+        return 0.0
+    if getattr(phase, "primary", None) != "OPENING":
+        return 0.0
+    if _mega_evolve_option_offered(obs, sit):
+        return 0.0
+    # Let locked ENERGY/EVOLUTION advances own the turn when offered.
+    step = _plan_primary_step(plan, obs, sit) if plan is not None else None
+    if (
+        plan is not None
+        and step in ("ENERGY", "EVOLUTION")
+        and _plan_step_has_advance(obs, sit, step, plan)
+    ):
+        return 0.0
+
+    mi = sit["my_index"]
+    bench_open = int(getattr(board, "bench_open", 0) or 0)
+    staryu_field = bool(
+        plan is not None and getattr(plan.facts, "staryu_on_field", False)
+    )
+    need_base = bool(plan is not None and getattr(plan.gap, "need_base", False))
+    staryu_hand = bool(
+        plan is not None and _OC_STARYU in getattr(plan.facts, "hand_ids", ())
+    )
+    # Reserve seats for attacker base before parking engine pieces.
+    reserve_base = need_base and (staryu_hand or bench_open <= 1)
+
+    if option.type == OptionType.EVOLVE and _evolve_to_dudunsparce(obs, option, mi):
+        return _DOMINATE_OPEN_PATH
+
+    if option.type == OptionType.PLAY and bench_open > 0 and staryu_field and not reserve_base:
+        cid = _hand_card_id(obs, option, mi)
+        if cid in (DUNSPARCE_A, DUNSPARCE_B) and _obs_can_bench_card(obs, mi, cid):
+            return _DOMINATE_OPEN - 12.0
+        if (
+            cid == _OC_MUNKIDORI
+            and _munkidori_count_on_field(obs, mi) <= 0
+            and _obs_can_bench_card(obs, mi, cid)
+        ):
+            return _DOMINATE_OPEN - 18.0
+
+    # Do not blank-end while an engine piece is playable (after base is seated).
+    if option.type == OptionType.END and staryu_field and not reserve_base:
+        if _dudunsparce_evolve_available(obs, mi, sit):
+            return _ATTACH_ILLEGAL
+        if bench_open > 0:
+            if (
+                (_hand_has_id(obs, mi, DUNSPARCE_A) or _hand_has_id(obs, mi, DUNSPARCE_B))
+                and (
+                    _obs_can_bench_card(obs, mi, DUNSPARCE_A)
+                    or _obs_can_bench_card(obs, mi, DUNSPARCE_B)
+                )
+            ):
+                return _ATTACH_ILLEGAL
+            if (
+                _hand_has_id(obs, mi, _OC_MUNKIDORI)
+                and _munkidori_count_on_field(obs, mi) <= 0
+                and _obs_can_bench_card(obs, mi, _OC_MUNKIDORI)
+            ):
+                return _ATTACH_ILLEGAL
+    elif option.type == OptionType.END and _dudunsparce_evolve_available(obs, mi, sit):
+        return _ATTACH_ILLEGAL
     return 0.0
 
 
@@ -4263,7 +4380,8 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
             return _DOMINATE_OPEN_PATH
         if cid == _OC_BOSS:
             return -_DOMINATE_OPEN_PATH
-        if cid in (_OC_MUNKIDORI, _OC_SNORUNT, _BUDEW_ID):
+        # Seat preset keeps Munk×1 open; only ban Snorunt/Budew over Mega dig.
+        if cid in (_OC_SNORUNT, _BUDEW_ID):
             return -_DOMINATE_OPEN_PATH
     if evo66_ready and option.type == OptionType.PLAY:
         cid = _hand_card_id(obs, option, mi)
@@ -4341,8 +4459,14 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
                 return _DOMINATE_OPEN_PATH if need_mega and not gs_t1 else _DOMINATE_OPEN
             if cid == _OC_ULTRA_BALL and plan.acquire.ball_allowed:
                 return _DOMINATE_OPEN_PATH if need_mega and not gs_t1 else _DOMINATE_OPEN
-            if cid in (_OC_MUNKIDORI, _OC_SNORUNT):
+            if cid == _OC_SNORUNT:
                 if not plan.facts.staryu_on_field or need_mega:
+                    return -_DOMINATE_OPEN_PATH
+            if cid == _OC_MUNKIDORI:
+                # Preset: Munk×1 after attacker base is seated; dig Mega does not ban.
+                if not plan.facts.staryu_on_field:
+                    return -_DOMINATE_OPEN_PATH
+                if not _obs_can_bench_card(obs, mi, cid):
                     return -_DOMINATE_OPEN_PATH
             if going_first and cid == _OC_MEOWTH_EX and (need_base or need_mega):
                 return -_DOMINATE_OPEN_PATH
@@ -4353,11 +4477,10 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
                 if cid == _OC_BOSS and (need_mega or mega_held):
                     return -_DOMINATE_OPEN_PATH
             if cid in (DUNSPARCE_A, DUNSPARCE_B):
-                duns_n = sum(
-                    x in (DUNSPARCE_A, DUNSPARCE_B, _CARDS["dudunsparce"])
-                    for x in (plan.facts.bench_ids + (plan.facts.active_id,))
-                )
-                if duns_n >= 1 or plan.gap.need_base:
+                # Preset: Dunsparce×2 after attacker base; never park over need_base.
+                if not _obs_can_bench_card(obs, mi, cid):
+                    return -_DOMINATE_OPEN_PATH
+                if plan.gap.need_base:
                     return -_DOMINATE_OPEN_PATH
         if option.type == OptionType.CARD and need_mega and not gs_t1:
             try:
@@ -4366,7 +4489,9 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
                 ctx = -1
             if ctx == int(SelectContext.TO_BENCH):
                 cid = _card_option_id(obs, option, mi)
-                if cid in (_OC_MUNKIDORI, _OC_SNORUNT, _BUDEW_ID):
+                if cid in (_OC_SNORUNT, _BUDEW_ID):
+                    return -_DOMINATE_OPEN_PATH
+                if cid == _OC_MUNKIDORI and not _obs_can_bench_card(obs, mi, cid):
                     return -_DOMINATE_OPEN_PATH
                 if gs_t2p and cid == _OC_MEOWTH_EX:
                     return -_DOMINATE_OPEN_PATH
@@ -4400,13 +4525,18 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
         if cid in plan.acquire.sources:
             return _DOMINATE_OPEN_PATH
         if cid in (DUNSPARCE_A, DUNSPARCE_B):
+            # Seat preset owns quota (≤2); never park over attacker-base gap.
+            if not _obs_can_bench_card(obs, mi, cid) or plan.gap.need_base:
+                return -_DOMINATE
             duns_n = sum(
                 x in (DUNSPARCE_A, DUNSPARCE_B, _CARDS["dudunsparce"])
                 for x in (plan.facts.bench_ids + (plan.facts.active_id,))
             )
-            if (duns_n == 0 and not plan.draw.allow_first_dunsparce) or (
-                duns_n == 1 and not plan.draw.allow_second_dunsparce
-            ) or duns_n >= 2:
+            if duns_n >= 2:
+                return -_DOMINATE
+            if duns_n == 0 and not plan.draw.allow_first_dunsparce:
+                return -_DOMINATE
+            if duns_n == 1 and not plan.draw.allow_second_dunsparce:
                 return -_DOMINATE
 
     if (
@@ -4498,6 +4628,11 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
     dual = _dual_staryu_opening_bonus(obs, option, sit)
     if dual != 0.0:
         return dual
+
+    # OPENING engine seats: 土龙×2 / 进66 / 愿增猿×1；有可填则禁空 END.
+    engine_seat = _opening_engine_seat_bonus(obs, option, sit)
+    if engine_seat != 0.0:
+        return engine_seat
 
     # When TurnPlan already named a rider/boss target, legacy selectors must
     # not preempt it (especially 51–80 HP riders that old DAMAGE scoring ranks
@@ -4782,7 +4917,7 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
         if _bench_has_id(obs, mi, _CARDS["dudunsparce"]):
             return -_DOMINATE_MID
 
-    # Bench role budget: refuse over-cap basics; prefer Dunsparce while under quota.
+    # Bench role budget: refuse over-cap basics; prefer Dunsparce/Munk under preset.
     if option.type == OptionType.PLAY and board.bench_open > 0:
         cid = _hand_card_id(obs, option, mi)
         if cid in (
@@ -4790,15 +4925,27 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
             _OC_SNORUNT,
             DUNSPARCE_A,
             DUNSPARCE_B,
+            _OC_MUNKIDORI,
             _FAN_ROTOM_ID,
             _BUDEW_ID,
             _OC_MEOWTH_EX,
         ):
             if not _obs_can_bench_card(obs, mi, cid):
                 return -_DOMINATE_OPEN_PATH
+            plan_b = sit.get("turn_plan")
+            need_base_b = bool(plan_b and plan_b.gap.need_base)
             if cid in (DUNSPARCE_A, DUNSPARCE_B):
+                if need_base_b:
+                    return -_DOMINATE_OPEN_PATH
                 if board.active_id == _OC_STARYU and not board.mega_starmie_on_field:
                     return _DOMINATE
+                return _DOMINATE_MID
+            if (
+                cid == _OC_MUNKIDORI
+                and not need_base_b
+                and _munkidori_count_on_field(obs, mi) <= 0
+                and bool(getattr(board, "staryu_on_field", False) or board.active_id == _OC_STARYU)
+            ):
                 return _DOMINATE_MID
 
     # Poffin TO_BENCH card picks: demote over-cap roles.

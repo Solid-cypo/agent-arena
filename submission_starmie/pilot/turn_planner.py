@@ -1117,8 +1117,10 @@ def _draw_plan(facts: TurnFacts, gap: TurnGap, combat: CombatPlan) -> DrawPlan:
         reason = "structured single-gap bad hand" if allow_draw else (
             "hand preserves a live path"
         )
-    first = duns_count == 0 and facts.bench_open > 0 and not gap.need_base
-    second = duns_count == 1 and facts.bench_budget > 0
+    # Seat preset: Dunsparce-line ≤2. Do not park the first copy over a base gap.
+    under_duns_cap = duns_count < 2 and facts.bench_open > 0
+    first = duns_count == 0 and under_duns_cap and not gap.need_base
+    second = duns_count == 1 and under_duns_cap
     return DrawPlan(allow_draw, first, second, reason)
 
 
