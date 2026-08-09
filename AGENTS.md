@@ -9,7 +9,7 @@
 ## 当前状态（每次会话结束时更新此节）
 
 - **更新日期**：2026-08-09
-- **线上提交**：[`55365769`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions) Opening engine seats（`f54dab6`）→ **PENDING**；前一完整分 [`55312234`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions)=**480.0**（Wave U+U5.1）；对照 `55202093`=483.3 / `55115028` fireform=516.8
+- **线上提交**：[`55365769`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions) Opening engine seats（`f54dab6`）→ publicScore **600.0**；前一完整分 [`55312234`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions)=**480.0**（Wave U+U5.1）；对照 `55202093`=483.3 / `55115028` fireform=516.8
 - **本地 Opening 闸**（vs `ops_fireform_55115028`，n=200 seed82000，`OPENING_HANDOFF=0`，TURN_START 去重）：硬指标 **81.5%**（先手≤T3 **86%** / 后手≤T2 **77%**）· WR **53.5%** · 三漏归零（`logs/h2h_audit_engineSeats_n200/`）
 - **对照**：历史最佳本地峰 `data/restore_peaks/ops_fireform_55115028`；H2H 权威仍记 Wave I n=400（`logs/h2h_audit_waveI_seat_b/` → **50.5% / A52 / B49**）
 - **卡组**：`data/decks/starmie_froslass.csv` — 3×海星星、无 306、5 水 + 3 恶
