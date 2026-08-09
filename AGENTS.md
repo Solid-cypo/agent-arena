@@ -2,14 +2,17 @@
 
 > Kaggle [PTCG AI Battle Challenge](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle)（`cabt` 环境）的对战 AI。
 > 主线：**Starmie+Froslass 卡组 Pilot**（Layer1 硬规则 + Layer2 软维）+ 理论建模（FSM）。
-> 环境：Ubuntu VPS（洛杉矶），通过 Cursor Remote-SSH 开发。
+> 开发：本机 Windows（`D:\Agent\agent-arena`）写代码 + 小测；重测：Ubuntu VPS（洛杉矶，`kag-vps:/root/agent-arena`）。
+> 同步：本机 commit 后跑 `scripts/sync_to_vps.ps1`（git bundle → VPS）；GitHub 仍由 VPS `git push origin` 出口。
 
 ---
 
 ## 当前状态（每次会话结束时更新此节）
 
 - **更新日期**：2026-08-10
-- **线上权威峰**：[`55386951`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions) **P0 CrispinWater** → publicScore **610.4**；本地档 [`data/restore_peaks/p0CrispinWater_55386951/`](data/restore_peaks/p0CrispinWater_55386951/)；git `0e8a638`
+- **工作流**：日常开发在本机；VPS 专跑 h2h/marathon/Kaggle。同步：`pwsh scripts/sync_to_vps.ps1`（可选 `-PushOrigin`、`-RemoteCmd "..."`）
+- **本机环境**：Python 3.10 venv（`.venv`）；冒烟 ` .\.venv\Scripts\python.exe -m pytest tests/test_starmie_pilot.py -q`
+- **线上权威峰**：[`55386951`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions) **P0 CrispinWater** → publicScore **610.4**；本地档 [`data/restore_peaks/p0CrispinWater_55386951/`](data/restore_peaks/p0CrispinWater_55386951/)；git `ef246cc`（含 handoff WIP）
 - **P0（已冻结）**：G0 [`logs/h2h_audit_p0CrispinWater_n200/GATE.md`](logs/h2h_audit_p0CrispinWater_n200/GATE.md) WR **58.5%** / B**61** / Opening **80.5%**；公局初审 n=3 WR2/3、零 Jetting=0 → [`logs/diagnose_p0CrispinWater_55386951/REVIEW.md`](logs/diagnose_p0CrispinWater_55386951/REVIEW.md)
 - **P1 fade（已修）**：`(attackId,serial)` 去重；旧包 55381818 真零 Jetting 1/12
 - **P2 Boss→Jetting（HOLD）**：[`logs/diagnose_p2_boss_jetting/HOLD.md`](logs/diagnose_p2_boss_jetting/HOLD.md)
@@ -76,6 +79,16 @@
 - **指标文档**：`references/rulebook/METRICS-CombatV1_20260801.md`｜`TURN_PLAN_POLICY_20260802.md`｜`ULTRA_BALL_POLICY_20260801.md`｜**`SOP-PilotIteration.md`**｜**`ONLINE_LEAK_PATTERNS_55299191.md`**
 
 ---
+
+
+## 本机 / VPS 分工
+
+| 场景 | 在哪 | 怎么做 |
+|------|------|--------|
+| 改 pilot / 单测 | 本机 | `.venv` + `pytest` |
+| n200+ h2h / marathon | VPS | `sync_to_vps.ps1` 后 SSH 跑脚本 |
+| 推 GitHub | VPS | `sync_to_vps.ps1 -PushOrigin` 或 VPS 上 `git push origin master` |
+| 大日志 `logs/` | 仅 VPS | 默认不同步到本机 |
 
 ## 文档地图（按需 @ 引用，不要一次性全部加载）
 
