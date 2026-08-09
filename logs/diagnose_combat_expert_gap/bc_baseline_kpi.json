@@ -1,0 +1,26 @@
+{
+  "n": 80,
+  "win_rate": 0.5625,
+  "effective_boss_rate": 0.6363636363636364,
+  "ineffective_boss_count": 12,
+  "boss_prize_delta_avg": 0.8181818181818182,
+  "no_effective_boss_share_of_losses": 0.8285714285714286,
+  "double_ko_prep_order_ok": 0.3142857142857143,
+  "double_ko_prep_checks": 35,
+  "boss_grabs_rider": 0,
+  "boss_target_matches_plan": 1.0,
+  "ready_mega_no_attack": 0,
+  "base_attack_with_ready_mega": 2,
+  "boss_per_game": 0.4125,
+  "loss_tags": {
+    "no_861": 33,
+    "no_effective_boss": 29,
+    "zero_boss": 26,
+    "dun_no_66": 10,
+    "no_dun": 10,
+    "dud_no_ability": 9,
+    "no_attack": 7,
+    "no_mega": 5,
+    "no_supporter": 3
+  }
+}

@@ -11,6 +11,7 @@
 - **更新日期**：2026-08-09
 - **线上提交**：[`55365769`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions) Opening engine seats（`f54dab6`）→ publicScore **600.0**；前一完整分 [`55312234`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions)=**480.0**（Wave U+U5.1）；对照 `55202093`=483.3 / `55115028` fireform=516.8
 - **本地 Opening 闸**（vs `ops_fireform_55115028`，n=200 seed82000，`OPENING_HANDOFF=0`，TURN_START 去重）：硬指标 **81.5%**（先手≤T3 **86%** / 后手≤T2 **77%**）· WR **53.5%** · 三漏归零（`logs/h2h_audit_engineSeats_n200/`）
+- **中盘 CombatClose-V1（证伪已回滚）**：露面+锁 ADRENA/BOSS/DISPATCH → prep_ok 31→29%、Opening 合计 81.5→**77.5%**；见 [`logs/diagnose_combat_expert_gap/DIAGNOSE.md`](logs/diagnose_combat_expert_gap/DIAGNOSE.md) · [`logs/h2h_audit_combatClose_n200/GATE.md`](logs/h2h_audit_combatClose_n200/GATE.md)。**已证伪**：仅靠 primary_step 锁修双穿序
 - **对照**：历史最佳本地峰 `data/restore_peaks/ops_fireform_55115028`；H2H 权威仍记 Wave I n=400（`logs/h2h_audit_waveI_seat_b/` → **50.5% / A52 / B49**）
 - **卡组**：`data/decks/starmie_froslass.csv` — 3×海星星、无 306、5 水 + 3 恶
 - **OPENING 座位预设（采用）**：打手底座×1 · 土龙×2 · 愿增猿×1 · 机动×1；填充不得压过贴水/底座；`opening_bench.py` 已纳入 `sync_starmie_submission.py`
