@@ -42,19 +42,14 @@ def main() -> None:
         print(f"  {src.relative_to(ROOT)} -> {dst.relative_to(ROOT)}")
     print(f"Synced {len(PILOT_MODULES)} modules to {PILOT_DST.relative_to(ROOT)}/")
 
-    # Keep vendored combat_loop (~580 Opening) in the Kaggle bundle.
-    if COMBAT_SRC.is_dir():
-        if COMBAT_DST.exists():
-            shutil.rmtree(COMBAT_DST)
-        shutil.copytree(COMBAT_SRC, COMBAT_DST)
-        # Runtime uses HEAD deck/weights; only pilot behavior is frozen.
-        for name in ("deck.csv", "weights.json"):
-            src = ROOT / "submission_starmie" / name
-            if src.exists():
-                shutil.copy2(src, COMBAT_DST / name)
-        print(f"Vendored combat_loop -> {COMBAT_DST.relative_to(ROOT)}/")
-    else:
-        print(f"WARNING: missing {COMBAT_SRC} — Opening handoff will not activate")
+    # Do NOT vendor combat_loop into submission_starmie/: OPENING_HANDOFF
+    # defaults on and hijacks local h2h (~10pp WR) whenever the dir exists.
+    # package_starmie.py never ships combat_loop; online = HEAD opening.
+    # Frozen copies: data/restore_peaks/combat_loop_55014671,
+    # .agent/Versions/combat_loop_vendored/ for explicit handoff experiments.
+    if COMBAT_DST.exists():
+        shutil.rmtree(COMBAT_DST)
+        print(f"Removed landmine {COMBAT_DST.relative_to(ROOT)}/ (not shipped)")
 
 
 if __name__ == "__main__":

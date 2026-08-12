@@ -3,6 +3,11 @@
 The planner intentionally owns no cursor or cross-turn state.  Every action
 changes the observation and the next call derives a fresh plan.  Epoch memory
 remains responsible only for long-lived opening/SF progress.
+
+GapParallel-V1: post-Mega midgame keeps a *parallel open-gap set*
+(`midgame_open_gaps`).  Execution picks the highest-priority gap that is
+*actionable this decision* (options can advance it) — unreachable primaries
+fall through to the next gap.  Not a LIFO task stack.
 """
 from __future__ import annotations
 
@@ -196,8 +201,21 @@ class CombatPlan:
 class DrawPlan:
     allow_run_away_draw: bool
     allow_first_dunsparce: bool
-    allow_second_dunsparce: bool
+    allow_second_dunsparce: bool  # always False under field preset 土龙×1
     reason: str
+
+
+# Post-Mega parallel gaps (priority order). Execution filters by actionability.
+MIDGAME_GAP_ORDER: tuple[str, ...] = (
+    "ATTACH_DARK",
+    "DIG_DARK",
+    "DIG_MUNK",
+    "PLAY_MUNK",
+    "PLAY_PLACER",
+    "PLAY_SNORUNT",
+    "EVOLVE_861",
+    "DRAW_66",
+)
 
 
 @dataclass(frozen=True)
@@ -211,6 +229,51 @@ class TurnPlan:
     draw: DrawPlan
     forbidden_actions: tuple[str, ...]
     reasons: tuple[str, ...]
+    midgame_open_gaps: tuple[str, ...] = ()
+
+
+def enumerate_midgame_open_gaps(facts: TurnFacts, gap: TurnGap) -> tuple[str, ...]:
+    """Board-true post-Mega gaps that may be pursued in parallel.
+
+    Does not check engine options — the pilot filters to actionable gaps.
+    """
+    if not facts.mega_starmie_on_field:
+        return ()
+    open_set: set[str] = set()
+    hand = set(facts.hand_ids)
+
+    if facts.munkidori_on_field and not facts.munkidori_has_dark:
+        if DARK_BASIC in hand and not facts.energy_attached:
+            open_set.add("ATTACH_DARK")
+        if DARK_BASIC not in hand:
+            open_set.add("DIG_DARK")
+    elif not facts.munkidori_on_field:
+        if MUNKIDORI in hand:
+            open_set.add("PLAY_MUNK")
+        else:
+            # SeatMunk: no held Munk → dig (Pad / Ball / NS) before Jetting starve.
+            open_set.add("DIG_MUNK")
+
+    if not facts.damage_placer_online:
+        open_set.add("PLAY_PLACER")
+
+    if gap.need_second_attacker and not facts.ban_froslass_line:
+        if not facts.snorunt_on_field and not facts.mega_froslass_on_field:
+            open_set.add("PLAY_SNORUNT")
+        if (
+            facts.snorunt_on_field
+            and MEGA_FROSLASS in hand
+            and not facts.mega_froslass_on_field
+        ):
+            open_set.add("EVOLVE_861")
+
+    field_ids = set(facts.bench_ids) | (
+        {facts.active_id} if facts.active_id else set()
+    )
+    if DUDUNSPARCE in field_ids:
+        open_set.add("DRAW_66")
+
+    return tuple(g for g in MIDGAME_GAP_ORDER if g in open_set)
 
 
 def build_turn_facts(
@@ -691,6 +754,7 @@ def _combat_plan(facts: TurnFacts) -> CombatPlan:
         or (froslass_can_attack and not starmie_can_attack)
     )
     # MidOps: Lucario fast pressure opens 861 even when expected_f dips <2.
+    # (surplus861Rev dp_surplus / 3-prize revenge FAILED munk_dark gate — rolled back.)
     froslass_allowed = (
         not facts.ban_froslass_line
         and (
@@ -1021,9 +1085,11 @@ def _acquire_plan(facts: TurnFacts, gap: TurnGap, objective: Objective, combat: 
     if targets:
         if POFFIN in hand and any(t in _BASE_ATTACKERS for t in targets):
             sources.append(POFFIN)
-        # Poké Pad: no Rule Box only — Staryu/Snorunt/Froslass/Dudunsparce.
+        # Poké Pad: no Rule Box only — Staryu/Snorunt/Froslass/Dudunsparce/Munk.
         # Mega ex has a Rule Box and cannot be Pad-fetched.
-        if POKE_PAD in hand and any(t in (STARYU, SNORUNT, FROSLASS, DUDUNSPARCE) for t in targets):
+        if POKE_PAD in hand and any(
+            t in (STARYU, SNORUNT, FROSLASS, DUDUNSPARCE, MUNKIDORI) for t in targets
+        ):
             sources.append(POKE_PAD)
         # Supporters only close the gap if they can still be played this turn.
         if (
@@ -1227,10 +1293,10 @@ def _draw_plan(facts: TurnFacts, gap: TurnGap, combat: CombatPlan) -> DrawPlan:
             if gap.dp_gaps or gap.need_second_attacker or len(facts.hand_ids) <= 2:
                 allow_draw = True
                 reason = "post-mega 66: no seatable/redraw cover"
-    # Seat preset: Dunsparce-line ≤2. Do not park the first copy over a base gap.
-    under_duns_cap = duns_count < 2 and facts.bench_open > 0
+    # Seat preset: Dunsparce-line ≤1 on the 6-seat field. No second copy.
+    under_duns_cap = duns_count < 1 and facts.bench_open > 0
     first = duns_count == 0 and under_duns_cap and not gap.need_base
-    second = duns_count == 1 and under_duns_cap
+    second = False  # field preset: 土龙×1 only
     return DrawPlan(allow_draw, first, second, reason)
 
 
@@ -1299,6 +1365,9 @@ def build_turn_plan(
         reasons.append(f"n_missing_types={n_miss}≥3 → prioritize dig")
     if facts.two_turn_mega_path:
         reasons.append("two_turn_mega_path live")
+    mid_gaps = enumerate_midgame_open_gaps(facts, gap)
+    if mid_gaps:
+        reasons.append(f"midgame_open_gaps={','.join(mid_gaps)}")
     return TurnPlan(
         facts=facts,
         gap=gap,
@@ -1309,6 +1378,7 @@ def build_turn_plan(
         draw=draw,
         forbidden_actions=tuple(forbidden),
         reasons=tuple(reasons),
+        midgame_open_gaps=mid_gaps,
     )
 
 

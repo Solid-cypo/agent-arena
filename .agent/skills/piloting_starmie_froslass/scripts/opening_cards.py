@@ -59,8 +59,9 @@ FAN_CALL_PRIORITY = (DUNSPARCE_A, DUNSPARCE_B, FAN_ROTOM)
 
 POFFIN_IDS = frozenset({STARYU, SNORUNT, BUDEW, DUNSPARCE_A, DUNSPARCE_B, FAN_ROTOM})
 
-# OPENING Poffin pick order: Staryu first, then Snorunt (dual-basic optionality).
-# Fan / Dunsparce / Budew fill remaining slots only after the two attackers' bases.
+# OPENING Poffin pick order. Field preset: Staryu×2 · Snorunt×1 · Munk×1 ·
+# Dunsparce×1 · flex×1 (unreserved — tools OK, but reserve opens for missing
+# cores; see opening_bench.can_bench_card).
 POFFIN_OPENING_PRIORITY = (
     STARYU, SNORUNT, FAN_ROTOM, DUNSPARCE_A, DUNSPARCE_B, BUDEW,
 )
@@ -85,6 +86,13 @@ PAD_SEARCH_IDS = frozenset({
 # already on field — handled by pad_pokemon_candidates().
 POKE_PAD_OPENING_PRIORITY = (
     STARYU, SNORUNT, FAN_ROTOM, DUDUNSPARCE, BUDEW, DUNSPARCE_A, DUNSPARCE_B,
+)
+
+# Post-Mega Pad pick when Munk is still missing (SeatMunk). Opening priority
+# intentionally omits Munk so early Pad still seats the attacker line first.
+POKE_PAD_POST_MEGA_PRIORITY = (
+    MUNKIDORI, SNORUNT, FROSLASS, DUDUNSPARCE, FAN_ROTOM, BUDEW,
+    DUNSPARCE_A, DUNSPARCE_B,
 )
 
 # Hilda: Evolution Pokémon only — never Basic (E-HILDA-1)

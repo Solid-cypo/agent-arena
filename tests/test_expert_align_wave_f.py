@@ -151,6 +151,54 @@ def test_lucario_allows_second_attacker_and_opens_861_window():
     )
 
 
+def test_dp_surplus_does_not_open_861_after_surplus861Rev_rollback():
+    """Gate FAIL on munk_dark — DP-ready alone must not sanction BUILD_861."""
+    me = _player(
+        active=_pkm(MEGA_STARMIE, hp=300, max_hp=330, energies=(WATER_BASIC,)),
+        bench=(_pkm(104), _pkm(MUNKIDORI, energies=(DARK,))),
+        hand=(MEGA_FROSLASS, SNORUNT),
+    )
+    opp = _player(active=_pkm(900, hp=280), hand_count=1)
+    plan = _plan(me, opp)
+    assert plan.facts.damage_placer_online
+    assert plan.facts.munkidori_has_dark
+    assert not plan.combat.froslass_build_allowed
+    obs = _obs(me, opp)
+    sit = sp._compute_situation(obs)
+    assert sp._synergy_core_ready(sit["board"])
+    assert not sp._mega_froslass_window_open(
+        obs, 0, sit["board"], sit["phase"], plan=sit["turn_plan"],
+    )
+
+
+def test_861_prefers_max_damage_and_cuts_low_hand():
+    """Resentful when hand≥4; Abs Snow KO keeps 861; low hand + no KO → cut."""
+    assert sp._prefer_resentful(4)
+    assert not sp._prefer_resentful(3)
+
+    # Stay: Abs Snow can KO despite thin hand.
+    me_stay = _player(
+        active=_pkm(MEGA_FROSLASS, energies=(WATER_BASIC,)),
+        bench=(_pkm(MEGA_STARMIE, energies=(WATER_BASIC,)),),
+    )
+    opp_ko = _player(active=_pkm(900, hp=140, ex=True), hand_count=2)
+    obs_stay = _obs(me_stay, opp_ko)
+    sit_stay = sp._compute_situation(obs_stay)
+    assert sp._froslass_line_worth(obs_stay, 0, sit_stay["board"], sit_stay)
+    assert not sp._starmie_promote_over_froslass(
+        obs_stay, 0, sit_stay["board"], sit_stay,
+    )
+
+    # Cut: thin hand, no Abs Snow KO → switch to fueled Starmie.
+    opp_fat = _player(active=_pkm(900, hp=280, ex=True), hand_count=2)
+    obs_cut = _obs(me_stay, opp_fat)
+    sit_cut = sp._compute_situation(obs_cut)
+    assert not sp._froslass_line_worth(obs_cut, 0, sit_cut["board"], sit_cut)
+    assert sp._starmie_promote_over_froslass(
+        obs_cut, 0, sit_cut["board"], sit_cut,
+    )
+
+
 def test_alakazam_matchup_bans_froslass_line():
     me = _player(active=_pkm(MEGA_STARMIE, energies=(WATER_BASIC,)))
     opp = _player(active=_pkm(743, hp=300), hand_count=4)

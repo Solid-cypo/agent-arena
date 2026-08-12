@@ -28,6 +28,7 @@ from opening_cards import (
     MUNKIDORI,
     NIGHT_STRETCHER,
     POFFIN,
+    POKE_PAD,
     RISKY_RUINS,
     SNORUNT,
     STARYU,
@@ -35,7 +36,7 @@ from opening_cards import (
     WATER_BASIC,
 )
 from opponent_roles import OPPONENT_ROLES, opponent_role, role_coverage
-from turn_planner import build_turn_plan, discard_value
+from turn_planner import build_turn_plan, discard_value, enumerate_midgame_open_gaps
 
 # Main attacker bases for the five combat-eval decks.
 ABRA, DREEPY, RIOLU, IMPIDIMP, SPHEAL = 741, 119, 677, 646, 941
@@ -572,6 +573,64 @@ def test_alakazam_matchup_boosts_abra_rider_priority():
         boosted.combat.rider_target.rider_priority
         > base.combat.rider_target.rider_priority
     )
+
+
+def test_midgame_open_gaps_parallel_dark_and_placer():
+    """Munk dry + no placer → DIG_DARK and PLAY_PLACER both open (parallel set)."""
+    me = _player(
+        active=_pkm(MEGA_STARMIE, energies=(WATER_BASIC,)),
+        bench=(_pkm(MUNKIDORI),),
+        hand=(RISKY_RUINS,),  # placer held — still open until played
+    )
+    plan = _plan(me)
+    assert "DIG_DARK" in plan.midgame_open_gaps
+    assert "PLAY_PLACER" in plan.midgame_open_gaps
+    # Priority: dark dig before placer.
+    assert plan.midgame_open_gaps.index("DIG_DARK") < plan.midgame_open_gaps.index(
+        "PLAY_PLACER"
+    )
+
+
+def test_midgame_open_gaps_dig_munk_when_missing():
+    """Post-Mega no Munk in hand/field → DIG_MUNK (not PLAY_MUNK)."""
+    me = _player(
+        active=_pkm(MEGA_STARMIE, energies=(WATER_BASIC,)),
+        hand=(POKE_PAD,),
+    )
+    plan = _plan(me)
+    assert "DIG_MUNK" in plan.midgame_open_gaps
+    assert "PLAY_MUNK" not in plan.midgame_open_gaps
+    assert plan.midgame_open_gaps.index("DIG_MUNK") < plan.midgame_open_gaps.index(
+        "PLAY_PLACER"
+    ) if "PLAY_PLACER" in plan.midgame_open_gaps else True
+
+
+def test_midgame_open_gaps_play_munk_when_held():
+    me = _player(
+        active=_pkm(MEGA_STARMIE, energies=(WATER_BASIC,)),
+        hand=(MUNKIDORI,),
+    )
+    plan = _plan(me)
+    assert "PLAY_MUNK" in plan.midgame_open_gaps
+    assert "DIG_MUNK" not in plan.midgame_open_gaps
+
+
+def test_acquire_pad_source_for_munk_target():
+    """Pad is a legal free search when acquire targets Munk."""
+    me = _player(
+        active=_pkm(MEGA_STARMIE, energies=(WATER_BASIC,)),
+        bench=(_pkm(MEOWTH_EX),),  # Meowth online so acquire can chase Munk
+        hand=(POKE_PAD, LILLIE),
+    )
+    plan = _plan(me)
+    if MUNKIDORI in plan.acquire.targets:
+        assert POKE_PAD in plan.acquire.sources
+
+
+def test_midgame_open_gaps_empty_pre_mega():
+    me = _player(active=_pkm(STARYU), hand=(MUNKIDORI, RISKY_RUINS))
+    plan = _plan(me, turn=2)
+    assert plan.midgame_open_gaps == ()
 
 
 if __name__ == "__main__":

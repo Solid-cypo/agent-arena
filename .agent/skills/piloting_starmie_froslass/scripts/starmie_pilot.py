@@ -75,6 +75,7 @@ from opening_cards import (
     POFFIN as _OC_POFFIN,
     POFFIN_IDS,
     POFFIN_OPENING_PRIORITY,
+    is_pad_legal_target,
     PRISM as _OC_PRISM,
     RISKY_RUINS as _RISKY_RUINS,
     SALVATOR,
@@ -113,7 +114,12 @@ from matchup_alakazam import (
 )
 from phase_fsm import compute_phase, opening_complete
 from supporter_planner import lillie_forbidden, pick_supporter
-from turn_planner import build_turn_plan, discard_value, is_basic_attack_forbidden
+from turn_planner import (
+    build_turn_plan,
+    discard_value,
+    enumerate_midgame_open_gaps,
+    is_basic_attack_forbidden,
+)
 
 _MEGA_EX_IDS    = {_CARDS["mega_starmie_ex"], _CARDS["mega_froslass_ex"]}
 _STARMIE_LINE   = {_CARDS["staryu"], _CARDS["mega_starmie_ex"]}
@@ -342,6 +348,9 @@ def _attack_last_score(sit: dict[str, Any], *, force_now: bool = False) -> float
     return None
 
 
+_ABS_SNOW_DAMAGE = 150
+
+
 def _resentful_damage(opp_hand: int) -> int:
     return 50 * max(0, int(opp_hand))
 
@@ -349,6 +358,11 @@ def _resentful_damage(opp_hand: int) -> int:
 def _resentful_worthless(opp_hand: int) -> bool:
     """Resentful Refrain is 50×opp hand — empty hand = 0 damage, dead attack."""
     return _resentful_damage(opp_hand) == 0
+
+
+def _prefer_resentful(opp_hand: int) -> bool:
+    """Resentful only when it strictly outdamages Absolute Snow (150)."""
+    return _resentful_damage(opp_hand) > _ABS_SNOW_DAMAGE
 
 
 def _hand_has_water_energy(obs, my_index: int) -> bool:
@@ -411,29 +425,23 @@ def _froslass_line_worth(obs, my_index: int, board, sit: dict[str, Any]) -> bool
             return True
     except Exception:
         pass
-    # Fat hand Resentful (≥200) is the classic harvest window.
-    return _resentful_damage(opp_hand) >= 200
+    # Fat hand Resentful (> Abs Snow 150) is the classic harvest window.
+    return _prefer_resentful(opp_hand)
 
 
 def _starmie_promote_over_froslass(obs, my_index: int, board, sit: dict[str, Any]) -> bool:
-    """Active 861 but Resentful is dead/weak — cut to a *fueled* bench Starmie.
+    """Active 861 but the line no longer advances — cut to a *fueled* bench Starmie.
 
-    Never cut to an unfueled Mega (that gifts 2–3 prizes). Unfair Stamp shrinks
-    opp hand and must not be treated as a Resentful buff.
+    Max-damage first (Resentful vs Absolute Snow / KO path via `_froslass_line_worth`);
+    low opp hand with no Abs-Snow KO → switch out promptly. Never cut to an
+    unfueled Mega. Unfair Stamp shrinks opp hand and is not a Resentful buff.
     """
     if not board.active_is_mega_froslass:
         return False
     _, fueled = _bench_mega_starmie_with_water(obs, my_index)
     if fueled is None:
         return False
-    opp_hand = int(sit.get("opp_hand_count") or 0)
-    if _resentful_worthless(opp_hand):
-        return True
-    if _resentful_damage(opp_hand) < 150:
-        return True
-    if not _froslass_line_worth(obs, my_index, board, sit):
-        return True
-    return False
+    return not _froslass_line_worth(obs, my_index, board, sit)
 
 
 def _boss_engine_gate(board, phase, hand_ctx=None, turn_plan=None) -> bool:
@@ -690,17 +698,17 @@ def _harvest_hard_rules(
             return -_DOMINATE  # must Switch/Retreat to bench Mega Starmie
         last = _attack_last_score(sit)
         if atk_id == _ATK_RESENTFUL:
-            if _resentful_damage(opp_hand) >= 200:
+            if _prefer_resentful(opp_hand):
                 return last if last is not None else _DOMINATE_PLUS
             return -_DOMINATE  # worse than Absolute Snow (150)
         if atk_id == _ATK_ABS_SNOW:
-            if _resentful_damage(opp_hand) < 200:
+            if not _prefer_resentful(opp_hand):
                 return last if last is not None else _DOMINATE_ATTACK
             return -_DOMINATE
 
     # HR-H3b  When Resentful is LIVE, don't spend on supporters.
     # Stamp shrinks opp hand to 2 — ban before Resentful unless KO-refill window
-    # where Resentful is already weak (<200).
+    # where Resentful no longer beats Absolute Snow.
     if (
         _mega_froslass_should_attack(board)
         and not sit.get("harvest_resentful_fired")
@@ -710,7 +718,7 @@ def _harvest_hard_rules(
         if option.type == OptionType.PLAY:
             cid = _hand_card_id(obs, option, mi)
             if cid == UNFAIR_STAMP:
-                if sit.get("harvest_ko_last_turn") and _resentful_damage(opp_hand) < 200:
+                if sit.get("harvest_ko_last_turn") and not _prefer_resentful(opp_hand):
                     pass  # refill us / deny opp resources
                 else:
                     return -_DOMINATE
@@ -1206,6 +1214,10 @@ def _mega_froslass_window_open(obs, my_index: int, board, phase, plan=None) -> b
     Base: HARVEST / Starmie gone / Starmie dying (insurance). MidOps: also
     open vs Lucario when the froslass line is not banned — second attacker
     while Starmie is still healthy.
+
+    Note (2026-08-11): surplus861Rev (DP-ready / 3-prize revenge window) failed
+    the iteration gate on munk_dark collapse → rolled back. Do not reopen
+    synergy_core / three-prize build windows without a fresh gate.
     """
     if phase.primary == "HARVEST" or not board.mega_starmie_on_field:
         return True
@@ -1664,7 +1676,7 @@ def _dual_staryu_opening_bonus(obs, option, sit: dict[str, Any]) -> float:
     """OPENING: prefer two Staryu on field so one is always evolvable.
 
     One Staryu may be summoning-sick; a second guarantees a Mega seat.
-    Cap remains 2 via opening_bench.
+    Cap remains 2 via opening_bench field preset (Staryu×2).
     """
     board = sit.get("board")
     phase = sit.get("phase")
@@ -2360,7 +2372,8 @@ def _compute_situation(
             )
         )
 
-        d66_bench = _bench_has_id(obs, mi, _CARDS["dudunsparce"])
+        # Active or bench 66 both enable Run Away (was bench-only → Active miss).
+        d66_on_field = _dudunsparce_on_field(obs, mi)
         dun_evolve = _dunsparce_on_bench_can_evolve(obs, mi)
         hp_low = _mega_starmie_hp_low(obs, mi)
 
@@ -2372,7 +2385,7 @@ def _compute_situation(
         sit["draw_axis_dec"] = pick_draw_axis_action(
             board, phase, hand, resources,
             dunsparce_on_bench_can_evolve=dun_evolve,
-            dudunsparce_66_on_bench=d66_bench,
+            dudunsparce_66_on_bench=d66_on_field,
             mega_starmie_hp_low=hp_low,
             turn_plan=sit["turn_plan"],
         )
@@ -2472,14 +2485,14 @@ def _layer1_supporter_draw_axis(
     sup = sit.get("supporter_dec")
     if sup and sup.action == "PLAY" and option.type == OptionType.PLAY:
         if cid == sup.card_id:
-            # Never Layer1-boost supporters when Resentful is LIVE (≥200 dmg).
+            # Never Layer1-boost supporters when Resentful outdamages Abs Snow.
             # Empty-hand / cut-to-Starmie turns must keep Switch + engine free.
             if (
                 _mega_froslass_should_attack(board)
                 and not sit.get("harvest_resentful_fired")
                 and not _resentful_worthless(int(sit.get("opp_hand_count") or 0))
                 and not _starmie_promote_over_froslass(obs, mi, board, sit)
-                and _resentful_damage(int(sit.get("opp_hand_count") or 0)) >= 200
+                and _prefer_resentful(int(sit.get("opp_hand_count") or 0))
             ):
                 return -_DOMINATE
             # Gap-driven planner score only — do NOT force supporters above attack
@@ -2843,6 +2856,143 @@ def _bench_mega_froslass_with_water(obs, my_index: int):
     return None, None
 
 
+def _opp_active_is_multi_prize(obs, my_index: int) -> bool:
+    """True when opp Active is a rule-box / multi-prize (ex/Mega; Pocket often 2)."""
+    try:
+        opp = obs.current.players[1 - my_index]
+        act = (opp.active or [None])[0]
+        if not act:
+            return False
+        pv = _si(getattr(act, "prizeValue", None))
+        if pv >= 2:
+            return True
+        return bool(
+            getattr(act, "ex", False)
+            or getattr(act, "megaEx", False)
+            or getattr(act, "tera", False)
+        )
+    except Exception:
+        return False
+
+
+def _opp_active_hp(obs, my_index: int) -> int:
+    try:
+        opp = obs.current.players[1 - my_index]
+        act = (opp.active or [None])[0]
+        if not act:
+            return 0
+        return _si(getattr(act, "hp", None))
+    except Exception:
+        return 0
+
+
+def _starmie_cannot_finish_front(obs, my_index: int) -> bool:
+    """Jetting is 120; with typical 1W Active Mega, Nebula (3 energy) is unpaid."""
+    hp = _opp_active_hp(obs, my_index)
+    return hp > 120
+
+
+def _froslass_oneshot_cut_live(obs, sit: dict[str, Any]) -> bool:
+    """Narrow AGGRESSION cut: fueled Active Starmie cannot finish a multi-prize
+    front, but bench 861+water Resentful oneshots it.
+
+    Hard requirements (all):
+    - Active Mega Starmie + water
+    - Bench Mega Froslass already has water (never promote dry 861)
+    - Switch or Retreat available
+    - Opp Active multi-prize and Resentful damage ≥ its HP
+    - Starmie cannot KO front (hp > 120)
+    - Not DOUBLE_KO (keep Adrena/Boss path)
+
+    Does not reopen surplus861Rev build windows — only Switch/Retreat to fueled 861.
+    """
+    board = sit.get("board")
+    plan = sit.get("turn_plan")
+    if board is None:
+        return False
+    if not (
+        bool(getattr(board, "active_is_mega_starmie", False))
+        and bool(getattr(board, "active_has_water", False))
+    ):
+        return False
+    if plan is not None and getattr(plan.combat, "mode", None) == "DOUBLE_KO":
+        return False
+    mi = sit["my_index"]
+    _, fueled_861 = _bench_mega_froslass_with_water(obs, mi)
+    if fueled_861 is None:
+        return False
+    if not (
+        _hand_has_id(obs, mi, _OC_SWITCH) or _active_can_retreat(obs, mi)
+    ):
+        return False
+    if not _opp_active_is_multi_prize(obs, mi):
+        return False
+    if not _starmie_cannot_finish_front(obs, mi):
+        return False
+    opp_hp = _opp_active_hp(obs, mi)
+    dmg = _resentful_damage(int(sit.get("opp_hand_count") or 0))
+    if not (0 < opp_hp <= dmg):
+        return False
+    return True
+
+
+def _dudunsparce_on_field(obs, my_index: int) -> bool:
+    try:
+        me = obs.current.players[my_index]
+        act = (me.active or [None])[0]
+        if act and _si(getattr(act, "id", None)) == _CARDS["dudunsparce"]:
+            return True
+        return any(
+            p and _si(getattr(p, "id", None)) == _CARDS["dudunsparce"]
+            for p in (me.bench or [])
+        )
+    except Exception:
+        return False
+
+
+def _dudunsparce_ability_offered(obs, sit: dict[str, Any]) -> bool:
+    """True when Run Away Draw is listed in the current option list."""
+    mi = sit["my_index"]
+    if not _dudunsparce_on_field(obs, mi):
+        return False
+    opts = sit.get("select_options") or ()
+    if not opts:
+        # Empty list (partial unit fixtures): never invent a live ability.
+        return False
+    return any(
+        o.type == OptionType.ABILITY
+        and _ability_source_id(obs, o, mi) == _CARDS["dudunsparce"]
+        for o in opts
+    )
+
+
+def _dry_mega_to_active_ban(obs, option, sit: dict[str, Any]) -> float:
+    """Never promote an unfueled Mega (861/1031) into Active — gifts multi-prize."""
+    if option.type != OptionType.CARD:
+        return 0.0
+    try:
+        ctx = int(obs.select.context)
+    except Exception:
+        return 0.0
+    if ctx not in (int(SelectContext.SWITCH), int(SelectContext.TO_ACTIVE)):
+        return 0.0
+    mi = sit["my_index"]
+    pi = _si(getattr(option, "playerIndex", None), mi)
+    if pi != mi:
+        return 0.0
+    pkm = _pokemon_in_area(
+        obs, option.area, _si(getattr(option, "index", None)), mi,
+    )
+    if not pkm:
+        return 0.0
+    pid = _si(getattr(pkm, "id", None))
+    if pid not in (_CARDS["mega_froslass_ex"], _CARDS["mega_starmie_ex"]):
+        return 0.0
+    if _mega_active_fuel_ok(obs, mi, pkm):
+        return 0.0
+    return -_DOMINATE_OPEN_PATH
+
+
 def _munk_needs_dark(obs, my_index: int) -> bool:
     try:
         for p in _board_pokemon(obs.current.players[my_index]):
@@ -2999,7 +3149,7 @@ def _wait_evolve_freeze_bonus(obs, option, sit: dict[str, Any], plan) -> float:
             return _ATTACH_ILLEGAL
         if cid == _OC_STARYU:
             return _DOMINATE_OPEN_PATH - 5.0  # dual Staryu insurance
-        # Bench engine fill under seat preset (土龙×2 / 愿增猿×1).
+        # Bench engine fill under seat preset (土龙×1 / 愿增猿×1).
         if cid in (DUNSPARCE_A, DUNSPARCE_B) and _obs_can_bench_card(obs, mi, cid):
             return _DOMINATE_OPEN - 25.0
         if cid == _OC_MUNKIDORI and _obs_can_bench_card(obs, mi, cid):
@@ -3339,7 +3489,7 @@ def _froslass_promote_needed(obs, my_index: int, board, sit: dict[str, Any]) -> 
     if not sit.get("harvest_resentful_fired"):
         # Do not yank a ready Starmie attacker for a mediocre 861 window.
         if board.active_is_mega_starmie and board.active_has_water:
-            return _resentful_damage(int(sit.get("opp_hand_count") or 0)) >= 200
+            return _prefer_resentful(int(sit.get("opp_hand_count") or 0))
         return True
     return not (board.active_is_mega_starmie and board.active_has_water)
 
@@ -3539,14 +3689,14 @@ def _turn_plan_required_option(obs, option, sit: dict[str, Any], requirement: st
 
 
 def _munk_can_adrena(obs, my_index: int) -> bool:
-    """Dark Munkidori on field with transferable damage — Adrena is live."""
+    """Dark/Prism Munkidori on field with transferable damage — Adrena is live."""
     try:
         me = obs.current.players[my_index]
         field = [*(me.active or []), *(me.bench or [])]
         has_dark_munk = any(
             p
             and _si(getattr(p, "id", None)) == _MUNKIDORI_ID
-            and any(_si(e) == DARK_BASIC for e in (getattr(p, "energies", None) or []))
+            and _has_darkness_energy(p)
             for p in field
             if p
         )
@@ -3560,6 +3710,37 @@ def _munk_can_adrena(obs, my_index: int) -> bool:
         )
     except Exception:
         return False
+
+
+def _adrena_ability_offered(obs, sit: dict[str, Any]) -> bool:
+    options = sit.get("select_options") or ()
+    if not options:
+        # Unit tests without an option list: treat as offered when live.
+        return True
+    return any(
+        _turn_plan_required_option(obs, o, sit, "ADRENA") for o in options
+    )
+
+
+def _double_ko_needs_adrena_before_jetting(obs, sit: dict[str, Any]) -> bool:
+    """Narrow knife: DOUBLE_KO + live Adrena → Adrena is last step before Jetting.
+
+    Does not lock Boss/104/PATH (CombatClose NO-GO). Yields while any non-ADRENA
+    pre-attack prep (Boss / ATTACH_DARK / EVOLVE_104) is still actionable.
+    """
+    plan = sit.get("turn_plan")
+    if plan is None or getattr(plan.combat, "mode", None) != "DOUBLE_KO":
+        return False
+    mi = sit["my_index"]
+    if not _munk_can_adrena(obs, mi):
+        return False
+    if not _adrena_ability_offered(obs, sit):
+        return False
+    combat = plan.combat
+    actionable = _actionable_pre_attack(obs, sit, combat)
+    if any(r != "ADRENA" for r in actionable):
+        return False
+    return True
 
 
 def _pre_attack_req_still_needed(obs, sit: dict[str, Any], requirement: str) -> bool:
@@ -3629,10 +3810,14 @@ def _actionable_pre_attack(obs, sit: dict[str, Any], combat) -> tuple[str, ...]:
 
 
 def _must_attack_closeout_bonus(obs, option, sit: dict[str, Any]) -> float:
-    """Early hard gate: fueled Active Mega must close with an attack.
+    """Fueled Active Mega: ops prep queue first, Jetting always closes the turn.
 
-    Runs before Alak/ignition-retreat/acquire so construction never outranks
-    Jetting/Resentful. Ghost pre-attack reqs do not block the attack.
+    Design (运转 only — no Adrena/Boss combat coupling):
+    - While same-turn ops prep is live, never pick Jetting/END yet.
+    - Prep empty → Jetting (or Resentful) is the turn closer; demote leftover PLAY.
+    Ghost combat pre-attack reqs still PATH when offered.
+    Narrow: DOUBLE_KO + live Adrena → Adrena immediately before Jetting (not Boss).
+    SeatSnorunt-V1: after Munk+Dark, hand Snorunt seats before Jetting (one step).
     """
     board = sit.get("board")
     plan = sit.get("turn_plan")
@@ -3644,39 +3829,64 @@ def _must_attack_closeout_bonus(obs, option, sit: dict[str, Any]) -> float:
         board.active_is_mega_froslass
         and _starmie_promote_over_froslass(obs, mi, board, sit)
     )
-    combat = getattr(plan, "combat", None) if plan is not None else None
-    live_prep = (
-        _actionable_pre_attack(obs, sit, combat) if combat is not None else ()
-    )
 
-    if live_prep:
-        for req in live_prep:
-            if _turn_plan_required_option(obs, option, sit, req):
-                return _DOMINATE_OPEN_PATH
+    # DkAdrena-V1: last step before Jetting when DoubleKO still needs Adrena.
+    if _double_ko_needs_adrena_before_jetting(obs, sit):
+        if _turn_plan_required_option(obs, option, sit, "ADRENA"):
+            return _DOMINATE_OPEN_PATH
+        if option.type in (OptionType.ATTACK, OptionType.END):
+            return -_DOMINATE_OPEN_PATH
+        # Do not blanket-demote PLAY here — Boss may still be scored elsewhere
+        # when it was actionable (this branch only runs when non-ADRENA prep
+        # is empty). Starve leftover build so Adrena closes into Jetting.
         if option.type in (
-            OptionType.ATTACK,
-            OptionType.END,
             OptionType.PLAY,
             OptionType.ATTACH,
             OptionType.EVOLVE,
-            OptionType.ABILITY,
             OptionType.RETREAT,
+        ):
+            return -_DOMINATE_OPEN_PATH
+        if option.type == OptionType.ABILITY and not _turn_plan_required_option(
+            obs, option, sit, "ADRENA"
         ):
             return -_DOMINATE_OPEN_PATH
         return 0.0
 
-    # DpSeat-V1: held Munk seats before Jetting (same turn), then closeout
-    # attacks. Must-attack used to blanket-demote all PLAY and starve DP.
-    seat_munk = bool(
-        board.active_is_mega_starmie
-        and board.active_has_water
-        and not bool(getattr(board, "munkidori_on_field", False))
-        and int(getattr(board, "bench_open", 0) or 0) > 0
-        and _hand_has_id(obs, mi, _OC_MUNKIDORI)
-    )
-    if seat_munk:
-        if option.type == OptionType.PLAY and _hand_card_id(obs, option, mi) == _OC_MUNKIDORI:
+    # FroslassCut-V1: Switch/Retreat to watered 861 for Resentful oneshot on
+    # multi-prize front when Jetting cannot finish. Beats Jetting/SeatMunk prep.
+    if _froslass_oneshot_cut_live(obs, sit):
+        if option.type == OptionType.PLAY and _hand_card_id(obs, option, mi) == _OC_SWITCH:
             return _DOMINATE_OPEN_PATH
+        if option.type == OptionType.RETREAT and _active_can_retreat(obs, mi):
+            return _DOMINATE_OPEN_PATH
+        if option.type == OptionType.CARD:
+            try:
+                ctx = int(obs.select.context)
+            except Exception:
+                ctx = -1
+            if ctx in (int(SelectContext.SWITCH), int(SelectContext.TO_ACTIVE)):
+                pi = _si(getattr(option, "playerIndex", None), mi)
+                if pi == mi:
+                    pkm = _pokemon_in_area(
+                        obs, option.area, _si(getattr(option, "index", None)), mi,
+                    )
+                    if pkm and _si(getattr(pkm, "id", None)) == _CARDS["mega_froslass_ex"]:
+                        if _has_water_energy(pkm):
+                            return _DOMINATE_OPEN_PATH
+                        return -_DOMINATE_OPEN_PATH
+                    return -_DOMINATE_OPEN_PATH
+        if option.type == OptionType.ATTACK:
+            return -_DOMINATE_OPEN_PATH
+        if option.type == OptionType.END:
+            return -_DOMINATE_OPEN_PATH
+        return 0.0
+
+    prep_live, prep_score = _fueled_ops_prep_gate(obs, option, sit, plan)
+    if prep_live:
+        if prep_score != 0.0:
+            return prep_score
+        # Queue not empty: Jetting is not the closer yet. Starve other MAIN
+        # actions so prep runs first; nested CARD selects use prep_score.
         if option.type in (
             OptionType.ATTACK,
             OptionType.END,
@@ -3735,6 +3945,208 @@ def _must_attack_closeout_bonus(obs, option, sit: dict[str, Any]) -> float:
     ):
         return -_DOMINATE_OPEN_PATH
     return 0.0
+
+
+def _fueled_ops_prep_gate(
+    obs, option, sit: dict[str, Any], plan,
+) -> tuple[bool, float]:
+    """Ops prep before Jetting closer. Returns (prep_live, score_for_option).
+
+    score != 0 means this option advances the live prep queue.
+    Combat Adrena/Boss coupling is intentionally out of scope here.
+    """
+    board = sit.get("board")
+    mi = sit["my_index"]
+    combat = getattr(plan, "combat", None) if plan is not None else None
+    live_prep = (
+        _actionable_pre_attack(obs, sit, combat) if combat is not None else ()
+    )
+    if live_prep:
+        for req in live_prep:
+            if _turn_plan_required_option(obs, option, sit, req):
+                return True, _DOMINATE_OPEN_PATH
+        return True, 0.0
+
+    seat_munk = bool(
+        board is not None
+        and board.active_is_mega_starmie
+        and board.active_has_water
+        and not bool(getattr(board, "munkidori_on_field", False))
+        and int(getattr(board, "bench_open", 0) or 0) > 0
+        and _hand_has_id(obs, mi, _OC_MUNKIDORI)
+    )
+    if seat_munk:
+        if option.type == OptionType.PLAY and _hand_card_id(obs, option, mi) == _OC_MUNKIDORI:
+            return True, _DOMINATE_OPEN_PATH
+        return True, 0.0
+
+    # SeatMunk dig: Pad / NS only in closeout (no Ultra Ball — discard cost).
+    dig_munk = _seatmunk_dig_needed(obs, sit) and _dig_munk_tool_live(
+        obs, sit, plan, for_closeout=True
+    )
+    if dig_munk:
+        dig_score = _dig_munk_option_score(obs, option, sit, plan, for_closeout=True)
+        if dig_score != 0.0:
+            return True, dig_score
+        return True, 0.0
+
+    # SeatSnorunt-V1: after Munk+Dark online, PATH hand Snorunt before Jetting.
+    # GapParallel/post_mega_seat yield to must_close — without this, Jetting
+    # starves the second-attacker egg (CutDraw66 autopsy 92286981 pattern).
+    # Yields to SeatMunk/dig; does not PATH ruins/104/861 evolve (narrow A).
+    if _seat_snorunt_prep_live(obs, sit, board, plan):
+        if (
+            option.type == OptionType.PLAY
+            and _hand_card_id(obs, option, mi) == _OC_SNORUNT
+        ):
+            return True, _DOMINATE_OPEN_PATH
+        return True, 0.0
+
+    # Draw66Closeout: 66 on field + Run Away offered → draw before Jetting.
+    # Fixes "进66后不抽" under fueled must_close (ability was blanket-demoted).
+    # Before DpStallDraw so Lillie queue does not starve the ability.
+    # Narrow: only when ability is actually offered; not RunAway-V1 free PATH.
+    if _dudunsparce_ability_offered(obs, sit):
+        if (
+            option.type == OptionType.ABILITY
+            and _ability_source_id(obs, option, mi) == _CARDS["dudunsparce"]
+        ):
+            return True, _DOMINATE_OPEN_PATH
+        return True, 0.0
+
+    # DP stall → draw: no seat/dig path for Munk — cycle before Jetting closer.
+    # Product SLA: fueled attacker + can't make DP → hand-quality draw ops.
+    if _dp_stall_draw_live(obs, sit, plan):
+        if option.type == OptionType.PLAY:
+            cid = _hand_card_id(obs, option, mi)
+            if cid in (HILDA, LILLIE, JUDGE):
+                return True, _DOMINATE_OPEN_PATH + 15.0
+            # Don't fill the last flex with side basics while DP is stalled.
+            if cid in (
+                _OC_SNORUNT, DUNSPARCE_A, DUNSPARCE_B, _FAN_ROTOM_ID, _BUDEW_ID,
+                _OC_MEOWTH_EX, _OC_POFFIN,
+            ):
+                return True, -_DOMINATE_OPEN_PATH
+        return True, 0.0
+
+    return False, 0.0
+
+
+def _seat_snorunt_prep_live(obs, sit: dict[str, Any], board, plan) -> bool:
+    """Fueled Mega closeout: seat Snorunt when DP attach is done and egg is held.
+
+    Gates:
+    - Active Mega Starmie + water (caller is must_close prep)
+    - Munk on field with Dark (DP engine seated; SeatMunk owns otherwise)
+    - no Mega Froslass yet / froslass line not banned
+    - no Snorunt on field yet
+    - open bench + hand Snorunt legal to seat
+    """
+    if board is None or plan is None:
+        return False
+    if not (
+        bool(getattr(board, "active_is_mega_starmie", False))
+        and bool(getattr(board, "active_has_water", False))
+    ):
+        return False
+    if not bool(getattr(board, "munkidori_on_field", False)):
+        return False
+    if not bool(getattr(board, "munkidori_has_dark", False)):
+        return False
+    if bool(getattr(board, "mega_froslass_on_field", False)):
+        return False
+    if bool(getattr(plan.facts, "ban_froslass_line", False)):
+        return False
+    if bool(getattr(board, "snorunt_on_field", False)):
+        return False
+    if int(getattr(board, "bench_open", 0) or 0) <= 0:
+        return False
+    mi = sit["my_index"]
+    if not _hand_has_id(obs, mi, _OC_SNORUNT):
+        return False
+    return bool(_obs_can_bench_card(obs, mi, _OC_SNORUNT))
+
+
+# DpStallDraw-V2.1 (2026-08-12): re-enabled + midgame-gap broaden.
+# Online: Lillie/Judge offered but Jetting-first in 45–75% of loss games.
+# must_close demoted ALL PLAY; scanner NO_PATH hid it (redraw not in path set).
+# V2 only caught Munk-missing (~25–41%); majority of skips are post-Munk.
+# V2.1 also covers seated-Munk dark-hole / 2nd-attacker hole when no typed path.
+_DP_STALL_DRAW_ENABLED = True
+
+
+def _dp_stall_draw_live(obs, sit: dict[str, Any], plan) -> bool:
+    """Redraw before Jetting when midgame holes remain and no typed seat/dig/attach.
+
+    Lillie/Judge/Hilda run in the fueled-Mega prep queue, then Jetting closes.
+    Yields to immediate Munk seat/dig, Dark attach, or 2nd-attacker pieces in hand.
+    """
+    if not _DP_STALL_DRAW_ENABLED:
+        return False
+    board = sit.get("board")
+    if board is None:
+        return False
+    if not bool(getattr(board, "mega_starmie_on_field", False)):
+        return False
+    mi = sit["my_index"]
+    try:
+        if bool(getattr(obs.current.players[mi], "supporterPlayed", False)):
+            return False
+    except Exception:
+        return False
+    if not any(_hand_has_id(obs, mi, cid) for cid in (HILDA, LILLIE, JUDGE)):
+        return False
+
+    bench_open = int(getattr(board, "bench_open", 0) or 0)
+    munk_on = bool(getattr(board, "munkidori_on_field", False))
+    munk_dark = bool(getattr(board, "munkidori_has_dark", False))
+
+    if not munk_on:
+        if bench_open > 0 and _hand_has_id(obs, mi, _OC_MUNKIDORI):
+            return False
+        if _dig_munk_tool_live(obs, sit, plan, for_closeout=False):
+            return False
+        return True  # classic DP stall
+
+    if not munk_dark:
+        if _hand_has_dark_energy(obs, mi):
+            return False
+        # Crispin digs Dark from deck — NoPathDark owns this, not redraw.
+        if _hand_has_id(obs, mi, CRISPIN):
+            return False
+        try:
+            disc = [
+                _si(getattr(c, "id", None))
+                for c in (obs.current.players[mi].discard or [])
+                if c
+            ]
+        except Exception:
+            disc = []
+        if DARK_BASIC in disc and (
+            _hand_has_id(obs, mi, CRISPIN)
+            or _hand_has_id(obs, mi, _OC_NIGHT_STRETCHER)
+        ):
+            return False
+        return True  # seated Munk dry, no Dark path → redraw
+
+    # DP complete: redraw only if 2nd-attacker line still empty-handed.
+    if bool(getattr(board, "mega_froslass_on_field", False)):
+        return False
+    if bool(getattr(board, "froslass_104_on_field", False)) or bool(
+        getattr(board, "risky_ruins_online", False)
+    ):
+        return False
+    if (
+        _hand_has_id(obs, mi, _OC_SNORUNT)
+        or _hand_has_id(obs, mi, _OC_FROSLASS)
+        or _hand_has_id(obs, mi, _RISKY_RUINS)
+    ):
+        return False
+    if _hand_has_id(obs, mi, _CARDS["mega_froslass_ex"]) and bool(
+        getattr(board, "snorunt_on_field", False)
+    ):
+        return False
+    return True
 
 
 def _plan_primary_step(plan, obs=None, sit: dict[str, Any] | None = None) -> str | None:
@@ -3888,6 +4300,303 @@ def _gs_mega_seat_bonus(obs, option, sit: dict[str, Any]) -> float:
     return 0.0
 
 
+def _munk_unseen_left(sit: dict[str, Any]) -> bool:
+    """True when Munk may still be in deck/prize (Pad-searchable)."""
+    resources = sit.get("resources")
+    if resources is None:
+        return True  # unit tests without deck_resources
+    try:
+        return int(resources.copies_left(_MUNKIDORI_ID) or 0) > 0
+    except Exception:
+        return True
+
+
+def _seatmunk_dig_needed(obs, sit: dict[str, Any]) -> bool:
+    """Post-Mega: Munk missing from field and hand, but still searchable."""
+    board = sit.get("board")
+    if board is None:
+        return False
+    if not bool(getattr(board, "mega_starmie_on_field", False)):
+        return False
+    if bool(getattr(board, "munkidori_on_field", False)):
+        return False
+    mi = sit["my_index"]
+    if _hand_has_id(obs, mi, _OC_MUNKIDORI):
+        return False
+    if _discard_has_id(obs, mi, _OC_MUNKIDORI):
+        return True
+    return _munk_unseen_left(sit)
+
+
+def _dig_munk_play_advances(
+    obs, option, sit: dict[str, Any], plan, *, for_closeout: bool = False,
+) -> bool:
+    """PLAY that digs Munk. Closeout: Pad/NS only. GapParallel may use Ball."""
+    if option.type != OptionType.PLAY:
+        return False
+    mi = sit["my_index"]
+    cid = _hand_card_id(obs, option, mi)
+    if cid == _OC_POKE_PAD:
+        return _munk_unseen_left(sit)
+    if cid == _OC_NIGHT_STRETCHER and _discard_has_id(obs, mi, _OC_MUNKIDORI):
+        return True
+    if for_closeout:
+        return False
+    if cid == _OC_ULTRA_BALL:
+        if not _munk_unseen_left(sit):
+            return False
+        return bool(plan is not None and getattr(plan.acquire, "ball_allowed", False))
+    return False
+
+
+def _dig_munk_card_advances(obs, option, sit: dict[str, Any]) -> bool:
+    """Nested search pick: take Munk when SeatMunk dig is live."""
+    if option.type != OptionType.CARD:
+        return False
+    if not _seatmunk_dig_needed(obs, sit):
+        return False
+    try:
+        ctx = int(obs.select.context)
+    except Exception:
+        ctx = -1
+    if ctx not in (
+        int(SelectContext.TO_HAND),
+        int(SelectContext.TO_FIELD),
+        int(SelectContext.TO_BENCH),
+    ):
+        return False
+    return _card_option_id(obs, option, sit["my_index"]) == _OC_MUNKIDORI
+
+
+def _dig_munk_tool_live(
+    obs, sit: dict[str, Any], plan, *, for_closeout: bool = False,
+) -> bool:
+    """True when a dig-Munk tool is offered or (empty opts) held in hand."""
+    opts = sit.get("select_options") or ()
+    if opts:
+        return any(
+            _dig_munk_play_advances(obs, o, sit, plan, for_closeout=for_closeout)
+            for o in opts
+        ) or any(_dig_munk_card_advances(obs, o, sit) for o in opts)
+    mi = sit["my_index"]
+    if _hand_has_id(obs, mi, _OC_POKE_PAD) and _munk_unseen_left(sit):
+        return True
+    if _hand_has_id(obs, mi, _OC_NIGHT_STRETCHER) and _discard_has_id(
+        obs, mi, _OC_MUNKIDORI
+    ):
+        return True
+    if for_closeout:
+        return False
+    if _hand_has_id(obs, mi, _OC_ULTRA_BALL) and _munk_unseen_left(sit):
+        return bool(plan is not None and getattr(plan.acquire, "ball_allowed", False))
+    return False
+
+
+def _dig_munk_option_score(
+    obs, option, sit: dict[str, Any], plan, *, for_closeout: bool = False,
+) -> float:
+    """PATH dig-Munk tools / nested Munk; 0 if option unrelated."""
+    mi = sit["my_index"]
+    if option.type == OptionType.PLAY:
+        cid = _hand_card_id(obs, option, mi)
+        if cid == _OC_POKE_PAD and _dig_munk_play_advances(
+            obs, option, sit, plan, for_closeout=for_closeout
+        ):
+            return _DOMINATE_OPEN_PATH + 25.0
+        if cid == _OC_NIGHT_STRETCHER and _dig_munk_play_advances(
+            obs, option, sit, plan, for_closeout=for_closeout
+        ):
+            return _DOMINATE_OPEN_PATH + 20.0
+        if (
+            not for_closeout
+            and cid == _OC_ULTRA_BALL
+            and _dig_munk_play_advances(
+                obs, option, sit, plan, for_closeout=False
+            )
+        ):
+            return _DOMINATE_OPEN_PATH + 15.0
+        return 0.0
+    if _dig_munk_card_advances(obs, option, sit):
+        return _DOMINATE_OPEN_PATH + 25.0
+    if option.type == OptionType.CARD and _seatmunk_dig_needed(obs, sit):
+        eff = _select_effect_card_id(obs)
+        allowed_eff = (_OC_POKE_PAD, _OC_NIGHT_STRETCHER) if for_closeout else (
+            _OC_POKE_PAD, _OC_ULTRA_BALL, _OC_NIGHT_STRETCHER,
+        )
+        if eff in allowed_eff:
+            cid = _card_option_id(obs, option, mi)
+            if cid and cid != _OC_MUNKIDORI and is_pad_legal_target(cid):
+                return -_DOMINATE_OPEN_PATH
+            if (
+                eff == _OC_NIGHT_STRETCHER
+                and cid == DARK_BASIC
+                and not bool(getattr(sit.get("board"), "munkidori_on_field", False))
+            ):
+                return -_DOMINATE_OPEN_PATH
+    return 0.0
+
+
+def _option_advances_midgame_gap(
+    obs, option, sit: dict[str, Any], gap_id: str, plan,
+) -> bool:
+    """True when this option advances a GapParallel midgame gap."""
+    mi = sit["my_index"]
+    facts = plan.facts
+    if gap_id == "ATTACH_DARK":
+        return _turn_plan_required_option(obs, option, sit, "ATTACH_DARK")
+    if gap_id == "DIG_DARK":
+        if option.type != OptionType.PLAY:
+            return False
+        if bool(getattr(facts, "supporter_played", False)):
+            # Night Stretcher is an Item — still legal after a supporter.
+            return _hand_card_id(obs, option, mi) == _OC_NIGHT_STRETCHER and (
+                DARK_BASIC in getattr(facts, "discard_ids", ())
+            )
+        cid = _hand_card_id(obs, option, mi)
+        if cid == CRISPIN:
+            return True
+        if cid == _OC_NIGHT_STRETCHER and DARK_BASIC in getattr(
+            facts, "discard_ids", ()
+        ):
+            return True
+        return False
+    if gap_id == "DIG_MUNK":
+        return _dig_munk_play_advances(obs, option, sit, plan) or _dig_munk_card_advances(
+            obs, option, sit
+        )
+    if gap_id == "PLAY_MUNK":
+        return (
+            option.type == OptionType.PLAY
+            and _hand_card_id(obs, option, mi) == _OC_MUNKIDORI
+            and int(getattr(sit.get("board"), "bench_open", 0) or 0) > 0
+        )
+    if gap_id == "PLAY_PLACER":
+        if option.type == OptionType.PLAY:
+            cid = _hand_card_id(obs, option, mi)
+            return cid in (_RISKY_RUINS, _OC_FROSLASS)
+        if option.type == OptionType.EVOLVE:
+            return _evolve_to_froslass_104(obs, option, mi)
+        return False
+    if gap_id == "PLAY_SNORUNT":
+        return (
+            option.type == OptionType.PLAY
+            and _hand_card_id(obs, option, mi) == _OC_SNORUNT
+            and int(getattr(sit.get("board"), "bench_open", 0) or 0) > 0
+        )
+    if gap_id == "EVOLVE_861":
+        return bool(_evolve_to_mega_froslass_ex(obs, option, mi))
+    if gap_id == "DRAW_66":
+        return (
+            option.type == OptionType.ABILITY
+            and _ability_source_id(obs, option, mi) == _CARDS["dudunsparce"]
+        )
+    return False
+
+
+def _midgame_gap_hand_progressable(plan, gap_id: str) -> bool:
+    """Board/hand truth that a gap *could* be advanced (unit-test fallback)."""
+    facts = plan.facts
+    hand = set(facts.hand_ids)
+    discard = set(facts.discard_ids)
+    if gap_id == "ATTACH_DARK":
+        return DARK_BASIC in hand and not facts.energy_attached
+    if gap_id == "DIG_DARK":
+        return CRISPIN in hand or (
+            _OC_NIGHT_STRETCHER in hand and DARK_BASIC in discard
+        )
+    if gap_id == "DIG_MUNK":
+        return (
+            _OC_POKE_PAD in hand
+            or _OC_ULTRA_BALL in hand
+            or (_OC_NIGHT_STRETCHER in hand and _OC_MUNKIDORI in discard)
+        )
+    if gap_id == "PLAY_MUNK":
+        return _OC_MUNKIDORI in hand
+    if gap_id == "PLAY_PLACER":
+        return _RISKY_RUINS in hand or _OC_FROSLASS in hand
+    if gap_id == "PLAY_SNORUNT":
+        return _OC_SNORUNT in hand and int(facts.bench_open or 0) > 0
+    if gap_id == "EVOLVE_861":
+        return _CARDS["mega_froslass_ex"] in hand and facts.snorunt_on_field
+    if gap_id == "DRAW_66":
+        return _CARDS["dudunsparce"] in set(facts.bench_ids) | (
+            {facts.active_id} if facts.active_id else set()
+        )
+    return False
+
+
+def _midgame_actionable_gaps(obs, sit: dict[str, Any]) -> tuple[str, ...]:
+    """Open midgame gaps that current options can advance (priority order)."""
+    plan = sit.get("turn_plan")
+    if plan is None:
+        return ()
+    open_gaps = getattr(plan, "midgame_open_gaps", ()) or ()
+    if not open_gaps:
+        # Rebuild if older plan objects lack the field.
+        open_gaps = enumerate_midgame_open_gaps(plan.facts, plan.gap)
+    opts = sit.get("select_options")
+    if not opts:
+        # Nested/empty selects: hand-progressable only (never invent END demote).
+        return tuple(
+            g for g in open_gaps if _midgame_gap_hand_progressable(plan, g)
+        )
+    actionable: list[str] = []
+    for gap_id in open_gaps:
+        if any(
+            _option_advances_midgame_gap(obs, o, sit, gap_id, plan) for o in opts
+        ):
+            actionable.append(gap_id)
+    return tuple(actionable)
+
+
+def _gap_parallel_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
+    """GapParallel-V1: among actionable midgame gaps, PATH the best; demote END.
+
+    Parallel = open gap *set*; serial = this decision's primary = highest
+    actionable. Unreachable primaries are skipped (no stack / no amnesia of
+    still-open secondary gaps). Yields to fueled Mega must_close.
+    """
+    board = sit.get("board")
+    plan = sit.get("turn_plan")
+    if board is None or plan is None:
+        return 0.0
+    if not bool(getattr(board, "mega_starmie_on_field", False)):
+        return 0.0
+    if _fueled_mega_must_attack(board, plan):
+        # must_close / NoPathDark / SeatMunk dig owns the attack turn.
+        return 0.0
+    # Bench Mega needing cut-in: Switch/Retreat owns the turn (not midgame dig).
+    if bool(getattr(plan.combat, "attack_required", False)) and not bool(
+        getattr(plan.facts, "active_ready_mega", False)
+    ):
+        return 0.0
+    # Opening MAKE_ATTACKER locks own the turn when live.
+    step = _plan_primary_step(plan, obs, sit)
+    if step in ("BASE", "EVOLUTION", "ENERGY", "DIG_EVOLUTION", "WAIT_EVOLVE", "DISPATCH"):
+        if step in ("WAIT_EVOLVE", "DISPATCH") or _plan_step_has_advance(
+            obs, sit, step, plan
+        ):
+            return 0.0
+
+    actionable = sit.get("midgame_actionable")
+    if actionable is None:
+        actionable = _midgame_actionable_gaps(obs, sit)
+        sit["midgame_actionable"] = actionable
+    if not actionable:
+        return 0.0
+    primary = actionable[0]
+    sit["midgame_primary"] = primary
+
+    if _option_advances_midgame_gap(obs, option, sit, primary, plan):
+        return _DOMINATE_OPEN_PATH + 20.0
+    for i, gap_id in enumerate(actionable[1:], start=1):
+        if _option_advances_midgame_gap(obs, option, sit, gap_id, plan):
+            return _DOMINATE_OPEN_PATH - float(i)
+    if option.type == OptionType.END:
+        return -_DOMINATE_OPEN_PATH
+    return 0.0
+
+
 def _post_mega_seat_progress_bonus(obs, option, sit: dict[str, Any]) -> float:
     """OL-E2 / midgame stall: after Mega Starmie, seat unmet roles before END.
 
@@ -3928,13 +4637,8 @@ def _post_mega_seat_progress_bonus(obs, option, sit: dict[str, Any]) -> float:
         for cid in (plan.facts.bench_ids + (plan.facts.active_id,))
         if cid in (DUNSPARCE_A, DUNSPARCE_B, _CARDS["dudunsparce"])
     )
-    if (
-        duns_count < 2
-        and (
-            plan.draw.allow_first_dunsparce
-            or plan.draw.allow_second_dunsparce
-            or duns_count == 0
-        )
+    if duns_count < 1 and (
+        plan.draw.allow_first_dunsparce or duns_count == 0
     ):
         for dun_id in (DUNSPARCE_A, DUNSPARCE_B):
             if _hand_has_id(obs, mi, dun_id) and _obs_can_bench_card(obs, mi, dun_id):
@@ -3957,9 +4661,9 @@ def _post_mega_seat_progress_bonus(obs, option, sit: dict[str, Any]) -> float:
 
 
 def _opening_engine_seat_bonus(obs, option, sit: dict[str, Any]) -> float:
-    """OPENING engine fill: play Dunsparce≤2, evolve 66, bench Munk×1.
+    """OPENING engine fill: play Dunsparce≤1, evolve 66, bench Munk×1.
 
-    Bench preset: attacker-base×1 · Dunsparce×2 · Munk×1 · flex×1.
+    Field preset (Active+bench): Staryu×2 · Snorunt×1 · Munk×1 · Dunsparce×1 · flex×1.
     Never outranks Mega Closing / ENERGY / attacker-base seating.
     """
     board = sit.get("board")
@@ -4653,7 +5357,7 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
                 if cid == _OC_BOSS and (need_mega or mega_held):
                     return -_DOMINATE_OPEN_PATH
             if cid in (DUNSPARCE_A, DUNSPARCE_B):
-                # Preset: Dunsparce×2 after attacker base; never park over need_base.
+                # Preset: Dunsparce×1 after attacker base; never park over need_base.
                 if not _obs_can_bench_card(obs, mi, cid):
                     return -_DOMINATE_OPEN_PATH
                 if plan.gap.need_base:
@@ -4714,18 +5418,16 @@ def _turn_plan_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
         if cid in plan.acquire.sources:
             return _DOMINATE_OPEN_PATH
         if cid in (DUNSPARCE_A, DUNSPARCE_B):
-            # Seat preset owns quota (≤2); never park over attacker-base gap.
+            # Seat preset owns quota (土龙×1); never park over attacker-base gap.
             if not _obs_can_bench_card(obs, mi, cid) or plan.gap.need_base:
                 return -_DOMINATE
             duns_n = sum(
                 x in (DUNSPARCE_A, DUNSPARCE_B, _CARDS["dudunsparce"])
                 for x in (plan.facts.bench_ids + (plan.facts.active_id,))
             )
-            if duns_n >= 2:
+            if duns_n >= 1:
                 return -_DOMINATE
             if duns_n == 0 and not plan.draw.allow_first_dunsparce:
-                return -_DOMINATE
-            if duns_n == 1 and not plan.draw.allow_second_dunsparce:
                 return -_DOMINATE
 
     if (
@@ -4793,6 +5495,85 @@ def _setup_item_can_seat_now(obs, sit: dict[str, Any], plan) -> bool:
 
 def _hand_has_shuffle_redraw(obs, mi: int) -> bool:
     return any(_hand_has_id(obs, mi, cid) for cid in _SHUFFLE_REDRAW_IDS)
+
+
+def _discard_has_id(obs, my_index: int, card_id: int) -> bool:
+    try:
+        for c in obs.current.players[my_index].discard or []:
+            if c and _si(getattr(c, "id", None)) == card_id:
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def _no_path_dark_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
+    """NoPathDark-V1: Munk on field, missing Dark — dig/attach before Poffin.
+
+    Online 55386951: Munk 81% / Munk+dark 31%. OpsOrder item_live gave Poffin
+    OPEN_PATH while SP-CRIS-SF sat in the ~955 supporter band (91402412 si37).
+    Yields to fueled-Mega must_close (caller order). Does not touch Opening.
+    """
+    board = sit.get("board")
+    plan = sit.get("turn_plan")
+    if board is None:
+        return 0.0
+    if not bool(getattr(board, "mega_starmie_on_field", False)):
+        return 0.0
+    if not bool(getattr(board, "munkidori_on_field", False)):
+        return 0.0
+    if bool(getattr(board, "munkidori_has_dark", False)):
+        return 0.0
+
+    mi = sit["my_index"]
+    try:
+        me = obs.current.players[mi]
+        energy_attached = bool(getattr(me, "energyAttached", False))
+        supporter_played = bool(getattr(me, "supporterPlayed", False))
+    except Exception:
+        energy_attached, supporter_played = False, False
+
+    dark_in_hand = _hand_has_dark_energy(obs, mi)
+    dark_in_discard = _discard_has_id(obs, mi, DARK_BASIC)
+    crispin_live = (not supporter_played) and _hand_has_id(obs, mi, CRISPIN)
+    ns_live = dark_in_discard and _hand_has_id(obs, mi, _OC_NIGHT_STRETCHER)
+    dig_live = crispin_live or ns_live
+    attach_live = dark_in_hand and not energy_attached
+
+    if not dig_live and not attach_live:
+        return 0.0
+
+    # Prefer closing the dark gap over seating more basics (OpsOrder item PATH).
+    if option.type == OptionType.PLAY:
+        cid = _hand_card_id(obs, option, mi)
+        if cid == CRISPIN and crispin_live:
+            return _DOMINATE_OPEN_PATH + 20.0
+        if cid == _OC_NIGHT_STRETCHER and ns_live:
+            return _DOMINATE_OPEN_PATH + 20.0
+        if cid in (_OC_POFFIN, _OC_POKE_PAD) and (dig_live or attach_live):
+            return -_DOMINATE_OPEN_PATH
+        # Hilda chasing 861/104 must not eat the Crispin dark window.
+        if cid == HILDA and dig_live:
+            return -_DOMINATE_OPEN_PATH
+
+    if option.type == OptionType.ATTACH and attach_live:
+        eid = _attach_energy_id(obs, option, mi)
+        target = _attach_target_pokemon(obs, option, mi)
+        if (
+            eid == DARK_BASIC
+            and target is not None
+            and _si(getattr(target, "id", None)) == _MUNKIDORI_ID
+            and not _has_darkness_energy(target)
+        ):
+            return _DOMINATE_OPEN_PATH + 20.0
+
+    if option.type == OptionType.END and (dig_live or attach_live):
+        # Only demote blank END when plan is not mid must-attack closeout.
+        if plan is not None and bool(getattr(plan.combat, "attack_required", False)):
+            return 0.0
+        return -_DOMINATE_OPEN_PATH
+
+    return 0.0
 
 
 def _ops_order_hard_bonus(obs, option, sit: dict[str, Any]) -> float:
@@ -4939,11 +5720,27 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
     if crispin_ban != 0.0:
         return crispin_ban
 
+    # Never seat a dry Mega into Active (gifts multi-prize). Before must_close
+    # so FroslassCut select cannot pick unfueled 861.
+    dry_mega = _dry_mega_to_active_ban(obs, option, sit)
+    if dry_mega != 0.0:
+        return dry_mega
+
     # Fueled Mega closeout — before Alak / acquire / ignition-retreat so
     # Poffin and supporters cannot soft-tie past Jetting (online 55202093).
     must_close = _must_attack_closeout_bonus(obs, option, sit)
     if must_close != 0.0:
         return must_close
+
+    # NoPathDark-V1: Munk dry post-Mega — Crispin/NS/ATTACH_DARK before Poffin.
+    nopath_dark = _no_path_dark_hard_bonus(obs, option, sit)
+    if nopath_dark != 0.0:
+        return nopath_dark
+
+    # GapParallel-V1: actionable midgame gaps; unreachable primary → next gap.
+    gap_par = _gap_parallel_hard_bonus(obs, option, sit)
+    if gap_par != 0.0:
+        return gap_par
 
     # OpsOrder: seating items > shuffle-redraw > Run Away (yields to Closing).
     ops_order = _ops_order_hard_bonus(obs, option, sit)
@@ -4965,6 +5762,21 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
     gs_t2 = _gs_t2_evolve_deadline_bonus(obs, option, sit)
     if gs_t2 != 0.0:
         return gs_t2
+
+    # Draw66AfterEvolve (non-must_close): 66 on field + ability → PATH over END.
+    # Knife A evolves even under TP-DRAW-HOLD FORBID; without this, Run Away
+    # never fires until DrawPlan reopens. Yields to Mega Closing.
+    if (
+        not _mega_evolve_option_offered(obs, sit)
+        and _dudunsparce_ability_offered(obs, sit)
+    ):
+        if (
+            option.type == OptionType.ABILITY
+            and _ability_source_id(obs, option, mi) == _CARDS["dudunsparce"]
+        ):
+            return _DOMINATE_OPEN_PATH
+        if option.type == OptionType.END:
+            return -_DOMINATE_OPEN_PATH
 
     # Knife A (ops_firefix): EVOLVE_66 PATH before plan-step dig lock.
     # Yield when Mega Starmie evolve is offered — Closing owns the decision.
@@ -4992,7 +5804,7 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
     if dual != 0.0:
         return dual
 
-    # OPENING engine seats: 土龙×2 / 进66 / 愿增猿×1；有可填则禁空 END.
+    # OPENING engine seats: 土龙×1 / 进66 / 愿增猿×1；有可填则禁空 END.
     engine_seat = _opening_engine_seat_bonus(obs, option, sit)
     if engine_seat != 0.0:
         return engine_seat
@@ -5161,11 +5973,11 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
             atk_id = _attack_id(option)
             last = _attack_last_score(sit)
             if atk_id == _ATK_RESENTFUL:
-                if _resentful_damage(opp_hand_n) >= 200:
+                if _prefer_resentful(opp_hand_n):
                     return last if last is not None else _DOMINATE_PLUS
                 return -_DOMINATE
             if atk_id == _ATK_ABS_SNOW:
-                if _resentful_damage(opp_hand_n) < 200:
+                if not _prefer_resentful(opp_hand_n):
                     return last if last is not None else _DOMINATE_ATTACK
                 return -_DOMINATE
             return -_DOMINATE  # never other attacks while 861 is the attacker
@@ -5174,16 +5986,16 @@ def _hard_rule_bonus(obs, option, sit: dict[str, Any]) -> float:
             cid = _hand_card_id(obs, option, mi)
             if cid == _OC_SWITCH:
                 return 0.0
-            if _resentful_damage(opp_hand_n) >= 200 and (
+            if _prefer_resentful(opp_hand_n) and (
                 cid in _SUPPORTER_IDS or cid == _BOSS_ID
             ):
                 return -_DOMINATE
         if (
             option.type in (OptionType.ABILITY, OptionType.ATTACH, OptionType.EVOLVE)
-            and _resentful_damage(opp_hand_n) >= 200
+            and _prefer_resentful(opp_hand_n)
         ):
             return -_DOMINATE
-        if option.type == OptionType.RETREAT and _resentful_damage(opp_hand_n) >= 200:
+        if option.type == OptionType.RETREAT and _prefer_resentful(opp_hand_n):
             return -_DOMINATE
         if option.type == OptionType.END:
             return _ATTACH_ILLEGAL

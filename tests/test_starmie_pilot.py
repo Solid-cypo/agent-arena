@@ -973,6 +973,185 @@ def test_ghost_adrena_prep_does_not_block_jetting():
     assert sp._hard_rule_bonus(obs, poffin, sit) <= -sp._DOMINATE_OPEN_PATH
 
 
+def test_double_ko_adrena_beats_jetting_under_must_close():
+    """DkAdrena-V1: DOUBLE_KO + live Adrena → Adrena immediately before Jetting."""
+    # Damaged Starmie supplies Adrena fuel; soft rider 70HP needs the transfer.
+    active = _pkm(
+        sp._CARDS["mega_starmie_ex"],
+        hp=280,
+        maxHp=330,
+        energies=[int(EnergyType.WATER)],
+    )
+    munk = _pkm(sp._MUNKIDORI_ID, energies=[int(EnergyType.DARKNESS)])
+    me = _aggression_me(active=active, bench=[munk])
+    # Active ≤120 so no Boss required; bench rider in soft window.
+    opp = _player(
+        active=_pkm(900, hp=100),
+        bench=[_pkm(119, hp=70)],  # Riolu-like base
+    )
+    obs = _obs(turn=8, my_index=0, me=me, opp=opp)
+    sit = sp._compute_situation(obs)
+    assert sit["turn_plan"].combat.mode == "DOUBLE_KO"
+    assert sp._munk_can_adrena(obs, 0)
+    ab = NS(type=OptionType.ABILITY, area=AreaType.BENCH, index=0)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    sit["select_options"] = [ab, jet]
+    assert sp._double_ko_needs_adrena_before_jetting(obs, sit)
+    assert sp._hard_rule_bonus(obs, ab, sit) >= sp._DOMINATE_OPEN_PATH
+    assert sp._hard_rule_bonus(obs, jet, sit) <= -sp._DOMINATE_OPEN_PATH
+
+
+def test_double_ko_boss_still_outranks_adrena_when_both_live():
+    """Wave L: needs_boss → Boss before Adrena; knife must not invert."""
+    active = _pkm(
+        sp._CARDS["mega_starmie_ex"],
+        hp=280,
+        maxHp=330,
+        energies=[int(EnergyType.WATER)],
+    )
+    munk = _pkm(sp._MUNKIDORI_ID, energies=[int(EnergyType.DARKNESS)])
+    boss = NS(id=sp._BOSS_ID)
+    me = _aggression_me(active=active, bench=[munk], hand=[boss])
+    boss_target = _pkm(121, hp=110)
+    boss_target.ex = True
+    opp = _player(
+        active=_pkm(900, hp=200),
+        bench=[_pkm(119, hp=70), boss_target],
+    )
+    obs = _obs(turn=8, my_index=0, me=me, opp=opp)
+    sit = sp._compute_situation(obs)
+    assert sit["turn_plan"].combat.mode == "DOUBLE_KO"
+    assert "BOSS" in sit["turn_plan"].combat.required_before_attack
+    ab = NS(type=OptionType.ABILITY, area=AreaType.BENCH, index=0)
+    play_boss = NS(type=OptionType.PLAY, index=0)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    sit["select_options"] = [ab, play_boss, jet]
+    # Boss still actionable → knife off; Boss PATH beats Jetting/Adrena starve.
+    assert not sp._double_ko_needs_adrena_before_jetting(obs, sit)
+    assert sp._hard_rule_bonus(obs, play_boss, sit) > sp._hard_rule_bonus(obs, jet, sit)
+
+
+def test_froslass_cut_switch_beats_jetting_on_multi_prize_oneshot():
+    """FroslassCut-V1: watered 861 oneshots multi-prize front Jetting cannot KO."""
+    from cg.api import SelectContext
+
+    water = int(EnergyType.WATER)
+    active = _pkm(
+        sp._CARDS["mega_starmie_ex"],
+        hp=280,
+        maxHp=330,
+        energies=[water],
+    )
+    fueled_861 = _pkm(
+        sp._CARDS["mega_froslass_ex"],
+        hp=300,
+        maxHp=300,
+        energies=[water],
+    )
+    switch = NS(id=sp._OC_SWITCH)
+    me = _aggression_me(active=active, bench=[fueled_861], hand=[switch])
+    # Opp hand 5 → Resentful 250; Active ex 200HP → oneshot; Jetting 120 cannot KO.
+    opp_act = _pkm(900, hp=200, maxHp=200)
+    opp_act.ex = True
+    opp_act.prizeValue = 2
+    opp = _player(active=opp_act, hand_n=5)
+    obs = _obs(turn=8, my_index=0, me=me, opp=opp)
+    sit = sp._compute_situation(obs)
+    assert sit["turn_plan"].combat.mode != "DOUBLE_KO"
+    assert sp._froslass_oneshot_cut_live(obs, sit)
+    play_sw = NS(type=OptionType.PLAY, index=0)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    sit["select_options"] = [play_sw, jet]
+    assert sp._hard_rule_bonus(obs, play_sw, sit) >= sp._DOMINATE_OPEN_PATH
+    assert sp._hard_rule_bonus(obs, jet, sit) <= -sp._DOMINATE_OPEN_PATH
+    # Select: fueled 861 PATH; dry 861 banned.
+    obs.select = NS(context=int(SelectContext.SWITCH), deck=[])
+    pick_861 = NS(
+        type=OptionType.CARD,
+        area=AreaType.BENCH,
+        index=0,
+        playerIndex=0,
+    )
+    assert sp._hard_rule_bonus(obs, pick_861, sit) >= sp._DOMINATE_OPEN_PATH
+
+
+def test_froslass_cut_refuses_dry_861():
+    """无能861: cut knife off when bench 861 has no water."""
+    water = int(EnergyType.WATER)
+    active = _pkm(
+        sp._CARDS["mega_starmie_ex"],
+        hp=280,
+        maxHp=330,
+        energies=[water],
+    )
+    dry_861 = _pkm(sp._CARDS["mega_froslass_ex"], hp=300, maxHp=300, energies=[])
+    me = _aggression_me(
+        active=active, bench=[dry_861], hand=[NS(id=sp._OC_SWITCH)],
+    )
+    opp_act = _pkm(900, hp=200, maxHp=200)
+    opp_act.ex = True
+    opp_act.prizeValue = 2
+    opp = _player(active=opp_act, hand_n=5)
+    obs = _obs(turn=8, my_index=0, me=me, opp=opp)
+    sit = sp._compute_situation(obs)
+    assert not sp._froslass_oneshot_cut_live(obs, sit)
+
+
+def test_dry_mega_to_active_hard_ban():
+    """Global: selecting dry 861 into Active is illegal."""
+    from cg.api import SelectContext
+
+    dry_861 = _pkm(sp._CARDS["mega_froslass_ex"], energies=[])
+    me = _aggression_me(
+        active=_pkm(sp._CARDS["mega_starmie_ex"], energies=[int(EnergyType.WATER)]),
+        bench=[dry_861],
+    )
+    obs = _obs(turn=8, my_index=0, me=me, opp=_player(active=_pkm(999, hp=50)))
+    sit = sp._compute_situation(obs)
+    obs.select = NS(context=int(SelectContext.SWITCH), deck=[])
+    pick = NS(type=OptionType.CARD, area=AreaType.BENCH, index=0, playerIndex=0)
+    assert sp._hard_rule_bonus(obs, pick, sit) <= -sp._DOMINATE_OPEN_PATH
+
+
+def test_draw66_closeout_ability_beats_jetting_when_offered():
+    """Draw66Closeout: Run Away before Jetting under fueled must_close."""
+    water = int(EnergyType.WATER)
+    active = _pkm(
+        sp._CARDS["mega_starmie_ex"],
+        hp=280,
+        maxHp=330,
+        energies=[water],
+    )
+    dud = _pkm(sp._CARDS["dudunsparce"])
+    me = _aggression_me(active=active, bench=[dud])
+    opp = _player(active=_pkm(900, hp=80))
+    obs = _obs(turn=8, my_index=0, me=me, opp=opp)
+    sit = sp._compute_situation(obs)
+    ab = NS(type=OptionType.ABILITY, area=AreaType.BENCH, index=0)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    sit["select_options"] = [ab, jet]
+    assert sp._dudunsparce_ability_offered(obs, sit)
+    assert sp._hard_rule_bonus(obs, ab, sit) >= sp._DOMINATE_OPEN_PATH
+    assert sp._hard_rule_bonus(obs, jet, sit) <= -sp._DOMINATE_OPEN_PATH
+
+
+def test_draw66_after_evolve_paths_ability_outside_must_close():
+    """进66后抽: dry Mega (no must_close) still PATH Run Away over END."""
+    dud = _pkm(sp._CARDS["dudunsparce"])
+    me = _player(
+        active=_pkm(sp._CARDS["mega_starmie_ex"]),  # dry → not must_attack
+        bench=[dud],
+        hand=[],
+    )
+    obs = _obs(turn=5, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    ab = NS(type=OptionType.ABILITY, area=AreaType.BENCH, index=0)
+    end = NS(type=OptionType.END)
+    sit["select_options"] = [ab, end]
+    assert sp._hard_rule_bonus(obs, ab, sit) >= sp._DOMINATE_OPEN_PATH
+    assert sp._hard_rule_bonus(obs, end, sit) <= -sp._DOMINATE_OPEN_PATH
+
+
 def test_opening_play_munk_when_mega_secured():
     # Mega on field but dry (not must-attack) — secured for Munk seat PATH.
     # HandQual: dry Mega digs water before Munk; Meowth cycle must be closed;
@@ -1236,16 +1415,360 @@ def test_hr_e1_still_bans_second_non_water_on_mega():
     assert sp._attach_hard_ban_bonus(obs, attach_dark, 0) == sp._ATTACH_ILLEGAL
 
 
-if __name__ == "__main__":
-    import traceback
-    fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
-    passed = 0
-    for fn in fns:
-        try:
-            fn()
-            print(f"PASS {fn.__name__}")
-            passed += 1
-        except Exception:
-            print(f"FAIL {fn.__name__}")
-            traceback.print_exc()
-    print(f"\n{passed}/{len(fns)} passed")
+# ── NoPathDark-V1: Munk dry → Crispin / ATTACH_DARK before Poffin ────────────
+
+def _nopath_dark_board(hand, discard=None, munk_energies=None):
+    """Mega on bench (not Active) so must_close/Jetting does not own the turn."""
+    water = int(EnergyType.WATER)
+    mega = _pkm(sp._CARDS["mega_starmie_ex"], energies=[water])
+    munk = _pkm(sp._MUNKIDORI_ID, energies=munk_energies or [])
+    # Active side piece — not a fueled Mega attack seat.
+    return _player(
+        active=_pkm(sp._CARDS["snorunt"]),
+        bench=[mega, munk],
+        hand=hand,
+        discard=discard or [],
+    )
+
+
+def test_nopath_dark_crispin_beats_poffin():
+    """91402412 shape: post-Mega Munk dry, Crispin+Poffin → Crispin wins."""
+    crispin, poffin = sp.CRISPIN, sp._OC_POFFIN
+    me = _nopath_dark_board([NS(id=crispin), NS(id=poffin)])
+    obs = _obs(turn=5, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    play_crispin = NS(type=OptionType.PLAY, index=0)
+    play_poffin = NS(type=OptionType.PLAY, index=1)
+    sc = sp._hard_rule_bonus(obs, play_crispin, sit)
+    spf = sp._hard_rule_bonus(obs, play_poffin, sit)
+    assert sc >= sp._DOMINATE_OPEN_PATH + 20.0 - 1e-6
+    assert spf <= -sp._DOMINATE_OPEN_PATH + 1e-6
+    assert sc > spf
+
+
+def test_nopath_dark_attach_beats_poffin_and_end():
+    dark = int(EnergyType.DARKNESS)
+    poffin = sp._OC_POFFIN
+    me = _nopath_dark_board([NS(id=dark), NS(id=poffin)])
+    obs = _obs(turn=5, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    attach = NS(
+        type=OptionType.ATTACH,
+        inPlayArea=AreaType.BENCH,
+        inPlayIndex=1,  # Munk
+        handIndex=0,
+        index=0,
+    )
+    play_poffin = NS(type=OptionType.PLAY, index=1)
+    end = NS(type=OptionType.END)
+    sa = sp._hard_rule_bonus(obs, attach, sit)
+    assert sa >= sp._DOMINATE_OPEN_PATH + 20.0 - 1e-6
+    assert sa > sp._hard_rule_bonus(obs, play_poffin, sit)
+    assert sa > sp._hard_rule_bonus(obs, end, sit)
+
+
+def test_nopath_dark_ns_beats_poffin_when_dark_in_discard():
+    ns_id, poffin = sp._OC_NIGHT_STRETCHER, sp._OC_POFFIN
+    dark = int(EnergyType.DARKNESS)
+    me = _nopath_dark_board(
+        [NS(id=ns_id), NS(id=poffin)],
+        discard=[NS(id=dark)],
+    )
+    obs = _obs(turn=5, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    play_ns = NS(type=OptionType.PLAY, index=0)
+    play_poffin = NS(type=OptionType.PLAY, index=1)
+    assert sp._hard_rule_bonus(obs, play_ns, sit) > sp._hard_rule_bonus(
+        obs, play_poffin, sit
+    )
+
+
+def test_nopath_dark_yields_when_munk_already_has_dark():
+    """No false PATH on Crispin once Munk is oiled."""
+    dark = int(EnergyType.DARKNESS)
+    crispin, poffin = sp.CRISPIN, sp._OC_POFFIN
+    me = _nopath_dark_board(
+        [NS(id=crispin), NS(id=poffin)],
+        munk_energies=[dark],
+    )
+    obs = _obs(turn=5, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    play_crispin = NS(type=OptionType.PLAY, index=0)
+    assert sp._no_path_dark_hard_bonus(obs, play_crispin, sit) == 0.0
+
+
+def test_nopath_dark_crispin_beats_poffin_under_must_close():
+    """Active fueled Mega + Munk dry: Crispin dig before Poffin/Jetting."""
+    crispin, poffin = sp.CRISPIN, sp._OC_POFFIN
+    munk = _pkm(sp._MUNKIDORI_ID)
+    me = _aggression_me(bench=[munk], hand=[NS(id=crispin), NS(id=poffin)])
+    obs = _obs(turn=5, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    play_crispin = NS(type=OptionType.PLAY, index=0)
+    play_poffin = NS(type=OptionType.PLAY, index=1)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    sc = sp._hard_rule_bonus(obs, play_crispin, sit)
+    assert sc >= sp._DOMINATE_OPEN_PATH + 20.0 - 1e-6
+    assert sc > sp._hard_rule_bonus(obs, play_poffin, sit)
+    assert sc > sp._hard_rule_bonus(obs, jet, sit)
+
+
+def test_must_close_oiled_munk_jetting_beats_poffin():
+    """91492165 T12/T14 shape: fueled Mega + oiled Munk → Jetting ≻ Poffin."""
+    from opening_cards import POFFIN
+
+    dark = int(EnergyType.DARKNESS)
+    munk = _pkm(sp._MUNKIDORI_ID, energies=[dark])
+    me = _aggression_me(bench=[munk], hand=[NS(id=POFFIN)])
+    opp = _player(active=_pkm(999, hp=300))
+    obs = _obs(turn=12, my_index=0, me=me, opp=opp)
+    sit = sp._compute_situation(obs)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    poffin = NS(type=OptionType.PLAY, index=0)
+    sit["select_options"] = [jet, poffin]
+    assert sp._hard_rule_bonus(obs, jet, sit) >= sp._DOMINATE_OPEN_PATH - 1e-6
+    assert sp._hard_rule_bonus(obs, poffin, sit) <= -sp._DOMINATE_OPEN_PATH + 1e-6
+
+
+def test_must_close_attach_dark_beats_jetting_when_munk_dry():
+    """Same-turn DP prep: ATTACH_DARK before Jetting when Munk dry (pre-Urgent policy)."""
+    dark = int(EnergyType.DARKNESS)
+    munk = _pkm(sp._MUNKIDORI_ID)
+    me = _aggression_me(bench=[munk], hand=[NS(id=dark)])
+    opp = _player(active=_pkm(999, hp=300))
+    obs = _obs(turn=8, my_index=0, me=me, opp=opp)
+    sit = sp._compute_situation(obs)
+    attach = NS(
+        type=OptionType.ATTACH,
+        inPlayArea=AreaType.BENCH,
+        inPlayIndex=0,
+        handIndex=0,
+        index=0,
+    )
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    sit["select_options"] = [attach, jet]
+    assert sp._hard_rule_bonus(obs, attach, sit) >= sp._DOMINATE_OPEN_PATH - 1e-6
+    assert sp._hard_rule_bonus(obs, jet, sit) <= -sp._DOMINATE_OPEN_PATH + 1e-6
+
+
+# ── GapParallel-V1: unreachable primary → secondary ─────────────────────────
+
+def test_gap_parallel_falls_to_placer_when_dark_unreachable():
+    """DIG_DARK open but no Crispin/NS; ruins in hand → PLAY_PLACER PATH > END."""
+    ruins = sp._RISKY_RUINS
+    me = _nopath_dark_board([NS(id=ruins)])
+    obs = _obs(turn=5, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    # Only ruins PLAY + END offered — dark dig not actionable.
+    opts = [
+        NS(type=OptionType.PLAY, index=0),
+        NS(type=OptionType.END),
+    ]
+    sit["select_options"] = opts
+    sit.pop("midgame_actionable", None)
+    play_ruins = opts[0]
+    end = opts[1]
+    actionable = sp._midgame_actionable_gaps(obs, sit)
+    assert "DIG_DARK" not in actionable
+    assert "PLAY_PLACER" in actionable
+    assert actionable[0] == "PLAY_PLACER"
+    assert sp._hard_rule_bonus(obs, play_ruins, sit) >= sp._DOMINATE_OPEN_PATH + 20.0 - 1e-6
+    assert sp._hard_rule_bonus(obs, end, sit) <= -sp._DOMINATE_OPEN_PATH + 1e-6
+
+
+def test_gap_parallel_yields_to_must_close_jetting():
+    """Fueled Active Mega: gap-parallel must not outrank Jetting when no dark dig."""
+    ruins = sp._RISKY_RUINS
+    munk = _pkm(sp._MUNKIDORI_ID)
+    me = _aggression_me(bench=[munk], hand=[NS(id=ruins)])
+    # Already attached this turn → no Crispin dig seat; must_close owns attack.
+    me.energyAttached = True
+    obs = _obs(turn=5, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    play_ruins = NS(type=OptionType.PLAY, index=0)
+    # With energy attached and no dig tools, must_close should prefer Jetting.
+    assert sp._hard_rule_bonus(obs, jet, sit) >= sp._DOMINATE_OPEN_PATH - 1e-6
+    assert sp._gap_parallel_hard_bonus(obs, play_ruins, sit) == 0.0
+
+
+# ── SeatMunk: post-Mega dig Munk (Pad) before Jetting ───────────────────────
+
+def test_seatmunk_pad_beats_jetting_under_must_close():
+    """Active fueled Mega, no Munk: Poké Pad dig ≻ Jetting."""
+    from opening_cards import POKE_PAD
+
+    me = _aggression_me(hand=[NS(id=POKE_PAD)])
+    obs = _obs(turn=5, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    pad = NS(type=OptionType.PLAY, index=0)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    sit["select_options"] = [pad, jet]
+    sit.pop("midgame_actionable", None)
+    assert "DIG_MUNK" in (sit.get("turn_plan").midgame_open_gaps or ())
+    sp_pad = sp._hard_rule_bonus(obs, pad, sit)
+    sp_jet = sp._hard_rule_bonus(obs, jet, sit)
+    assert sp_pad >= sp._DOMINATE_OPEN_PATH + 20.0 - 1e-6
+    assert sp_pad > sp_jet
+    assert sp_jet <= -sp._DOMINATE_OPEN_PATH + 1e-6
+
+
+def test_seatmunk_pad_nested_picks_munk():
+    """Pad TO_HAND: Munk PATH over Snorunt when SeatMunk dig live."""
+    from cg.api import SelectContext
+    from opening_cards import POKE_PAD
+
+    me = _aggression_me(hand=[NS(id=POKE_PAD)])
+    obs = _obs(turn=5, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    obs.select = NS(
+        context=int(SelectContext.TO_HAND),
+        deck=[NS(id=sp._CARDS["snorunt"]), NS(id=sp._MUNKIDORI_ID)],
+        effect=NS(id=POKE_PAD),
+    )
+    sit = sp._compute_situation(obs)
+    snorunt = NS(type=OptionType.CARD, index=0)
+    munk = NS(type=OptionType.CARD, index=1)
+    sit["select_options"] = [snorunt, munk]
+    sit.pop("midgame_actionable", None)
+    assert sp._hard_rule_bonus(obs, munk, sit) > sp._hard_rule_bonus(obs, snorunt, sit)
+    assert sp._hard_rule_bonus(obs, munk, sit) >= sp._DOMINATE_OPEN_PATH + 20.0 - 1e-6
+
+
+def test_seatmunk_play_munk_still_beats_jetting_when_held():
+    """Hand Munk: DpSeat PLAY ≻ Jetting (unchanged)."""
+    me = _aggression_me(hand=[NS(id=sp._MUNKIDORI_ID)])
+    obs = _obs(turn=5, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    play = NS(type=OptionType.PLAY, index=0)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    sit["select_options"] = [play, jet]
+    assert sp._hard_rule_bonus(obs, play, sit) >= sp._DOMINATE_OPEN_PATH - 1e-6
+    assert sp._hard_rule_bonus(obs, jet, sit) <= -sp._DOMINATE_OPEN_PATH + 1e-6
+
+
+def test_seatmunk_gap_parallel_pad_when_mega_not_attacking():
+    """Mega on bench: GapParallel DIG_MUNK Pad ≻ END."""
+    from opening_cards import POKE_PAD
+
+    water = int(EnergyType.WATER)
+    mega = _pkm(sp._CARDS["mega_starmie_ex"], energies=[water])
+    me = _player(
+        active=_pkm(sp._CARDS["snorunt"]),
+        bench=[mega],
+        hand=[NS(id=POKE_PAD)],
+    )
+    obs = _obs(turn=5, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    opts = [NS(type=OptionType.PLAY, index=0), NS(type=OptionType.END)]
+    sit["select_options"] = opts
+    sit.pop("midgame_actionable", None)
+    actionable = sp._midgame_actionable_gaps(obs, sit)
+    assert "DIG_MUNK" in actionable
+    assert actionable[0] == "DIG_MUNK"
+    assert sp._hard_rule_bonus(obs, opts[0], sit) >= sp._DOMINATE_OPEN_PATH + 20.0 - 1e-6
+    assert sp._hard_rule_bonus(obs, opts[1], sit) <= -sp._DOMINATE_OPEN_PATH + 1e-6
+
+
+def test_seatmunk_closeout_ignores_ultra_ball():
+    """Jetting closer: Ultra Ball must not block Jetting in fueled closeout."""
+    me = _aggression_me(hand=[NS(id=sp._OC_ULTRA_BALL)])
+    obs = _obs(turn=5, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    ub = NS(type=OptionType.PLAY, index=0)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    sit["select_options"] = [ub, jet]
+    sit.pop("midgame_actionable", None)
+    assert sp._hard_rule_bonus(obs, jet, sit) >= sp._DOMINATE_OPEN_PATH - 1e-6
+    assert sp._hard_rule_bonus(obs, ub, sit) <= -sp._DOMINATE_OPEN_PATH + 1e-6
+
+
+def test_dp_stall_draw_prefers_lillie_over_jetting():
+    """DpStallDraw-V2: DP stalled + Lillie offered → redraw before Jetting closer."""
+    me = _aggression_me(hand=[NS(id=sp.LILLIE)])
+    obs = _obs(turn=6, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    play = NS(type=OptionType.PLAY, index=0)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    sit["select_options"] = [play, jet]
+    sit.pop("midgame_actionable", None)
+    assert sp._DP_STALL_DRAW_ENABLED
+    assert sp._dp_stall_draw_live(obs, sit, sit.get("turn_plan"))
+    assert sp._hard_rule_bonus(obs, play, sit) > sp._hard_rule_bonus(obs, jet, sit)
+    assert sp._hard_rule_bonus(obs, play, sit) >= sp._DOMINATE_OPEN_PATH - 1e-6
+
+
+def test_dp_stall_draw_seated_munk_dry_prefers_lillie():
+    """V2.1: Munk seated without Dark + Lillie → redraw before Jetting."""
+    munk = _pkm(sp._MUNKIDORI_ID, energies=[])
+    me = _aggression_me(hand=[NS(id=sp.LILLIE)], bench=[munk])
+    obs = _obs(turn=8, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    play = NS(type=OptionType.PLAY, index=0)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    sit["select_options"] = [play, jet]
+    sit.pop("midgame_actionable", None)
+    assert sit["board"].munkidori_on_field
+    assert not sit["board"].munkidori_has_dark
+    assert sp._dp_stall_draw_live(obs, sit, sit.get("turn_plan"))
+    assert sp._hard_rule_bonus(obs, play, sit) > sp._hard_rule_bonus(obs, jet, sit)
+
+
+def test_seatmunk_pad_then_jetting_is_sequencing_not_mutex():
+    """After Pad resolves (hand gains Munk), Jetting closer is available next."""
+    me = _aggression_me(hand=[NS(id=sp._MUNKIDORI_ID)])
+    # Simulate post-Pad: Munk in hand — seat prep, not dig.
+    obs = _obs(turn=5, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    play = NS(type=OptionType.PLAY, index=0)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    sit["select_options"] = [play, jet]
+    assert sp._hard_rule_bonus(obs, play, sit) > sp._hard_rule_bonus(obs, jet, sit)
+
+
+# ── SeatSnorunt-V1: post-DP egg before Jetting under must_close ──────────────
+
+def test_seatsnorunt_beats_jetting_under_must_close():
+    """Fueled Mega + Munk/Dark + open bench + hand Snorunt → PLAY ≻ Jetting."""
+    dark = int(EnergyType.DARKNESS)
+    munk = _pkm(sp._MUNKIDORI_ID, energies=[dark])
+    me = _aggression_me(bench=[munk], hand=[NS(id=sp._CARDS["snorunt"])])
+    obs = _obs(turn=8, my_index=0, me=me, opp=_player(active=_pkm(999, hp=300)))
+    sit = sp._compute_situation(obs)
+    play = NS(type=OptionType.PLAY, index=0)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    sit["select_options"] = [play, jet]
+    assert sp._seat_snorunt_prep_live(obs, sit, sit["board"], sit["turn_plan"])
+    sp_play = sp._hard_rule_bonus(obs, play, sit)
+    sp_jet = sp._hard_rule_bonus(obs, jet, sit)
+    assert sp_play >= sp._DOMINATE_OPEN_PATH - 1e-6
+    assert sp_play > sp_jet
+    assert sp_jet <= -sp._DOMINATE_OPEN_PATH + 1e-6
+
+
+def test_seatsnorunt_yields_to_seatmunk_when_munk_missing():
+    """No Munk yet: hand Munk still owns prep; Snorunt does not steal the seat."""
+    me = _aggression_me(
+        hand=[NS(id=sp._MUNKIDORI_ID), NS(id=sp._CARDS["snorunt"])],
+    )
+    obs = _obs(turn=8, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    play_munk = NS(type=OptionType.PLAY, index=0)
+    play_sno = NS(type=OptionType.PLAY, index=1)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    sit["select_options"] = [play_munk, play_sno, jet]
+    assert not sp._seat_snorunt_prep_live(obs, sit, sit["board"], sit["turn_plan"])
+    assert sp._hard_rule_bonus(obs, play_munk, sit) > sp._hard_rule_bonus(obs, play_sno, sit)
+    assert sp._hard_rule_bonus(obs, play_munk, sit) > sp._hard_rule_bonus(obs, jet, sit)
+
+
+def test_seatsnorunt_silent_without_munk_dark():
+    """Munk dry / missing → knife A off; Jetting still closes when no other prep."""
+    me = _aggression_me(hand=[NS(id=sp._CARDS["snorunt"])])
+    obs = _obs(turn=8, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    play = NS(type=OptionType.PLAY, index=0)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    sit["select_options"] = [play, jet]
+    assert not sp._seat_snorunt_prep_live(obs, sit, sit["board"], sit["turn_plan"])
+    assert sp._hard_rule_bonus(obs, jet, sit) >= sp._DOMINATE_OPEN_PATH - 1e-6
+    assert sp._hard_rule_bonus(obs, play, sit) <= -sp._DOMINATE_OPEN_PATH + 1e-6
