@@ -15,6 +15,7 @@ from hand_snapshot import build_board_snapshot
 from opening_cards import (
     BOSS_ORDERS,
     BUDEW,
+    CRISPIN,
     DARK_BASIC,
     DUDUNSPARCE,
     DUNSPARCE_A,
@@ -33,6 +34,7 @@ from opening_cards import (
     SNORUNT,
     STARYU,
     ULTRA_BALL,
+    UNFAIR_STAMP,
     WATER_BASIC,
 )
 from opponent_roles import OPPONENT_ROLES, opponent_role, role_coverage
@@ -215,21 +217,23 @@ def test_ub3_free_search_only_blocks_when_it_closes_gap():
     assert not missing_base.acquire.ball_allowed
     assert "UB-3" in missing_base.acquire.ball_reason
 
-    # Watered base → Mega land gate open → lock Mega Starmie as sole target.
+    # Watered base → Mega land gate open. No Lillie → Meowth first, Mega for free dig.
     missing_mega = _plan(
         _player(
             active=_pkm(STARYU, energies=(WATER_BASIC,)),
             hand=(POFFIN, ULTRA_BALL),
         )
     )
-    assert missing_mega.acquire.targets == (MEGA_STARMIE,)
+    assert missing_mega.acquire.targets[0] == MEOWTH_EX
+    assert MEGA_STARMIE in missing_mega.acquire.targets
     assert missing_mega.acquire.ball_allowed
 
-    # Dry base + no water-fetch tools → water then Mega (G1: no FROSLASS mix).
+    # Dry base + no water-fetch tools → water then Meowth then Mega (G1: no FROSLASS mix).
     dry_mega = _plan(
         _player(active=_pkm(STARYU), hand=(POFFIN, ULTRA_BALL))
     )
     assert dry_mega.acquire.targets[0] == WATER_BASIC
+    assert MEOWTH_EX in dry_mega.acquire.targets
     assert dry_mega.acquire.targets[-1] == MEGA_STARMIE
     assert FROSLASS not in dry_mega.acquire.targets
     assert dry_mega.acquire.ball_allowed
@@ -391,7 +395,8 @@ def test_froslass_two_prize_gate_and_exceptions():
     me = _player(active=_pkm(MEGA_STARMIE))
     two_prize = _player(active=_pkm(900, hp=200, ex=True), hand_count=4)
     one_prize = _player(active=_pkm(900, hp=200), hand_count=4)
-    assert _plan(me, two_prize).combat.froslass_build_allowed
+    # 2-prize attacker decks build a second Starmie, not 861.
+    assert not _plan(me, two_prize).combat.froslass_build_allowed
     assert not _plan(me, one_prize).combat.froslass_build_allowed
 
     terminal_me = _player(active=_pkm(MEGA_STARMIE), prizes=1)
@@ -631,6 +636,180 @@ def test_midgame_open_gaps_empty_pre_mega():
     me = _player(active=_pkm(STARYU), hand=(MUNKIDORI, RISKY_RUINS))
     plan = _plan(me, turn=2)
     assert plan.midgame_open_gaps == ()
+
+
+def test_sick_staryu_never_ball_digs_mega():
+    """Autopsy 92356962: appearThisTurn bases → dig Meowth, never Mega."""
+    me = _player(
+        active=_pkm(STARYU, appearThisTurn=True),
+        bench=(_pkm(STARYU, appearThisTurn=True),),
+        hand=(CRISPIN, ULTRA_BALL, UNFAIR_STAMP, DUNSPARCE_A),
+    )
+    plan = _plan(me, turn=3)
+    assert not plan.facts.staryu_can_evolve
+    assert MEGA_STARMIE not in plan.acquire.targets
+    assert MEOWTH_EX in plan.acquire.targets
+    assert plan.acquire.ball_allowed
+    assert discard_value(CRISPIN, plan) >= 9_500
+
+
+def test_sick_staryu_ub_blocked_when_would_burn_crispin():
+    """Episode hand shape: Crispin+UB+Stamp — Ball would force-burn Crispin."""
+    me = _player(
+        active=_pkm(STARYU, appearThisTurn=True),
+        bench=(_pkm(STARYU, appearThisTurn=True),),
+        hand=(CRISPIN, ULTRA_BALL, UNFAIR_STAMP),
+    )
+    plan = _plan(me, turn=3)
+    assert MEGA_STARMIE not in plan.acquire.targets
+    assert not plan.acquire.ball_allowed
+    assert "Crispin" in plan.acquire.ball_reason or "forced-burn" in plan.acquire.ball_reason
+
+
+def test_ub_mega_when_lillie_supporter_free_and_landable():
+    me = _player(
+        active=_pkm(STARYU, energies=(WATER_BASIC,)),
+        hand=(LILLIE, ULTRA_BALL, UNFAIR_STAMP, DUNSPARCE_A),
+    )
+    plan = _plan(me, turn=5)
+    assert plan.facts.staryu_can_evolve
+    assert plan.acquire.targets == (MEGA_STARMIE,)
+    assert plan.acquire.ball_allowed
+    assert "Lillie+landable" in plan.acquire.ball_reason
+    assert discard_value(LILLIE, plan) >= 10_000
+
+
+def test_ub_never_discards_lillie_value():
+    me = _player(
+        active=_pkm(STARYU, energies=(WATER_BASIC,)),
+        hand=(LILLIE, ULTRA_BALL, JUDGE),
+    )
+    plan = _plan(me)
+    assert discard_value(LILLIE, plan) >= 10_000
+
+
+def test_three_prize_opens_861_at_full_starmie_hp():
+    """Fueled Mega Starmie vs Mega attacker → build Froslass immediately."""
+    me = _player(
+        active=_pkm(MEGA_STARMIE, hp=330, max_hp=330, energies=(WATER_BASIC,)),
+        hand=(SNORUNT, MEGA_FROSLASS),
+    )
+    opp = _player(active=_pkm(MEGA_STARMIE, hp=330, max_hp=330, megaEx=True), hand_count=3)
+    plan = _plan(me, opp)
+    assert plan.facts.opp_attacker_prizes >= 3
+    assert plan.facts.starmie_attacker_ready
+    assert plan.gap.need_second_attacker
+    assert not plan.gap.need_second_starmie
+    assert plan.combat.froslass_build_allowed
+
+
+def test_two_prize_wants_second_starmie_not_861():
+    me = _player(
+        active=_pkm(MEGA_STARMIE, hp=330, max_hp=330, energies=(WATER_BASIC,)),
+        hand=(STARYU, SNORUNT, MEGA_FROSLASS),
+    )
+    opp = _player(active=_pkm(121, hp=300, ex=True), hand_count=4)
+    plan = _plan(me, opp)
+    assert plan.facts.opp_attacker_prizes == 2
+    assert plan.gap.need_second_starmie
+    assert not plan.gap.need_second_attacker
+    assert not plan.combat.froslass_build_allowed
+    assert "PLAY_STARYU" in plan.midgame_open_gaps
+
+
+def test_adrena_prefers_bench_combo_when_jetting_already_kos_active():
+    me = _player(
+        active=_pkm(MEGA_STARMIE, hp=300, max_hp=330, energies=(WATER_BASIC,)),
+        bench=(_pkm(MUNKIDORI, energies=(DARK_BASIC,)),),
+    )
+    opp = _player(
+        active=_pkm(900, hp=100),
+        bench=(_pkm(119, hp=70),),  # Dreepy: 50+20 KO
+        hand_count=3,
+    )
+    plan = _plan(me, opp)
+    assert plan.combat.rider_target is not None
+    assert plan.combat.rider_target.hp == 70
+    assert plan.combat.adrena_target is not None
+    assert plan.combat.adrena_target.area == "BENCH"
+    assert plan.combat.adrena_target.hp == 70
+
+
+def test_adrena_on_active_only_when_it_enables_attacker_ko():
+    me = _player(
+        active=_pkm(MEGA_STARMIE, hp=300, max_hp=330, energies=(WATER_BASIC,)),
+        bench=(_pkm(MUNKIDORI, energies=(DARK_BASIC,)),),
+    )
+    opp = _player(
+        active=_pkm(900, hp=140),  # 120+20 KO, Jetting alone lives
+        bench=(_pkm(119, hp=70),),
+        hand_count=3,
+    )
+    plan = _plan(me, opp)
+    assert plan.combat.adrena_target is not None
+    assert plan.combat.adrena_target.area == "ACTIVE"
+    assert plan.combat.rider_target is not None
+    assert plan.combat.rider_target.area == "BENCH"
+
+
+def test_froslass_boss_grabs_full_hp_second_attacker():
+    """861 Active: Resentful 350 KOs bench Mega Lucario 340; front is a 1-prize wall."""
+    me = _player(
+        active=_pkm(MEGA_FROSLASS, energies=(WATER_BASIC,)),
+        hand=(BOSS_ORDERS,),
+        prizes=5,
+    )
+    lucario = _pkm(678, hp=340, max_hp=340)  # Mega Lucario, 3 prizes
+    opp = _player(
+        active=_pkm(235, hp=60),  # Budew wall, 1 prize, also KO-able
+        bench=(lucario,),
+        hand_count=7,
+    )
+    plan = _plan(me, opp)
+    assert plan.combat.mode == "FROSLASS_ATTACK"
+    assert plan.combat.boss_target is not None
+    assert plan.combat.boss_target.card_id == 678
+    assert plan.combat.expected_prize_delta >= 2
+    assert "BOSS" in plan.combat.required_before_attack
+    assert plan.combat.next_action == "BOSS"
+
+
+def test_froslass_no_boss_when_front_already_best_prize():
+    """Front Mega Lucario already Resentful-KO — do not spend Boss on equal/worse bench."""
+    me = _player(
+        active=_pkm(MEGA_FROSLASS, energies=(WATER_BASIC,)),
+        hand=(BOSS_ORDERS,),
+        prizes=5,
+    )
+    opp = _player(
+        active=_pkm(678, hp=340, max_hp=340),
+        bench=(_pkm(1071, hp=190, ex=True),),  # Meowth ex, 2 prizes
+        hand_count=7,
+    )
+    plan = _plan(me, opp)
+    assert plan.combat.mode == "FROSLASS_ATTACK"
+    assert plan.combat.boss_target is None
+    assert "BOSS" not in plan.combat.required_before_attack
+    assert plan.combat.next_action == "ATTACK"
+
+
+def test_starmie_still_ignores_fat_lucario_for_boss():
+    """Boss→Jetting freeze: Starmie must not gust a 340 HP Mega Lucario."""
+    me = _player(
+        active=_pkm(MEGA_STARMIE, energies=(WATER_BASIC,)),
+        hand=(BOSS_ORDERS,),
+        prizes=5,
+    )
+    opp = _player(
+        active=_pkm(235, hp=60),
+        bench=(_pkm(678, hp=340, max_hp=340),),
+        hand_count=7,
+    )
+    plan = _plan(me, opp)
+    assert plan.combat.mode != "FROSLASS_ATTACK"
+    if plan.combat.boss_target is not None:
+        assert plan.combat.boss_target.card_id != 678
+        assert plan.combat.boss_target.hp <= 120
 
 
 if __name__ == "__main__":

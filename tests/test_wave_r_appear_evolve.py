@@ -1,14 +1,12 @@
-"""Wave R probe (failed G0) — appearThisTurn facts fix rolled back.
+"""Wave R probe (failed G0) — appearThisTurn facts fix re-landed for 92356962.
 
-See logs/h2h_audit_waveR_appear/AUTOPSY.md.
+Same-turn summoning-sick Staryu must not claim staryu_can_evolve (Ball Mega dig).
 """
 from __future__ import annotations
 
 import sys
 from pathlib import Path
 from types import SimpleNamespace as NS
-
-import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / ".agent/skills/piloting_starmie_froslass/scripts"
@@ -54,18 +52,17 @@ def _obs(me, *, turn=4):
     )
 
 
-def test_monitor_appear_still_overclaims_evolvable_under_wave_l():
-    """Known hazard: live appearThisTurn=True still yields facts True (pre-R)."""
+def test_monitor_appear_blocks_evolvable():
+    """appearThisTurn=True must not claim staryu_can_evolve (92356962)."""
     me = _player(
         active=_pkm(STARYU, appearThisTurn=True, energies=(WATER_BASIC,)),
         hand=(MEGA_STARMIE,),
     )
     plan = build_turn_plan(_obs(me), build_board_snapshot(_obs(me)))
-    assert plan.facts.staryu_can_evolve is True
+    assert plan.facts.staryu_can_evolve is False
 
 
-@pytest.mark.skip(reason="Wave R appearThisTurn facts fix rolled back after G0 red")
-def test_r_fix_rolled_back():
+def test_r_appear_blocks_evolve_facts():
     me = _player(
         active=_pkm(STARYU, appearThisTurn=True, energies=(WATER_BASIC,)),
         hand=(MEGA_STARMIE,),

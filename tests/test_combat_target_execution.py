@@ -112,6 +112,43 @@ def test_boss_card_select_matches_plan_and_rejects_rider():
     assert sp._hard_rule_bonus(obs, rider_opt, sit) <= -sp._DOMINATE
 
 
+def test_boss_gust_after_play_keeps_110_not_10hp_rider():
+    """92530813: after PLAY Boss, nested SWITCH must not grab the 10 HP rider."""
+    me = _player(
+        active=_pkm(
+            sp._CARDS["mega_starmie_ex"], hp=60, max_hp=330, energies=(WATER,)
+        ),
+        prizes=5,
+    )
+    me.supporterPlayed = True
+    lucario = _pkm(678, hp=420, max_hp=440)
+    lucario.megaEx = True
+    opp = _player(
+        active=lucario,
+        bench=(
+            _pkm(675, hp=110),  # Lunatone
+            _pkm(RIOLU, hp=10),  # rider — keep on bench
+            _pkm(676, hp=110),  # Solrock — gust
+        ),
+        hand_count=5,
+    )
+    obs = _obs(me, opp, ctx=SelectContext.SWITCH)
+    sit = sp._compute_situation(obs)
+    combat = sit["turn_plan"].combat
+    assert combat.mode == "DOUBLE_KO"
+    assert combat.rider_target.card_id == RIOLU
+    assert combat.boss_target is not None
+    assert combat.boss_target.card_id == 676
+    assert "BOSS" not in combat.required_before_attack
+
+    lun0 = NS(type=OptionType.CARD, area=AreaType.BENCH, index=0, playerIndex=1)
+    rider = NS(type=OptionType.CARD, area=AreaType.BENCH, index=1, playerIndex=1)
+    sol = NS(type=OptionType.CARD, area=AreaType.BENCH, index=2, playerIndex=1)
+    assert sp._hard_rule_bonus(obs, rider, sit) <= -sp._DOMINATE
+    assert sp._hard_rule_bonus(obs, sol, sit) >= sp._DOMINATE_OPEN_PATH
+    assert sp._hard_rule_bonus(obs, sol, sit) > sp._hard_rule_bonus(obs, lun0, sit)
+
+
 def test_adrena_select_also_uses_rider_target():
     me = _player(
         active=_pkm(

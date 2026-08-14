@@ -786,6 +786,7 @@ def test_control_meowth_play_when_leading():
     sit = sp._compute_situation(obs)
     sit["phase"] = PhaseState("AGGRESSION", True, True)
     opt = NS(type=OptionType.PLAY, index=0)
+    sit["select_options"] = [opt]
     assert sp._hard_rule_bonus(obs, opt, sit) >= sp._DOMINATE_MID
 
 
@@ -1113,6 +1114,144 @@ def test_dry_mega_to_active_hard_ban():
     assert sp._hard_rule_bonus(obs, pick, sit) <= -sp._DOMINATE_OPEN_PATH
 
 
+def test_dry_snorunt_to_active_banned_when_861_in_hand():
+    """92537402 si=47: after KO, do not seat dry Snorunt if 861 is in hand."""
+    from cg.api import SelectContext
+
+    sno = _pkm(sp._CARDS["snorunt"])
+    staryu = _pkm(sp._OC_STARYU)
+    munk = _pkm(sp._MUNKIDORI_ID)
+    me = _player(
+        bench=[sno, munk, staryu],
+        hand=[NS(id=sp._OC_MEOWTH_EX), NS(id=sp._CARDS["mega_froslass_ex"])],
+    )
+    luc = _pkm(678, hp=340, maxHp=340)
+    luc.prizeValue = 3
+    obs = _obs(turn=5, my_index=0, me=me, opp=_player(active=luc, hand_n=4))
+    sit = sp._compute_situation(obs)
+    obs.select = NS(context=int(SelectContext.TO_ACTIVE), deck=[])
+    pick_sno = NS(type=OptionType.CARD, area=AreaType.BENCH, index=0, playerIndex=0)
+    pick_staryu = NS(type=OptionType.CARD, area=AreaType.BENCH, index=2, playerIndex=0)
+    assert sp._dry_snorunt_to_active_illegal(obs, sit)
+    assert sp._hard_rule_bonus(obs, pick_sno, sit) <= sp._ATTACH_ILLEGAL + 1e-6
+    assert sp._hard_rule_bonus(obs, pick_staryu, sit) > sp._hard_rule_bonus(obs, pick_sno, sit)
+
+
+def test_watered_snorunt_to_active_still_legal():
+    """Watered egg may still come Active — not the dry-861 suicide."""
+    from cg.api import SelectContext
+
+    water = int(EnergyType.WATER)
+    sno = _pkm(sp._CARDS["snorunt"], energies=[water])
+    staryu = _pkm(sp._OC_STARYU)
+    me = _player(
+        bench=[sno, staryu],
+        hand=[NS(id=sp._CARDS["mega_froslass_ex"])],
+    )
+    obs = _obs(turn=6, my_index=0, me=me, opp=_player(active=_pkm(678, hp=340)))
+    sit = sp._compute_situation(obs)
+    obs.select = NS(context=int(SelectContext.TO_ACTIVE), deck=[])
+    pick_sno = NS(type=OptionType.CARD, area=AreaType.BENCH, index=0, playerIndex=0)
+    assert not (sp._dry_snorunt_to_active_illegal(obs, sit) and not sp._has_water_energy(sno))
+    assert sp._hard_rule_bonus(obs, pick_sno, sit) > sp._ATTACH_ILLEGAL + 1e-6
+
+
+def test_salvator_nested_evolves_to_bans_861():
+    """92545897 si=106: Salvator EVOLVES_TO must not pick 861 onto dry Active."""
+    from cg.api import SelectContext
+
+    sno = _pkm(sp._CARDS["snorunt"])
+    me = _player(
+        active=sno,
+        bench=[_pkm(sp._MUNKIDORI_ID)],
+        hand=[NS(id=sp._CARDS["mega_froslass_ex"])],
+    )
+    obs = _obs(turn=9, my_index=0, me=me, opp=_player(active=_pkm(678, hp=270)))
+    sit = sp._compute_situation(obs)
+    obs.select = NS(
+        context=int(SelectContext.EVOLVES_TO),
+        deck=[NS(id=sp._CARDS["mega_froslass_ex"])],
+        effect=NS(id=sp.SALVATOR),
+    )
+    pick = NS(type=OptionType.CARD, index=0, area=AreaType.LOOKING, playerIndex=0)
+    assert sp._salvator_lands_dry_active_861(obs, sit)
+    assert sp._hard_rule_bonus(obs, pick, sit) <= sp._ATTACH_ILLEGAL + 1e-6
+
+
+def test_starmie_dead_promote_fueled_861_switch_vs_three_prize():
+    """海星阵亡 + 三奖对面 + 备战有水861 → 立刻替换，不 END。"""
+    from cg.api import SelectContext
+
+    water = int(EnergyType.WATER)
+    fueled_861 = _pkm(sp._CARDS["mega_froslass_ex"], energies=[water])
+    me = _player(
+        active=_pkm(sp._MUNKIDORI_ID, hp=110),
+        bench=[fueled_861],
+        hand=[NS(id=sp._OC_SWITCH)],
+    )
+    luc = _pkm(678, hp=340, maxHp=340)
+    luc.megaEx = True
+    luc.prizeValue = 3
+    opp = _player(active=luc, hand_n=6)
+    obs = _obs(turn=8, my_index=0, me=me, opp=opp)
+    sit = sp._compute_situation(obs)
+    play = NS(type=OptionType.PLAY, index=0)
+    end = NS(type=OptionType.END)
+    atk = NS(type=OptionType.ATTACK, attackId=1239)
+    sit["select_options"] = [play, end, atk]
+    assert sp._starmie_dead_promote_fueled_861_live(obs, sit)
+    assert sp._hard_rule_bonus(obs, play, sit) >= sp._DOMINATE_OPEN_PATH
+    assert sp._hard_rule_bonus(obs, end, sit) <= -sp._DOMINATE_OPEN_PATH
+    assert sp._hard_rule_bonus(obs, atk, sit) <= -sp._DOMINATE_OPEN_PATH
+    obs.select = NS(context=int(SelectContext.TO_ACTIVE), deck=[])
+    pick = NS(type=OptionType.CARD, area=AreaType.BENCH, index=0, playerIndex=0)
+    sit["select_options"] = [pick]
+    assert sp._hard_rule_bonus(obs, pick, sit) >= sp._DOMINATE_OPEN_PATH
+
+
+def test_starmie_dead_promote_skips_dry_861_and_two_prize():
+    """干 861 不补位；二奖对面不开这刀。"""
+    water = int(EnergyType.WATER)
+    dry_861 = _pkm(sp._CARDS["mega_froslass_ex"], energies=[])
+    me_dry = _player(
+        active=_pkm(sp._MUNKIDORI_ID, hp=110),
+        bench=[dry_861],
+        hand=[NS(id=sp._OC_SWITCH)],
+    )
+    luc = _pkm(678, hp=340, maxHp=340)
+    luc.prizeValue = 3
+    obs_dry = _obs(turn=8, my_index=0, me=me_dry, opp=_player(active=luc, hand_n=6))
+    sit_dry = sp._compute_situation(obs_dry)
+    assert not sp._starmie_dead_promote_fueled_861_live(obs_dry, sit_dry)
+
+    fueled = _pkm(sp._CARDS["mega_froslass_ex"], energies=[water])
+    me_2p = _player(
+        active=_pkm(sp._MUNKIDORI_ID, hp=110),
+        bench=[fueled],
+        hand=[NS(id=sp._OC_SWITCH)],
+    )
+    two = _pkm(999, hp=200, maxHp=200)
+    two.ex = True
+    two.prizeValue = 2
+    obs_2p = _obs(turn=8, my_index=0, me=me_2p, opp=_player(active=two, hand_n=4))
+    sit_2p = sp._compute_situation(obs_2p)
+    assert not sp._starmie_dead_promote_fueled_861_live(obs_2p, sit_2p)
+
+
+def test_starmie_alive_does_not_force_promote_861():
+    """海星还在场：补位刀不开（一击切仍走 FroslassCut）。"""
+    water = int(EnergyType.WATER)
+    me = _aggression_me(
+        bench=[_pkm(sp._CARDS["mega_froslass_ex"], energies=[water])],
+        hand=[NS(id=sp._OC_SWITCH)],
+    )
+    luc = _pkm(678, hp=340, maxHp=340)
+    luc.prizeValue = 3
+    obs = _obs(turn=8, my_index=0, me=me, opp=_player(active=luc, hand_n=6))
+    sit = sp._compute_situation(obs)
+    assert not sp._starmie_dead_promote_fueled_861_live(obs, sit)
+
+
 def test_draw66_closeout_ability_beats_jetting_when_offered():
     """Draw66Closeout: Run Away before Jetting under fueled must_close."""
     water = int(EnergyType.WATER)
@@ -1170,6 +1309,7 @@ def test_opening_play_munk_when_mega_secured():
     sit = sp._compute_situation(obs)
     play_munk = NS(type=OptionType.PLAY, index=0)
     play_egg = NS(type=OptionType.PLAY, index=1)
+    sit["select_options"] = [play_munk, play_egg]
     assert sit["turn_plan"].acquire.targets == (sp._MUNKIDORI_ID,)
     assert sp._hard_rule_bonus(obs, play_munk, sit) >= sp._DOMINATE_OPEN_PATH - 30.0 - 1e-6
     assert sp._hard_rule_bonus(obs, play_munk, sit) > sp._hard_rule_bonus(obs, play_egg, sit)
@@ -1713,6 +1853,19 @@ def test_dp_stall_draw_seated_munk_dry_prefers_lillie():
     assert sp._hard_rule_bonus(obs, play, sit) > sp._hard_rule_bonus(obs, jet, sit)
 
 
+def test_dp_stall_ghost_does_not_starve_jetting():
+    """Autopsy 92357953: Lillie in hand but not offered → do not starve Jetting."""
+    me = _aggression_me(hand=[NS(id=sp.LILLIE)])
+    obs = _obs(turn=6, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    # Only Jetting offered — draw supporter is a ghost claim.
+    sit["select_options"] = [jet]
+    sit.pop("midgame_actionable", None)
+    assert sp._dp_stall_draw_live(obs, sit, sit.get("turn_plan"))
+    assert sp._hard_rule_bonus(obs, jet, sit) >= sp._DOMINATE_OPEN_PATH - 1e-6
+
+
 def test_seatmunk_pad_then_jetting_is_sequencing_not_mutex():
     """After Pad resolves (hand gains Munk), Jetting closer is available next."""
     me = _aggression_me(hand=[NS(id=sp._MUNKIDORI_ID)])
@@ -1728,11 +1881,19 @@ def test_seatmunk_pad_then_jetting_is_sequencing_not_mutex():
 # ── SeatSnorunt-V1: post-DP egg before Jetting under must_close ──────────────
 
 def test_seatsnorunt_beats_jetting_under_must_close():
-    """Fueled Mega + Munk/Dark + open bench + hand Snorunt → PLAY ≻ Jetting."""
+    """Fueled Mega + Munk/Dark + open bench + hand Snorunt → PLAY ≻ Jetting.
+
+    3-prize Mega opposite so the Froslass second-attacker line is live.
+    """
     dark = int(EnergyType.DARKNESS)
     munk = _pkm(sp._MUNKIDORI_ID, energies=[dark])
     me = _aggression_me(bench=[munk], hand=[NS(id=sp._CARDS["snorunt"])])
-    obs = _obs(turn=8, my_index=0, me=me, opp=_player(active=_pkm(999, hp=300)))
+    obs = _obs(
+        turn=8,
+        my_index=0,
+        me=me,
+        opp=_player(active=_pkm(sp._OC_MEGA_STARMIE, hp=330)),
+    )
     sit = sp._compute_situation(obs)
     play = NS(type=OptionType.PLAY, index=0)
     jet = NS(type=OptionType.ATTACK, attackId=JETTING)
@@ -1772,3 +1933,420 @@ def test_seatsnorunt_silent_without_munk_dark():
     assert not sp._seat_snorunt_prep_live(obs, sit, sit["board"], sit["turn_plan"])
     assert sp._hard_rule_bonus(obs, jet, sit) >= sp._DOMINATE_OPEN_PATH - 1e-6
     assert sp._hard_rule_bonus(obs, play, sit) <= -sp._DOMINATE_OPEN_PATH + 1e-6
+
+
+# ── Evolve861Closeout-V1: egg+861 before Jetting / Active egg evolve ─────────
+
+def test_evolve861_beats_jetting_under_must_close():
+    """Fueled Mega + Munk/Dark + bench Snorunt + hand 861 → EVOLVE ≻ Jetting."""
+    dark = int(EnergyType.DARKNESS)
+    munk = _pkm(sp._MUNKIDORI_ID, energies=[dark])
+    sno = _pkm(sp._CARDS["snorunt"])
+    me = _aggression_me(
+        bench=[munk, sno],
+        hand=[NS(id=sp._CARDS["mega_froslass_ex"])],
+    )
+    obs = _obs(
+        turn=8,
+        my_index=0,
+        me=me,
+        opp=_player(active=_pkm(sp._OC_MEGA_STARMIE, hp=330)),
+    )
+    sit = sp._compute_situation(obs)
+    evo = NS(type=OptionType.EVOLVE, area=AreaType.HAND, index=0)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    sit["select_options"] = [evo, jet]
+    assert sp._evolve_861_prep_live(obs, sit, sit["board"], sit["turn_plan"])
+    sp_evo = sp._hard_rule_bonus(obs, evo, sit)
+    sp_jet = sp._hard_rule_bonus(obs, jet, sit)
+    assert sp_evo >= sp._DOMINATE_OPEN_PATH - 1e-6
+    assert sp_evo > sp_jet
+    assert sp_jet <= -sp._DOMINATE_OPEN_PATH + 1e-6
+
+
+def test_active_snorunt_watered_paths_evolve():
+    """HARVEST: watered Active Snorunt + 861 in hand → evolve-in-place."""
+    water = int(EnergyType.WATER)
+    me = _player(
+        active=_pkm(sp._CARDS["snorunt"], energies=[water]),
+        bench=[_pkm(sp._MUNKIDORI_ID, energies=[int(EnergyType.DARKNESS)])],
+        hand=[NS(id=sp._CARDS["mega_froslass_ex"])],
+    )
+    opp_act = _pkm(678, hp=150, maxHp=330)
+    opp_act.ex = True
+    opp_act.prizeValue = 3
+    obs = _obs(turn=10, my_index=0, me=me, opp=_player(active=opp_act, hand_n=5))
+    sit = sp._compute_situation(obs)
+    evo = NS(type=OptionType.EVOLVE, area=AreaType.HAND, index=0)
+    end = NS(type=OptionType.END)
+    sit["select_options"] = [evo, end]
+    assert sit["phase"].primary == "HARVEST"
+    assert sp._froslass_continuity_live(obs, sit)
+    assert sp._hard_rule_bonus(obs, evo, sit) >= sp._DOMINATE_OPEN_PATH - 1e-6
+    assert sp._hard_rule_bonus(obs, evo, sit) > sp._hard_rule_bonus(obs, end, sit)
+
+
+def test_dry_active_snorunt_evolve_861_illegal():
+    """Lucario 92537402/92538341: do not evolve dry Active Snorunt into 861."""
+    water = int(EnergyType.WATER)
+    me = _player(
+        active=_pkm(sp._CARDS["snorunt"]),
+        bench=[_pkm(sp._CARDS["mega_starmie_ex"], energies=[water])],
+        hand=[NS(id=sp._CARDS["mega_froslass_ex"])],
+    )
+    obs = _obs(turn=8, my_index=0, me=me, opp=_player(active=_pkm(678, hp=330)))
+    sit = sp._compute_situation(obs)
+    evo = NS(type=OptionType.EVOLVE, area=AreaType.HAND, index=0)
+    end = NS(type=OptionType.END)
+    sit["select_options"] = [evo, end]
+    assert not sp._froslass_continuity_live(obs, sit)
+    assert sp._hard_rule_bonus(obs, evo, sit) <= sp._ATTACH_ILLEGAL + 1e-6
+    assert sp._hard_rule_bonus(obs, end, sit) > sp._hard_rule_bonus(obs, evo, sit)
+
+
+def test_seatsnorunt_without_munk_vs_three_prize():
+    """861 factory does not wait for Munk: 3-prize + hand Snorunt ≻ Jetting."""
+    me = _aggression_me(hand=[NS(id=sp._CARDS["snorunt"])])
+    obs = _obs(
+        turn=8,
+        my_index=0,
+        me=me,
+        opp=_player(active=_pkm(sp._OC_MEGA_STARMIE, hp=330)),
+    )
+    sit = sp._compute_situation(obs)
+    play = NS(type=OptionType.PLAY, index=0)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    sit["select_options"] = [play, jet]
+    assert sp._seat_snorunt_prep_live(obs, sit, sit["board"], sit["turn_plan"])
+    assert sp._hard_rule_bonus(obs, play, sit) > sp._hard_rule_bonus(obs, jet, sit)
+    assert sp._hard_rule_bonus(obs, play, sit) >= sp._DOMINATE_OPEN_PATH - 1e-6
+
+
+def test_evolve861_without_munk_vs_three_prize():
+    """861 factory: bench egg + 861 in hand, no Munk, still evolve ≻ Jetting."""
+    sno = _pkm(sp._CARDS["snorunt"])
+    me = _aggression_me(
+        bench=[sno],
+        hand=[NS(id=sp._CARDS["mega_froslass_ex"])],
+    )
+    obs = _obs(
+        turn=8,
+        my_index=0,
+        me=me,
+        opp=_player(active=_pkm(sp._OC_MEGA_STARMIE, hp=330)),
+    )
+    sit = sp._compute_situation(obs)
+    evo = NS(type=OptionType.EVOLVE, area=AreaType.HAND, index=0)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    sit["select_options"] = [evo, jet]
+    assert sp._evolve_861_prep_live(obs, sit, sit["board"], sit["turn_plan"])
+    assert sp._hard_rule_bonus(obs, evo, sit) > sp._hard_rule_bonus(obs, jet, sit)
+
+
+def test_fuel861_setup_vs_lucario_330():
+    """Lucario 330: water bench 861 without a lethal gate (Abs Snow is 150)."""
+    water = int(EnergyType.WATER)
+    dry_861 = _pkm(sp._CARDS["mega_froslass_ex"], hp=300, maxHp=300, energies=[])
+    me = _aggression_me(bench=[dry_861], hand=[NS(id=water)])
+    obs = _obs(
+        turn=8,
+        my_index=0,
+        me=me,
+        opp=_player(active=_pkm(678, hp=330, maxHp=330)),
+    )
+    obs.current.energyAttached = False
+    sit = sp._compute_situation(obs)
+    assert sp._fuel_861_line_prep_live(obs, sit, sit["board"], sit["turn_plan"])
+    attach = NS(
+        type=OptionType.ATTACH,
+        area=AreaType.HAND,
+        index=0,
+        inPlayArea=int(AreaType.BENCH),
+        inPlayIndex=0,
+    )
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    sit["select_options"] = [attach, jet]
+    assert sp._hard_rule_bonus(obs, attach, sit) > sp._hard_rule_bonus(obs, jet, sit)
+
+
+def test_water_snorunt_before_evolve_when_861_held():
+    """Factory order: attach water to Snorunt before evolving 861."""
+    water = int(EnergyType.WATER)
+    sno = _pkm(sp._CARDS["snorunt"])
+    me = _aggression_me(
+        bench=[sno],
+        hand=[NS(id=water), NS(id=sp._CARDS["mega_froslass_ex"])],
+    )
+    obs = _obs(
+        turn=8,
+        my_index=0,
+        me=me,
+        opp=_player(active=_pkm(678, hp=330, maxHp=330)),
+    )
+    obs.current.energyAttached = False
+    sit = sp._compute_situation(obs)
+    attach = NS(
+        type=OptionType.ATTACH,
+        area=AreaType.HAND,
+        index=0,
+        inPlayArea=int(AreaType.BENCH),
+        inPlayIndex=0,
+    )
+    evo = NS(type=OptionType.EVOLVE, area=AreaType.HAND, index=1)
+    sit["select_options"] = [attach, evo]
+    assert sp._fuel_861_line_prep_live(obs, sit, sit["board"], sit["turn_plan"])
+    assert sp._hard_rule_bonus(obs, attach, sit) > sp._hard_rule_bonus(obs, evo, sit)
+
+
+def test_salvator_banned_onto_dry_active_snorunt():
+    """Lucario 92545897: Salvator would only land 861 on dry Active Snorunt."""
+    me = _player(
+        active=_pkm(sp._CARDS["snorunt"]),
+        bench=[_pkm(sp._MUNKIDORI_ID)],
+        hand=[NS(id=sp.SALVATOR)],
+    )
+    obs = _obs(turn=9, my_index=0, me=me, opp=_player(active=_pkm(678, hp=270)))
+    sit = sp._compute_situation(obs)
+    play = NS(type=OptionType.PLAY, index=0)
+    end = NS(type=OptionType.END)
+    sit["select_options"] = [play, end]
+    assert sp._hard_rule_bonus(obs, play, sit) <= sp._ATTACH_ILLEGAL + 1e-6
+    assert sp._hard_rule_bonus(obs, end, sit) > sp._hard_rule_bonus(obs, play, sit)
+
+
+def test_evolve861_does_not_beat_jetting_vs_dragapult_ban():
+    """2-prize Dragapult: second Starmie, not a new 861 line (OHKO-proof)."""
+    dark = int(EnergyType.DARKNESS)
+    munk = _pkm(sp._MUNKIDORI_ID, energies=[dark])
+    sno = _pkm(sp._CARDS["snorunt"])
+    me = _aggression_me(
+        bench=[munk, sno],
+        hand=[NS(id=sp._CARDS["mega_froslass_ex"])],
+    )
+    opp_act = _pkm(121, hp=300, maxHp=320)
+    opp_act.ex = True
+    opp_act.prizeValue = 2
+    obs = _obs(turn=8, my_index=0, me=me, opp=_player(active=opp_act, hand_n=4))
+    sit = sp._compute_situation(obs)
+    assert sit["turn_plan"].facts.ban_froslass_line
+    assert sit["turn_plan"].gap.need_second_starmie
+    assert not sit["turn_plan"].combat.froslass_build_allowed
+    assert not sp._evolve_861_prep_live(obs, sit, sit["board"], sit["turn_plan"])
+    evo = NS(type=OptionType.EVOLVE, area=AreaType.HAND, index=0)
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    sit["select_options"] = [evo, jet]
+    assert sp._hard_rule_bonus(obs, jet, sit) >= sp._DOMINATE_OPEN_PATH - 1e-6
+    assert sp._hard_rule_bonus(obs, evo, sit) < sp._hard_rule_bonus(obs, jet, sit)
+
+
+def test_fuel861_attach_beats_jetting_when_abs_snow_lethal():
+    """Fuel861Closeout: dry 861 + water when Absolute Snow KOs, Jetting cannot."""
+    water = int(EnergyType.WATER)
+    active = _pkm(
+        sp._CARDS["mega_starmie_ex"], hp=280, maxHp=330, energies=[water],
+    )
+    dry_861 = _pkm(sp._CARDS["mega_froslass_ex"], hp=300, maxHp=300, energies=[])
+    me = _aggression_me(
+        active=active,
+        bench=[dry_861],
+        hand=[NS(id=int(EnergyType.WATER))],
+    )
+    # energyAttached false
+    opp_act = _pkm(900, hp=140, maxHp=200)
+    opp_act.ex = True
+    opp_act.prizeValue = 2
+    opp = _player(active=opp_act, hand_n=2)  # Resentful 100 < 140; Abs Snow 150 OK
+    obs = _obs(turn=8, my_index=0, me=me, opp=opp)
+    obs.current.energyAttached = False
+    sit = sp._compute_situation(obs)
+    assert sp._fuel_861_prep_live(obs, sit, sit["board"], sit["turn_plan"])
+    attach = NS(
+        type=OptionType.ATTACH,
+        area=AreaType.HAND,
+        index=0,
+        inPlayArea=int(AreaType.BENCH),
+        inPlayIndex=0,
+    )
+    jet = NS(type=OptionType.ATTACK, attackId=JETTING)
+    sit["select_options"] = [attach, jet]
+    assert sp._hard_rule_bonus(obs, attach, sit) >= sp._DOMINATE_OPEN_PATH - 1e-6
+    assert sp._hard_rule_bonus(obs, jet, sit) <= -sp._DOMINATE_OPEN_PATH + 1e-6
+
+
+def test_fuel861_water_to_861_not_staryu_when_active_munk():
+    """Autopsy 92362767 t=58: Active Munk + dry 861 → water to 861 ≻ Staryu."""
+    water = int(EnergyType.WATER)
+    dark = int(EnergyType.DARKNESS)
+    munk = _pkm(sp._MUNKIDORI_ID, energies=[dark])
+    dry_861 = _pkm(sp._CARDS["mega_froslass_ex"], hp=300, maxHp=300, energies=[])
+    staryu = _pkm(sp._CARDS["staryu"])
+    me = _player(
+        active=munk,
+        bench=[dry_861, staryu],
+        hand=[NS(id=water)],
+    )
+    opp_act = _pkm(sp._CARDS["mega_starmie_ex"], hp=20, maxHp=330)
+    opp = _player(active=opp_act, hand_n=2)
+    obs = _obs(turn=9, my_index=0, me=me, opp=opp)
+    obs.current.energyAttached = False
+    sit = sp._compute_situation(obs)
+    assert sp._fuel_861_prep_live(obs, sit, sit["board"], sit["turn_plan"])
+    to_861 = NS(
+        type=OptionType.ATTACH, area=AreaType.HAND, index=0,
+        inPlayArea=int(AreaType.BENCH), inPlayIndex=0,
+    )
+    to_staryu = NS(
+        type=OptionType.ATTACH, area=AreaType.HAND, index=0,
+        inPlayArea=int(AreaType.BENCH), inPlayIndex=1,
+    )
+    sit["select_options"] = [to_861, to_staryu]
+    assert sp._hard_rule_bonus(obs, to_861, sit) > sp._hard_rule_bonus(obs, to_staryu, sit)
+
+
+def test_froslass_cut_abs_snow_lethal_when_resentful_short():
+    """Oneshot cut uses Absolute Snow 150 when Resentful is too low."""
+    water = int(EnergyType.WATER)
+    active = _pkm(
+        sp._CARDS["mega_starmie_ex"], hp=280, maxHp=330, energies=[water],
+    )
+    fueled_861 = _pkm(
+        sp._CARDS["mega_froslass_ex"], hp=300, maxHp=300, energies=[water],
+    )
+    me = _aggression_me(
+        active=active, bench=[fueled_861], hand=[NS(id=sp._OC_SWITCH)],
+    )
+    opp_act = _pkm(900, hp=140, maxHp=200)
+    opp_act.ex = True
+    opp_act.prizeValue = 2
+    opp = _player(active=opp_act, hand_n=2)  # Resentful=100 < 140
+    obs = _obs(turn=8, my_index=0, me=me, opp=opp)
+    sit = sp._compute_situation(obs)
+    assert sp._froslass_oneshot_cut_live(obs, sit)
+
+
+# ── HildaDig-V1 / GapSideBan-V1 ──────────────────────────────────────────────
+
+def test_hilda_dig_1031_beats_861_beats_66():
+    """Hilda TO_HAND: Mega Starmie ≻ Mega Froslass ≻ ban 66 when peers offered."""
+    from cg.api import SelectContext
+
+    # Force-enable for unit coverage (SHIP flag is off).
+    prev = sp._HILDA_DIG_ENABLED
+    sp._HILDA_DIG_ENABLED = True
+    try:
+        me = _aggression_me(hand=[NS(id=sp._CARDS["hilda"])])
+        obs = _obs(turn=4, my_index=0, me=me, opp=_player(active=_pkm(999)))
+        obs.select = NS(
+            context=int(SelectContext.TO_HAND),
+            deck=[
+                NS(id=sp._CARDS["dudunsparce"]),
+                NS(id=sp._CARDS["mega_froslass_ex"]),
+                NS(id=sp._CARDS["mega_starmie_ex"]),
+            ],
+            effect=NS(id=sp._CARDS["hilda"]),
+        )
+        sit = sp._compute_situation(obs)
+        c66 = NS(type=OptionType.CARD, index=0)
+        c861 = NS(type=OptionType.CARD, index=1)
+        c1031 = NS(type=OptionType.CARD, index=2)
+        sit["select_options"] = [c66, c861, c1031]
+        s66 = sp._hard_rule_bonus(obs, c66, sit)
+        s861 = sp._hard_rule_bonus(obs, c861, sit)
+        s1031 = sp._hard_rule_bonus(obs, c1031, sit)
+        assert s1031 > s861 > s66
+        assert s1031 >= sp._DOMINATE_OPEN_PATH + 30.0 - 1e-6
+        assert s861 >= sp._DOMINATE_OPEN_PATH + 20.0 - 1e-6
+        assert s66 <= -sp._DOMINATE_OPEN_PATH + 1e-6
+    finally:
+        sp._HILDA_DIG_ENABLED = prev
+
+
+def test_hilda_dig_861_when_1031_absent_bans_66():
+    """Autopsy 92295561 shape: {66,861} → 861; 66 demoted."""
+    from cg.api import SelectContext
+
+    prev = sp._HILDA_DIG_ENABLED
+    sp._HILDA_DIG_ENABLED = True
+    try:
+        me = _aggression_me(hand=[NS(id=sp._CARDS["hilda"])])
+        obs = _obs(turn=4, my_index=0, me=me, opp=_player(active=_pkm(999)))
+        obs.select = NS(
+            context=int(SelectContext.TO_HAND),
+            deck=[NS(id=sp._CARDS["dudunsparce"]), NS(id=sp._CARDS["mega_froslass_ex"])],
+            effect=NS(id=sp._CARDS["hilda"]),
+        )
+        sit = sp._compute_situation(obs)
+        c66 = NS(type=OptionType.CARD, index=0)
+        c861 = NS(type=OptionType.CARD, index=1)
+        sit["select_options"] = [c66, c861]
+        assert sp._hard_rule_bonus(obs, c861, sit) > sp._hard_rule_bonus(obs, c66, sit)
+        assert sp._hard_rule_bonus(obs, c66, sit) <= -sp._DOMINATE_OPEN_PATH + 1e-6
+    finally:
+        sp._HILDA_DIG_ENABLED = prev
+
+
+def test_gap_side_ban_rolled_back_silent():
+    """GapSideBan-V1 disabled (mirror WR tax); hook returns 0."""
+    duns = _pkm(65)  # DUNSPARCE_A
+    me = _aggression_me(
+        bench=[duns],
+        hand=[NS(id=65)],
+    )
+    obs = _obs(turn=6, my_index=0, me=me, opp=_player(active=_pkm(999)))
+    sit = sp._compute_situation(obs)
+    play = NS(type=OptionType.PLAY, index=0)
+    assert sp._GAP_SIDE_BAN_ENABLED is False
+    assert sp._gap_side_basic_ban_bonus(obs, play, sit) == 0.0
+
+
+def test_froslass_boss_play_beats_resentful_on_full_hp_second_attacker():
+    """861 Active + fat hand: Boss the bench Mega Lucario before Resentful."""
+    from cg.api import SelectContext
+
+    boss = NS(id=sp._BOSS_ID)
+    me = _harvest_me(hand=[boss], prize_n=5)
+    lucario = _pkm(678, hp=340, maxHp=340)
+    lucario.megaEx = True
+    wall = _pkm(235, hp=60, maxHp=60)
+    opp = _player(active=wall, bench=[lucario], hand_n=7)
+    obs = _obs(turn=10, my_index=0, me=me, opp=opp)
+    sit = sp._compute_situation(obs)
+    assert sit["phase"].primary == "HARVEST"
+    combat = sit["turn_plan"].combat
+    assert combat.boss_target is not None
+    assert combat.boss_target.card_id == 678
+    play_boss = NS(type=OptionType.PLAY, index=0)
+    resentful = NS(type=OptionType.ATTACK, attackId=RESENTFUL)
+    sit["select_options"] = [play_boss, resentful]
+    assert sp._hard_rule_bonus(obs, play_boss, sit) > sp._hard_rule_bonus(
+        obs, resentful, sit
+    )
+    assert sp._hard_rule_bonus(obs, play_boss, sit) >= sp._DOMINATE_OPEN_PATH
+    # Gust select: Lucario bench index 0 ≻ nothing else.
+    obs.select = NS(context=int(SelectContext.SWITCH), deck=[])
+    pick = NS(
+        type=OptionType.CARD,
+        playerIndex=1,
+        area=AreaType.BENCH,
+        index=0,
+    )
+    sit = sp._compute_situation(obs)
+    assert sp._hard_rule_bonus(obs, pick, sit) >= sp._DOMINATE_OPEN_PATH
+
+
+def test_froslass_resentful_when_no_better_boss_target():
+    """Front is already the 3-prize Resentful KO — attack, do not Boss."""
+    boss = NS(id=sp._BOSS_ID)
+    me = _harvest_me(hand=[boss], prize_n=5)
+    lucario = _pkm(678, hp=340, maxHp=340)
+    lucario.megaEx = True
+    opp = _player(active=lucario, bench=[_pkm(235, hp=60)], hand_n=7)
+    obs = _obs(turn=10, my_index=0, me=me, opp=opp)
+    sit = sp._compute_situation(obs)
+    assert sit["turn_plan"].combat.boss_target is None
+    play_boss = NS(type=OptionType.PLAY, index=0)
+    resentful = NS(type=OptionType.ATTACK, attackId=RESENTFUL)
+    sit["select_options"] = [play_boss, resentful]
+    assert sp._hard_rule_bonus(obs, resentful, sit) > sp._hard_rule_bonus(
+        obs, play_boss, sit
+    )

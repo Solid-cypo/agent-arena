@@ -93,11 +93,21 @@ def _has_energy(pokemon: Any, allowed: frozenset[int]) -> bool:
     return bool(_energy_ids(pokemon) & allowed)
 
 
+# Known Mega ex printings — engine sometimes omits megaEx/prizeValue.
+_MEGA_PRIZE_IDS = frozenset({MEGA_STARMIE, MEGA_FROSLASS, 678})  # 678 Mega Lucario
+_JETTING_ACTIVE = 120
+_JETTING_BENCH = 50
+_ADRENA_MAX = 30  # Munkidori moves up to 3 damage counters
+
+
 def _prize_value(pokemon: Any) -> int:
     explicit = _si(getattr(pokemon, "prizeValue", None))
     if explicit > 0:
         return explicit
-    return 2 if bool(getattr(pokemon, "ex", False) or getattr(pokemon, "megaEx", False)) else 1
+    cid = _si(getattr(pokemon, "id", None))
+    if cid in _MEGA_PRIZE_IDS or bool(getattr(pokemon, "megaEx", False)):
+        return 3
+    return 2 if bool(getattr(pokemon, "ex", False)) else 1
 
 
 @dataclass(frozen=True)
@@ -160,6 +170,9 @@ class TurnFacts:
     opp_munk_dp_online: bool = False
     ban_froslass_line: bool = False
     two_turn_mega_path: bool = False
+    starmie_line_count: int = 0
+    starmie_attacker_ready: bool = False
+    opp_attacker_prizes: int = 0
 
 
 @dataclass(frozen=True)
@@ -169,6 +182,7 @@ class TurnGap:
     need_energy: bool
     dp_gaps: tuple[str, ...]
     need_second_attacker: bool
+    need_second_starmie: bool = False
 
 
 @dataclass(frozen=True)
@@ -195,6 +209,7 @@ class CombatPlan:
     expected_prizes: int = 0
     expected_prize_delta: int = 0
     froslass_build_allowed: bool = False
+    adrena_target: OppTarget | None = None
 
 
 @dataclass(frozen=True)
@@ -214,6 +229,8 @@ MIDGAME_GAP_ORDER: tuple[str, ...] = (
     "PLAY_PLACER",
     "PLAY_SNORUNT",
     "EVOLVE_861",
+    "PLAY_STARYU",
+    "EVOLVE_SECOND_STARMIE",
     "DRAW_66",
 )
 
@@ -267,6 +284,18 @@ def enumerate_midgame_open_gaps(facts: TurnFacts, gap: TurnGap) -> tuple[str, ..
         ):
             open_set.add("EVOLVE_861")
 
+    if gap.need_second_starmie:
+        n_staryu = sum(1 for cid in facts.bench_ids if cid == STARYU) + (
+            1 if facts.active_id == STARYU else 0
+        )
+        n_mega = sum(1 for cid in facts.bench_ids if cid == MEGA_STARMIE) + (
+            1 if facts.active_id == MEGA_STARMIE else 0
+        )
+        if n_staryu + n_mega < 2:
+            open_set.add("PLAY_STARYU")
+        if n_staryu > 0 and MEGA_STARMIE in hand and n_mega < 2:
+            open_set.add("EVOLVE_SECOND_STARMIE")
+
     field_ids = set(facts.bench_ids) | (
         {facts.active_id} if facts.active_id else set()
     )
@@ -292,6 +321,10 @@ def build_turn_facts(
     turn = _si(getattr(obs.current, "turn", None))
 
     def can_evolve_now(pokemon: Any) -> bool:
+        # Engine often sets appearThisTurn without canEvolve/turnPlayed
+        # (autopsy 92356962: both Staryu sick → false "staryu_can_evolve").
+        if bool(getattr(pokemon, "appearThisTurn", False)):
+            return False
         explicit = getattr(pokemon, "canEvolve", None)
         if explicit is not None:
             return bool(explicit)
@@ -492,6 +525,25 @@ def build_turn_facts(
         opp_munk_dp_online=opp_munk_dp_online,
         ban_froslass_line=ban_froslass_line,
         two_turn_mega_path=two_turn_mega,
+        starmie_line_count=sum(
+            1 for cid in field_ids if cid in (STARYU, MEGA_STARMIE)
+        ),
+        starmie_attacker_ready=bool(
+            MEGA_STARMIE in field_ids
+            and any(
+                _si(getattr(p, "id", None)) in (STARYU, MEGA_STARMIE)
+                and _has_energy(p, _WATER_IDS)
+                for p in field
+            )
+        ),
+        opp_attacker_prizes=_infer_opp_attacker_prizes(
+            opp_active,
+            opp_bench,
+            lucario=opp_lucario_threat,
+            dragapult=opp_dragapult_threat,
+            archaludon=opp_archaludon_threat,
+            trevenant=opp_trevenant_threat,
+        ),
     )
 
 
@@ -519,9 +571,18 @@ def _turn_gap(facts: TurnFacts) -> TurnGap:
         need_energy=need_energy,
         dp_gaps=tuple(dp),
         need_second_attacker=(
-            facts.mega_starmie_on_field
+            facts.starmie_attacker_ready
             and not facts.mega_froslass_on_field
             and not facts.ban_froslass_line
+            and facts.opp_attacker_prizes >= 3
+        ),
+        need_second_starmie=(
+            facts.starmie_attacker_ready
+            and facts.starmie_line_count < 2
+            and (
+                facts.ban_froslass_line
+                or facts.opp_attacker_prizes == 2
+            )
         ),
     )
 
@@ -564,6 +625,8 @@ def missing_gap_types(facts: TurnFacts, gap: TurnGap) -> tuple[str, ...]:
     if gap.need_second_attacker and MEGA_FROSLASS not in hand and (
         not facts.snorunt_on_field and SNORUNT not in hand
     ):
+        types.append("SECOND_ATTACKER")
+    if gap.need_second_starmie and STARYU not in hand and MEGA_STARMIE not in hand:
         types.append("SECOND_ATTACKER")
     return tuple(dict.fromkeys(types))
 
@@ -622,10 +685,70 @@ def must_prioritize_draw(facts: TurnFacts, gap: TurnGap, combat: CombatPlan) -> 
     return count_missing_types(facts, gap) >= 3
 
 
+def _infer_opp_attacker_prizes(
+    opp_active: OppTarget | None,
+    opp_bench: tuple[OppTarget, ...],
+    *,
+    lucario: bool,
+    dragapult: bool,
+    archaludon: bool,
+    trevenant: bool,
+) -> int:
+    """2 vs 3 prize main attacker, from public board. 0 = unknown."""
+    if lucario:
+        return 3
+    if dragapult or archaludon or trevenant:
+        return 2
+    field = tuple(t for t in ((opp_active,) + opp_bench) if t)
+    if any(t.prizes >= 3 or t.card_id in _MEGA_PRIZE_IDS for t in field):
+        return 3
+    if any(t.prizes == 2 for t in field):
+        return 2
+    return 0
+
+
+def _froslass_damage(facts: TurnFacts) -> int:
+    """Resentful Refrain: 50 × opponent hand. Core 861 burst, not Abs Snow 150."""
+    return 50 * max(0, int(facts.opp_hand_count or 0))
+
+
 def _expected_froslass_prizes(facts: TurnFacts) -> int:
-    damage = 50 * facts.opp_hand_count
+    damage = _froslass_damage(facts)
     targets = tuple(t for t in ((facts.opp_active,) + facts.opp_bench) if t)
     return max((t.prizes for t in targets if 0 < t.hp <= damage), default=0)
+
+
+def _froslass_ko_prizes(target: OppTarget | None, damage: int) -> int:
+    if target is None or not (0 < target.hp <= damage):
+        return 0
+    return target.prizes
+
+
+def _froslass_boss_key(target: OppTarget) -> tuple:
+    # Prize first, then developed attacker, then full HP (满血二号打手).
+    return (target.prizes, target.boss_priority, target.hp, -target.index)
+
+
+def _effective_froslass_boss_candidate(
+    facts: TurnFacts,
+) -> tuple[OppTarget | None, int, int]:
+    """Gust a Resentful-KO bench target only when it improves prizes this turn.
+
+    Uses 861 damage (50×hand), not the Jetting 120 HP gate. Does not open
+    Boss→Jetting. Equal-prize gusts are skipped — spend the supporter only
+    when the grabbed attacker is worth more prizes than the current front.
+    """
+    damage = _froslass_damage(facts)
+    front = _froslass_ko_prizes(facts.opp_active, damage)
+    candidates = [t for t in facts.opp_bench if 0 < t.hp <= damage]
+    if not candidates:
+        return None, front, 0
+    best = max(candidates, key=_froslass_boss_key)
+    with_boss = best.prizes
+    delta = with_boss - front
+    if delta > 0:
+        return best, with_boss, delta
+    return None, front, 0
 
 
 def _rider_key(target: OppTarget) -> tuple:
@@ -638,24 +761,64 @@ def _boss_key(target: OppTarget, *, jetting_damage: int = 120) -> tuple:
     return (koable, target.prizes, target.boss_priority, -target.hp, -target.index)
 
 
-def _double_ko(facts: TurnFacts) -> tuple[OppTarget | None, OppTarget | None]:
-    if not facts.active_ready_mega or facts.active_id != MEGA_STARMIE:
-        return None, None
-    rider_limit = 80 if facts.transferable_damage >= 30 and facts.munkidori_has_dark else 50
+def _adrena_extra(facts: TurnFacts) -> int:
+    if not facts.munkidori_has_dark:
+        return 0
+    return min(_ADRENA_MAX, max(0, facts.transferable_damage))
+
+
+def _pick_jetting_rider(facts: TurnFacts, *, extra_dp: int = 0) -> OppTarget | None:
+    limit = _JETTING_BENCH + extra_dp
     riders = [
         t
         for t in facts.opp_bench
-        if 0 < t.hp <= rider_limit and not t.attack_protected
+        if 0 < t.hp <= limit and not t.attack_protected
     ]
     if not riders:
-        return None, None
-    rider = max(riders, key=_rider_key)
+        return None
+    if extra_dp:
+        combo = [t for t in riders if t.hp > _JETTING_BENCH]
+        if combo:
+            return max(combo, key=_rider_key)
+    return max(riders, key=_rider_key)
+
+
+def _pick_adrena_target(
+    facts: TurnFacts,
+    rider: OppTarget | None,
+    *,
+    extra_dp: int,
+) -> OppTarget | None:
+    """Park Adrena on a bench 50+DP KO unless DP is what KOs the active attacker."""
+    if extra_dp <= 0:
+        return None
     active = facts.opp_active
-    if active and 0 < active.hp <= 120:
+    jetting_ko_active = bool(active and 0 < active.hp <= _JETTING_ACTIVE)
+    dp_enables_active_ko = bool(
+        active
+        and active.hp > _JETTING_ACTIVE
+        and active.hp <= _JETTING_ACTIVE + extra_dp
+    )
+    if dp_enables_active_ko and not jetting_ko_active:
+        return active
+    if rider is not None:
+        return rider
+    return _pick_jetting_rider(facts, extra_dp=extra_dp)
+
+
+def _double_ko(facts: TurnFacts) -> tuple[OppTarget | None, OppTarget | None]:
+    if not facts.active_ready_mega or facts.active_id != MEGA_STARMIE:
+        return None, None
+    extra = _adrena_extra(facts)
+    rider = _pick_jetting_rider(facts, extra_dp=extra)
+    if not rider:
+        return None, None
+    active = facts.opp_active
+    if active and 0 < active.hp <= _JETTING_ACTIVE:
         return rider, None
-    bosses = [t for t in facts.opp_bench if t != rider and 0 < t.hp <= 120]
+    bosses = [t for t in facts.opp_bench if t != rider and 0 < t.hp <= _JETTING_ACTIVE]
     boss = max(bosses, key=_boss_key, default=None)
-    return (rider, boss) if boss else (None, None)
+    return rider, boss
 
 
 def _front_prizes(target: OppTarget | None) -> int:
@@ -753,41 +916,61 @@ def _combat_plan(facts: TurnFacts) -> CombatPlan:
         expected_f >= facts.prize_self
         or (froslass_can_attack and not starmie_can_attack)
     )
-    # MidOps: Lucario fast pressure opens 861 even when expected_f dips <2.
-    # (surplus861Rev dp_surplus / 3-prize revenge FAILED munk_dark gate — rolled back.)
-    froslass_allowed = (
+    # Assume Mega Starmie will die: after the attacker is fueled, immediately
+    # build the second attacker. 3-prize decks → Froslass; 2-prize → 2nd Starmie.
+    # Do not use Starmie HP. Lethal 861 already online still allowed.
+    three_prize_build = (
         not facts.ban_froslass_line
-        and (
-            expected_f >= 2
-            or froslass_exception
-            or bool(facts.opp_lucario_threat)
-        )
+        and facts.starmie_attacker_ready
+        and facts.opp_attacker_prizes >= 3
+    )
+    continuity_finish = (
+        facts.snorunt_on_field
+        and MEGA_FROSLASS in facts.hand_ids
+        and facts.munkidori_on_field
+        and facts.munkidori_has_dark
+        and (expected_f >= 2 or froslass_exception)
+    )
+    # Already attacking on 104/861: finish the Mega. Do not use a benched
+    # 104 to open 861 while fueled Starmie is the Active attacker.
+    already_on_froslass = facts.active_id in (FROSLASS, MEGA_FROSLASS)
+    froslass_allowed = bool(
+        froslass_can_attack
+        or froslass_exception
+        or three_prize_build
+        or continuity_finish
+        or (already_on_froslass and expected_f >= 2)
     )
 
     if facts.active_ready_mega and facts.active_id == MEGA_STARMIE:
+        extra = _adrena_extra(facts)
         rider, boss_raw = _double_ko(facts)
+        if rider is None:
+            rider = _pick_jetting_rider(facts, extra_dp=extra)
+        adrena = _pick_adrena_target(facts, rider, extra_dp=extra)
         required = _dp_prep_steps(facts)
         candidate = boss_raw
         can_boss = (
             BOSS_ORDERS in facts.hand_ids and not facts.supporter_played
         )
-        if can_boss and candidate is None:
-            # Also consider a prize-improving gust when the Active is already
-            # KO-able (effective Boss), or any KO-able front when it is not.
+        if candidate is None:
+            # Prize-improving / DoubleKO gust. Keep computing the target even
+            # after Boss is played (nested SWITCH still needs it). Exclude rider.
             bosses = [
                 t
                 for t in facts.opp_bench
                 if t is not rider and 0 < t.hp <= 120
             ]
             candidate = max(bosses, key=_boss_key, default=None)
-        if not can_boss:
-            candidate = None
         boss, expected, delta = _effective_boss_candidate(
             facts, rider=rider, candidate=candidate,
         )
         # Wave L: Boss before DP prep so prize gust is not starved by 104/Adrena.
         # (CombatClose-V2 Adrena→Boss 已证伪回滚 — 勿再改此序。)
-        if boss is not None:
+        # Nested gust: keep boss_target after supporterPlayed; only queue PLAY
+        # while Boss is still in hand (92530813: wiping the target let low-HP
+        # fallback Boss the 10 HP rider and break DoubleKO).
+        if boss is not None and can_boss:
             required = ["BOSS", *required]
         mode: CombatMode = "DOUBLE_KO" if rider else "MEGA_MUST_ATTACK"
         return CombatPlan(
@@ -800,6 +983,7 @@ def _combat_plan(facts: TurnFacts) -> CombatPlan:
             expected_prizes=expected,
             expected_prize_delta=delta,
             froslass_build_allowed=froslass_allowed,
+            adrena_target=adrena,
         )
 
     if (
@@ -820,12 +1004,27 @@ def _combat_plan(facts: TurnFacts) -> CombatPlan:
         )
 
     if facts.active_ready_mega and facts.active_id == MEGA_FROSLASS:
+        required: list[str] = []
+        boss = None
+        delta = 0
+        expected = expected_f
+        can_boss = (
+            BOSS_ORDERS in facts.hand_ids and not facts.supporter_played
+        )
+        if can_boss:
+            boss, expected, delta = _effective_froslass_boss_candidate(facts)
+            if boss is not None:
+                required = ["BOSS"]
+            else:
+                expected = expected_f
         return CombatPlan(
             mode="FROSLASS_ATTACK",
             attack_required=True,
-            required_before_attack=(),
-            next_action="ATTACK",
-            expected_prizes=expected_f,
+            required_before_attack=tuple(required),
+            next_action=required[0] if required else "ATTACK",
+            boss_target=boss,
+            expected_prizes=expected,
+            expected_prize_delta=delta,
             froslass_build_allowed=froslass_allowed,
         )
 
@@ -909,13 +1108,33 @@ def _acquire_targets(facts: TurnFacts, gap: TurnGap, objective: Objective) -> tu
     if MEGA_STARMIE in hand and facts.staryu_can_evolve:
         return ()
     if gap.need_evolution and MEGA_STARMIE not in hand:
-        # G1: always dig Mega Starmie — never mix FROSLASS/SNORUNT into targets
-        # (that tripped UB-1 and caused miss_ub_mega while Ball sat unused).
+        # Unified Ball/Mega dig (autopsy 92356962):
+        # - Cannot evolve this turn → never dig Mega (Ball digs Meowth→Lillie).
+        # - No Lillie → Ball prefers Meowth; Mega stays listed only when landable
+        #   so free Hilda/Salvator can still close (Ball gated separately).
+        # - Lillie + supporter free + landable → dig Mega, then play Lillie.
         out: list[int] = []
         if not facts.line_has_water and not hand.intersection(_WATER_IDS):
             out.append(WATER_BASIC)
+        can_land = bool(facts.staryu_can_evolve)
+        has_lillie = LILLIE in hand
+        meowth_online = MEOWTH_EX in facts.bench_ids or facts.active_id == MEOWTH_EX
+        meowth_missing = not meowth_online and MEOWTH_EX not in hand
+        if not can_land:
+            if not has_lillie and meowth_missing:
+                out.append(MEOWTH_EX)
+            return tuple(dict.fromkeys(out))
+        if has_lillie and not facts.supporter_played:
+            out.append(MEGA_STARMIE)
+            return tuple(dict.fromkeys(out))
+        if not has_lillie and meowth_missing:
+            # Meowth first so Ball TO_HAND prefers it over Mega.
+            out.append(MEOWTH_EX)
+            out.append(MEGA_STARMIE)
+            return tuple(dict.fromkeys(out))
+        # Landable: Lillie held but supporter spent, or Meowth already available.
         out.append(MEGA_STARMIE)
-        return tuple(out)
+        return tuple(dict.fromkeys(out))
 
     line_online = _attacker_line_online(facts)
     mega_secured = bool(facts.mega_starmie_on_field or MEGA_STARMIE in hand)
@@ -1010,6 +1229,20 @@ def _acquire_targets(facts: TurnFacts, gap: TurnGap, objective: Objective) -> tu
             return (SNORUNT, MEGA_FROSLASS)
         if MEGA_FROSLASS not in hand:
             return (MEGA_FROSLASS,)
+    if gap.need_second_starmie:
+        out: list[int] = []
+        n_staryu = sum(1 for cid in facts.bench_ids if cid == STARYU) + (
+            1 if facts.active_id == STARYU else 0
+        )
+        n_mega = sum(1 for cid in facts.bench_ids if cid == MEGA_STARMIE) + (
+            1 if facts.active_id == MEGA_STARMIE else 0
+        )
+        if n_staryu + n_mega < 2 and STARYU not in hand:
+            out.append(STARYU)
+        if n_staryu > 0 and n_mega < 2 and MEGA_STARMIE not in hand:
+            out.append(MEGA_STARMIE)
+        if out:
+            return tuple(dict.fromkeys(out))
     return ()
 
 
@@ -1043,7 +1276,9 @@ def _recover_target(facts: TurnFacts, gap: TurnGap) -> int | None:
         return BOSS_ORDERS
     for cid in (STARYU, MEGA_STARMIE, SNORUNT, FROSLASS, MUNKIDORI):
         if cid in discard and (
-            (cid in (STARYU, MEGA_STARMIE) and (gap.need_base or gap.need_evolution))
+            (cid in (STARYU, MEGA_STARMIE) and (
+                gap.need_base or gap.need_evolution or gap.need_second_starmie
+            ))
             or (cid == MUNKIDORI and "MUNKIDORI" in gap.dp_gaps)
             or (
                 cid in (SNORUNT, FROSLASS)
@@ -1066,6 +1301,27 @@ def _ub_would_force_burn_mega(facts: TurnFacts, gap: TurnGap) -> bool:
         del counts[ULTRA_BALL]
     # Non-Mega cards available as the two discards.
     safe = sum(n for cid, n in counts.items() if cid != MEGA_STARMIE)
+    return safe < 2
+
+
+def _ub_would_force_burn_protected(
+    facts: TurnFacts, protected: frozenset[int],
+) -> bool:
+    """True when UB's 2 discards must include a protected hand card.
+
+    Short hands that simply lack 2 discards are not treated as protected-burn
+    (engine won't offer Ball); only force-burn of live protected cards.
+    """
+    counts: Counter[int] = Counter(facts.hand_ids)
+    if counts.get(ULTRA_BALL, 0) <= 0:
+        return False
+    counts[ULTRA_BALL] -= 1
+    if counts[ULTRA_BALL] <= 0:
+        del counts[ULTRA_BALL]
+    protected_count = sum(n for cid, n in counts.items() if cid in protected)
+    if protected_count <= 0:
+        return False
+    safe = sum(n for cid, n in counts.items() if cid not in protected)
     return safe < 2
 
 
@@ -1126,8 +1382,13 @@ def _acquire_plan(facts: TurnFacts, gap: TurnGap, objective: Objective, combat: 
     second_done = facts.active_ready_mega and bool(facts.bench_ready_mega_id)
     # G1: digging Mega is never a "side-line" Ball — UB-1 must not block 1031.
     mega_is_target = MEGA_STARMIE in targets
+    meowth_is_target = MEOWTH_EX in targets
     mega_held = MEGA_STARMIE in hand
     line_water = bool(facts.line_has_water or WATER_BASIC in hand)
+    # Never burn Lillie to Ball; protect Crispin while the water path is open.
+    ub_protected: set[int] = {LILLIE}
+    if gap.need_energy or not line_water:
+        ub_protected.add(CRISPIN)
     if not target_is_pokemon:
         ball_allowed, reason = False, "no current Pokemon gap"
     elif mega_held and (facts.staryu_on_field or facts.mega_starmie_on_field):
@@ -1143,10 +1404,27 @@ def _acquire_plan(facts: TurnFacts, gap: TurnGap, objective: Objective, combat: 
     elif _ub_would_force_burn_mega(facts, gap):
         # Wave U2: engine must discard 2; hand would force Mega (or sole water).
         ball_allowed, reason = False, "UB-forced-burn Mega/critical water"
+    elif _ub_would_force_burn_protected(facts, frozenset(ub_protected)):
+        ball_allowed, reason = False, "UB-forced-burn Lillie/Crispin"
     elif need_mega_fetch and mega_is_target:
-        # Plan G1: authorize Ball while Mega is the gap (supporters still score
-        # higher in Layer1; do not let a dead held supporter lock Ball out).
-        ball_allowed, reason = True, "G1 need Mega — Ball dig authorized"
+        # Autopsy 92356962: Ball digs Mega only when same-turn land + Lillie
+        # ready after evolve. Otherwise dig Meowth, or fall through for free
+        # Hilda / last-resort landable Mega.
+        if not facts.staryu_can_evolve:
+            if meowth_is_target:
+                ball_allowed, reason = True, "UB dig Meowth (cannot land Mega)"
+            else:
+                ball_allowed, reason = False, "UB Mega blocked (cannot evolve this turn)"
+        elif LILLIE in hand and not facts.supporter_played:
+            ball_allowed, reason = True, "UB Mega: Lillie+landable+supporter free"
+        elif meowth_is_target and LILLIE not in hand:
+            ball_allowed, reason = True, "UB dig Meowth (no Lillie)"
+        else:
+            # Landable Mega listed for free search; Ball only if no free close.
+            if free_closes_gap:
+                ball_allowed, reason = False, "UB-3 free search closes current gap"
+            else:
+                ball_allowed, reason = True, "UB Mega fallback (landable, no free search)"
     elif free_closes_gap:
         ball_allowed, reason = False, "UB-3 free search closes current gap"
     elif (
@@ -1178,6 +1456,12 @@ def _acquire_plan(facts: TurnFacts, gap: TurnGap, objective: Objective, combat: 
         elif cid == MEGA_STARMIE:
             # Wave U2: never soft-burn held Mega even when dig target is a base.
             value = 10_000
+        elif cid == LILLIE:
+            # Autopsy 92356962: Ultra Ball must never discard Lillie.
+            value = 10_000
+        elif cid == CRISPIN and (gap.need_energy or not line_water):
+            # Crispin is the water/Dark path — do not Ball-burn it dry.
+            value = 9_500
         elif cid == WATER_BASIC and (gap.need_energy or combat.attack_required):
             value = 9_500
         elif cid == DARK_BASIC and "DARK_ENERGY" in gap.dp_gaps:
@@ -1205,8 +1489,9 @@ def _acquire_plan(facts: TurnFacts, gap: TurnGap, objective: Objective, combat: 
     # HandQual-V1.1 REJECTED (both knives): plan-step Ball demote → Opening 68%
     # (Hilda soft-tied Evolve under mega_offered DIG lock); discard-protect
     # Hilda/Salvator → Opening 73%. Keep V1 continuity set only.
-    if ball_allowed and need_mega_fetch:
-        for cid in (LILLIE, JUDGE, UNFAIR_STAMP):
+    # Lillie is always 10_000 above; reinforce Judge/Stamp on live digs.
+    if ball_allowed and (need_mega_fetch or meowth_is_target):
+        for cid in (JUDGE, UNFAIR_STAMP):
             if cid in hand:
                 values[cid] = max(values.get(cid, 100), 7_500)
         if facts.bench_open > 0:
@@ -1325,7 +1610,7 @@ def build_turn_plan(
         objective = "MAKE_ATTACKER"
     elif gap.dp_gaps:
         objective = "BUILD_DP"
-    elif gap.need_second_attacker:
+    elif gap.need_second_attacker or gap.need_second_starmie:
         objective = "SECOND_ATTACKER"
     else:
         objective = "DRAW"

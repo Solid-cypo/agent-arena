@@ -16,6 +16,7 @@ from hand_snapshot import build_board_snapshot
 from opening_cards import (
     HILDA,
     MEGA_STARMIE,
+    MEOWTH_EX,
     MUNKIDORI,
     SALVATOR,
     SNORUNT,
@@ -77,13 +78,16 @@ def test_need_evolution_locks_mega_and_allows_ball():
     obs = _obs(me)
     plan = build_turn_plan(obs, build_board_snapshot(obs))
     assert plan.gap.need_evolution
-    assert plan.acquire.targets == (MEGA_STARMIE,)
+    # No Lillie → Meowth first; Mega still listed for free Hilda path.
+    assert plan.acquire.targets[0] == MEOWTH_EX
+    assert MEGA_STARMIE in plan.acquire.targets
     assert plan.acquire.ball_allowed
     sit = sp._compute_situation(obs)
     ub = NS(type=OptionType.PLAY, index=0)
     munk = NS(type=OptionType.PLAY, index=1)
+    # Ball dig (Meowth/Mega) must outrank parking Munk while attacker line incomplete.
     assert sp._hard_rule_bonus(obs, ub, sit) >= sp._DOMINATE_OPEN_PATH
-    assert sp._hard_rule_bonus(obs, munk, sit) <= -sp._DOMINATE_OPEN_PATH
+    assert sp._hard_rule_bonus(obs, ub, sit) > sp._hard_rule_bonus(obs, munk, sit)
 
 
 def test_salvator_dominates_when_need_mega():

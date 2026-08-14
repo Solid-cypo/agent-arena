@@ -124,6 +124,23 @@ def test_dragapult_bans_froslass_line():
     assert not plan.combat.froslass_build_allowed
 
 
+def test_dragapult_continuity_does_not_start_861_build():
+    """2-prize Dragapult → second Starmie, not a new 861 line (OHKO-proof)."""
+    me = _player(
+        active=_pkm(MEGA_STARMIE, energies=(WATER_BASIC,)),
+        bench=(_pkm(MUNKIDORI, energies=(DARK,)), _pkm(SNORUNT)),
+        hand=(MEGA_FROSLASS, STARYU),
+    )
+    opp = _player(active=_pkm(121, hp=300, ex=True), hand_count=4)
+    plan = _plan(me, opp)
+    assert plan.facts.ban_froslass_line
+    assert plan.facts.opp_attacker_prizes == 2
+    assert not plan.combat.froslass_build_allowed
+    assert plan.gap.need_second_starmie
+    assert not plan.gap.need_second_attacker
+    assert "PLAY_STARYU" in plan.midgame_open_gaps
+
+
 def test_trevenant_bans_froslass_line():
     me = _player(active=_pkm(MEGA_STARMIE, energies=(WATER_BASIC,)))
     opp = _player(active=_pkm(879, hp=280), hand_count=5)
