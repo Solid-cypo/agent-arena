@@ -142,7 +142,8 @@ def test_dd7_forbid_when_no_66_left():
     board = _board(my_turn_number=4, prize_self=4, prize_opp=6)
     hand = _hand(hand_ids=[CRISPIN], hand_size=3, has_lillie=False)
     template = Counter(load_deck_template())
-    seen = Counter({DUDUNSPARCE: 2, 65: 2, 305: 1})
+    # Exhaust all 66 + free-retreat 65 copies (deck no longer runs 305).
+    seen = Counter({DUDUNSPARCE: template[DUDUNSPARCE], 65: template[65], 305: template[305]})
     remaining = Counter(template)
     for cid, n in seen.items():
         remaining[cid] = max(0, remaining[cid] - n)

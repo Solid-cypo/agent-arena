@@ -9,48 +9,31 @@
 
 ## 当前状态（每次会话结束时更新此节）
 
-- **更新日期**：2026-08-14
-- **LeakFix Dry861 已交 Kaggle [`55488542`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions)**（COMPLETE **517.0**）：公局 **12/27=44.4%**（vs 55473608 **9/25=36%**，+8pp）。Mega **93%**；861 上场 **7/27=26%**、开火 **5/7=71%**（上包 6/10=60%）；Boss **52%**（上包 24%）。**干 861 进前场：0/27**（刀生效）。仍差 DpStall **526.5** ~9.5。fade [`data/kaggle_episodes/review_LeakFixDry861_55488542/FADE_ANALYSIS.md`](data/kaggle_episodes/review_LeakFixDry861_55488542/FADE_ANALYSIS.md)。861 局仍 1/7 胜；2 局 `861_no_fire`；本样本无路卡。UTC 新日配额重置。
+- **更新日期**：2026-08-16（比赛末日）
+- **现役最佳本地档（回滚用）**：ClosableNsRockInn [`55517032`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions) **549.8** → [`data/restore_peaks/closableNsRockInn_55517032/`](data/restore_peaks/closableNsRockInn_55517032/) + tar [`data/restore_peaks/submission_starmie_closableNsRockInn_55517032.tar.gz`](data/restore_peaks/submission_starmie_closableNsRockInn_55517032.tar.gz)
+- **IgnitionNebula+LilliePreserve 已交 Kaggle [`55538325`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions) / [`55538332`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions)**（PENDING）：Deck −1 废墟 +1 引火；星云窗希尔达/贴能；引火撤退油仅万不得已；LilliePreserve（93425582）。对照 Closable **549.8**。本地档 tar [`data/restore_peaks/submission_starmie_ignitionNebula_55538325.tar.gz`](data/restore_peaks/submission_starmie_ignitionNebula_55538325.tar.gz)
+- **LastDayAutopsy 已交 Kaggle [`55528724`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions)**（COMPLETE **496.0**）：叠在 Closable 上 — MeowthSeat / DryCrispin / Lillie>Judge / OpeningJudgeYield / 禁第二只干 Mega 等。**撤回 EmptyBenchJetting**（55523046 549→456）。
+- **Closable861+NsWater861+RockInn 已交 Kaggle [`55517032`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions)**（COMPLETE **549.8**）：公局约 15/29≈52%。相对 LeakFix 55488542（**528.2**）仍领先。EmptyBench [`55523046`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions) **456.5** 已证伪勿再交。
+- **LeakFix Dry861 已交 Kaggle [`55488542`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions)**（COMPLETE **528.2**）：公局曾记 12/27=44.4%。fade [`data/kaggle_episodes/review_LeakFixDry861_55488542/FADE_ANALYSIS.md`](data/kaggle_episodes/review_LeakFixDry861_55488542/FADE_ANALYSIS.md)。
 - **SecondAtk+Adrena+UbGhost 已交 Kaggle [`55473608`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions)**（COMPLETE **478.2**，曾 505.4/491.7）：公局 **9/25=36%**。861 开火 **6/10**；路卡 **0/6**（3 局干 861 进前场）。fade [`data/kaggle_episodes/review_SecondAtk_55473608/FADE_ANALYSIS.md`](data/kaggle_episodes/review_SecondAtk_55473608/FADE_ANALYSIS.md)
 - **FroslassCont 已交 Kaggle [`55462041`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions)**（COMPLETE **466.5**）：公局 **12/27=44%**；Mega 89%；861 上场 8/27=30%、开火仅 **1/8**；进 66 = 0。未超过同血统 DpStall [`55445134`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions) **526.5**。fade [`data/kaggle_episodes/review_FroslassCont_55462041/FADE_ANALYSIS.md`](data/kaggle_episodes/review_FroslassCont_55462041/FADE_ANALYSIS.md)
 - **CutDraw66Ship 已交 Kaggle [`55455986`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions)**（COMPLETE **453.8**，曾记 383.1）：FroslassCut + Draw66Closeout/AfterEvolve + DkAdrena + dryMegaBan，叠在 DpStallDraw 栈上。软地板全 PASS — [`logs/h2h_audit_cutDraw66_n200/GATE.md`](logs/h2h_audit_cutDraw66_n200/GATE.md)
 - **DpStallDraw-V2.1 已交 Kaggle [`55445134`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions)**（COMPLETE **526.5**，曾记 508.7）：喷水前莉莉艾/裁判/希尔达。闸 [`logs/h2h_audit_midConvert_n200/GATE.md`](logs/h2h_audit_midConvert_n200/GATE.md)
 - **Field6Ship explore 已交 Kaggle [`55433727`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions)**（COMPLETE **465.2**）：[`logs/h2h_audit_field6Ship_n200/GATE.md`](logs/h2h_audit_field6Ship_n200/GATE.md) — Opening mean **78.7%** / B·fm mean **63.7%** / dark mean 50.4%（软地板 dark FAIL，产品覆盖探针）
-- **RL 运行时一致性（2026-08-11 已验证，本地对拍替代复交）**：[`logs/h2h_audit_rlOn_n200/GATE.md`](logs/h2h_audit_rlOn_n200/GATE.md) — 打包事实：tar **不含 combat_loop** → 线上 OPENING_HANDOFF 分支死路，线上运行时 = HEAD + RL=1（仅 OPENING 接管）。三 seed n200 对拍：RL=1 ≈ RL=0 全指标噪声带内（WR 60.5 vs 61.3 / Opening 78.2 vs 78.7 / B·fm 62.5 vs 63.7 / B 席 58.3 vs 56.0）。**已证伪**：整局层面 Hybrid 税；`RL_ENABLED=0` 复交不值提交名额；本地 RL=0 闸对线上有代表性
-- **重大工具债修复（2026-08-11 晚）：Kaggle 回放 action/obs 错位一帧**：[`logs/diagnose_field6_zero_attack/REPLAY_OFFSET_FIX.md`](logs/diagnose_field6_zero_attack/REPLAY_OFFSET_FIX.md) — `steps[t].action` 应答的是 `steps[t-1].observation`。**作废**：PROBE.md §2/§3「线上该喷没喷 Class A 52-78%」「整局重放 match 仅 29%=回放≠现场」。修正后：整局有状态 match 71%、开局无状态 argmax match **98%**、taxonomy 线上=HEAD 逐行一致（LEAK 1/37）→ **线上运行时与本地政策一致，帧级回放对拍从此可信**。已修 4 个扫描脚本；其余读 replay action 的脚本沿用前先查配对
-- **55433727 线上开局重审**（同文档）：「T3 做不出打手」按闸口径不成立 — Mega 按时进化 **16/18=89%**；塌的是「可战斗」Active Mega+水≤T3 仅 **8/18=44%**（无 Mega×2=Budew 锁+水枪局、Mega 困 bench/donk×2、后手差一拍×3）。开局帧 **28% 并列最优**靠 ±0.02 随机 tie-break 掷骰子。可动刀面：① tie-break 政策化；② Mega+水困 bench 归因；③ 后手 T2 慢一拍簇
-- **「版本回退」质询终审（2026-08-12 凌晨，两轮）**：[`logs/h2h_audit_ver_compare/COMPARE.md`](logs/h2h_audit_ver_compare/COMPARE.md)
-  - **Opening 未回退**：HEAD Opening 合计 78-82%（对 fireform 和老包均保持）vs 老包自测 65-72%；线上进化达标 89%
-  - **公榜分实时复核**：P0 初读 610.4 是早期泡沫，**现 398.8**（38局收敛）；现役 Field6Ship 475.8→**494.8↑**（19局爬升中）；8月1日老栈收敛分更高：surplus861_deckfix **524.5** / ops_firefix **516.8**
-  - **面对面终审**：HEAD vs surplus861/firefix 四组 n200 全部 **~49.5% 精确打平** — P0→GP→F6S 十天刀工对老栈**净增益=0**；开局优势被中盘回吐（开局达标局 WR 仅 53-58%，B 席 39-49%）。「vs fireform 61.3%」是镜像闸口径高估
-  - **判决：不回退**（回退=打平还丢 Opening 增益；老包高分槽位仍在榜活着）。**闸协议必改**：G0 对手池扩为 {fireform, surplus861_deckfix, ops_firefix}，中盘刀必须多对手池同时不回吐才放行
-  - **第三轮（严口径「打手出手」先≤T3/后≤T2）**：用户正确 — **绝对水平不合格**：线上现役 44%（B 席 38%）、本地 HEAD 也仅 52-55%；闸文 78.7% 是进化口径，粉饰了 ~25pp「进化了但出不了手」缺口。但**分座位归一后无回退**：P0 线上 52% 吃了 64% 先手局的座位运（其 B 席仅 22%）；现役 B 席 38% 为血统最佳；真回退是 GapParallel 版（A 席 17%）已收复。**Opening 硬指标升级为双轨（进化+出手），出手为主闸**
-- **有 Mega 零攻两局（92000238/91988778）已关闭**：[`logs/diagnose_field6_zero_attack/DIAGNOSE.md`](logs/diagnose_field6_zero_attack/DIAGNOSE.md) — 逐帧对拍 0 个 Class A 帧（整局无「充能 Mega+Jetting 可选」），真身=能量荒+短局被碾，无刀可开（该文档帧级数字已加勘误横幅）
-- **zero_boss 窄刀 NO-GO**：同文档 — 本地 6/6 跑次（n=1200）lift 全为负（−0.01…−0.12），与 no_861 同族标签≠死因；线上 +0.39 是 n=18 噪声。公局 ≥40 复核 lift 仍 >+0.2 才重开
-- **打手出手缺口专项结案（2026-08-12 凌晨）**：[`logs/diagnose_mega_attack_gap/GATE.md`](logs/diagnose_mega_attack_gap/GATE.md) — 三项判决：
-  - **归因**：线上 59 局逐帧 — 该攻没攻=0（must_close 无漏）；缺口主簇=「T1 杂兵前场+海星 bench」（B 席 fail 17/20，P0 同构非回退），多数是资源死局且政策有 T3 补救线
-  - **SetupActive 刀三版全 NO-GO 已回退**：发现 T0 首发纯 ±0.02 噪声掷骰子（91988778 铁证帧），但硬排序 V1/V2/V3 全不过闸（干净口径 V3 = 57.5% vs 基线 60.5%）；观察性「杂兵首发 WR 63.5% vs 海星首发 56.2%」混杂严重，**首发刀今后必须 same-seed 反事实**。核心张力：**严格出手率与 WR 顶牛**（海星冲前场抬达标掉胜率），出手天花板受墙式开局设计约束
-  - **本地审计地雷已拆**：本地 `submission_starmie/combat_loop/`（已移至 `.agent/Versions/combat_loop_vendored/`）+ `OPENING_HANDOFF` 默认=1 → 忘设 env 的本地闸被冻结开局接管，**污染 10pp**（handoff=1 WR 50.3% vs =0 60.5%）。线上不受影响：双配置重放 55433727，handoff=0 开局帧 match **210/211=100%**（handoff=1 仅 53%）→ 线上=HEAD 开局帧级零分歧。拆雷后本地默认=线上行为
-- **中盘转化专项（2026-08-12，勘误后开刀）**：[`logs/diagnose_mid_convert/DIAGNOSE.md`](logs/diagnose_mid_convert/DIAGNOSE.md) · 闸 [`logs/h2h_audit_midConvert_n200/GATE.md`](logs/h2h_audit_midConvert_n200/GATE.md)
-  - **初版 NO-PATH「资源死局无刀」已勘误**：扫描器 path 不计莉莉艾/裁判；真因是 must_close 把抽牌支援压到 −1150、且 `_DP_STALL_DRAW_ENABLED` 曾关。线上负局 **45–75%** 出现「莉莉艾/裁判可选却直接喷水」
-  - **DpStallDraw-V2.1 已开**：中盘缺口且无 typed 路径时，喷水前先打莉莉艾/裁判/希尔达；覆盖 skip→Jet 帧 62–78%
-  - 闸：vs fireform WR **60.5→64.2**、达标转化 **64.0→72.1**；出手 −6.2pp（辅闸贴边）；vs firefix +8pp WR；vs surplus 三 seed 均值 **48.5%**（~−1pp）。**PASS 已交 [`55445134`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions)**
-- **SeatSnorunt/Evolve861 + ResentfulBoss**：三奖海星就绪即备战做 861（不绑猿）；前场干进化非法。有水 861 前场时，怨恨能多拿奖的备战目标（含满血三奖二号打手）先 Boss 再怨恨。不重开 Boss→Jetting。
-- **DKO gust（92530813）**：打出 Boss 后嵌套 SWITCH 仍保留 `boss_target`，禁止把 ≤50 骑手抓上前场。未交包。
-- **下一步**：[`55488542`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions) 已 COMPLETE；公局 27。干 861 前场漏已清。下一刀看：861 局转化（现 1/7）、2 局 `861_no_fire`、seat B 36%。**禁止** CombatClose / surplus861 / DP 宽序 / Boss→Jetting / RunAway 宽 PATH / SetupActive / HildaDig。UTC 今日配额新开，勿急交。
+- **下一步**：八点刷新后盯 Ignition 包公局；分掉则回滚 Closable restore peak。deadline **2026-08-16 23:59 UTC**。**禁止** CombatClose / surplus861 / DP 宽序 / Boss→Jetting / RunAway 宽 PATH / SetupActive / HildaDig / EmptyBench。
 - **工作流**：日常开发在本机；VPS 专跑 h2h/marathon/Kaggle。同步：`pwsh scripts/sync_to_vps.ps1`（可选 `-PushOrigin`、`-RemoteCmd "..."`）
 - **本机环境**：Python 3.10 venv（`.venv`）；冒烟 ` .\.venv\Scripts\python.exe -m pytest tests/test_starmie_pilot.py -q`
 - **线上权威峰**：[`55386951`](https://www.kaggle.com/competitions/pokemon-tcg-ai-battle/submissions) **P0 CrispinWater** → publicScore **610.4**；本地档 [`data/restore_peaks/p0CrispinWater_55386951/`](data/restore_peaks/p0CrispinWater_55386951/)；git `ef246cc`（含 handoff WIP）
 - **P0（已冻结）**：G0 [`logs/h2h_audit_p0CrispinWater_n200/GATE.md`](logs/h2h_audit_p0CrispinWater_n200/GATE.md) WR **58.5%** / B**61** / Opening **80.5%**；公局初审 n=3 WR2/3、零 Jetting=0 → [`logs/diagnose_p0CrispinWater_55386951/REVIEW.md`](logs/diagnose_p0CrispinWater_55386951/REVIEW.md)
 - **P1 fade（已修）**：`(attackId,serial)` 去重；旧包 55381818 真零 Jetting 1/12
 - **P2 Boss→Jetting（HOLD）**：[`logs/diagnose_p2_boss_jetting/HOLD.md`](logs/diagnose_p2_boss_jetting/HOLD.md)
-- **下一刀**：等 55488542 公局≥10 再 SOP-D；勿重开中盘 DP/CombatClose-V1/V2；MidOps 已 SHIP 勿叠 RunAway-V1 宽 PATH
+- **下一刀**：等 Ignition 公局≥8 再 SOP-D；勿重开中盘 DP/CombatClose-V1/V2；MidOps 已 SHIP 勿叠 RunAway-V1 宽 PATH
 - **本地 Opening 闸**（vs `ops_fireform_55115028`，n=200 seed82000，`OPENING_HANDOFF=0`，TURN_START 去重）：硬指标 **81.5%**（先手≤T3 **86%** / 后手≤T2 **77%**）· WR **53.5%** · 三漏归零（`logs/h2h_audit_engineSeats_n200/`）
 - **中盘 CombatClose-V2（证伪已回滚）**：Adrena→Boss + first-prep PATH（无锁）→ prep_ok 54.8%→**42.4%**、负局无有效 Boss↑；Opening 合计持 80.5%；见 [`logs/diagnose_combat_v2/AUTOPSY.md`](logs/diagnose_combat_v2/AUTOPSY.md) · [`logs/h2h_audit_combatV2_n200/GATE.md`](logs/h2h_audit_combatV2_n200/GATE.md)。**已证伪**：无锁窄 PATH 亦不足以抬双穿序
 - **MidOps-V1（SHIP）**：第二打手 matchup（控场/烈箭/铝钢禁 861；路卡开窗）+ OL-E2 厚手铺场 + 窄 post-Mega 66 抽；G0 [`logs/h2h_audit_midOps_n200/GATE.md`](logs/h2h_audit_midOps_n200/GATE.md) Opening 合计 **75.5%** / 先≤T3 **81%** / B**54** / WR 56.5%
 - **中盘 CombatClose-V1（证伪已回滚）**：露面+锁 ADRENA/BOSS/DISPATCH → prep_ok 31→29%、Opening 合计 81.5→**77.5%**；见 [`logs/diagnose_combat_expert_gap/DIAGNOSE.md`](logs/diagnose_combat_expert_gap/DIAGNOSE.md) · [`logs/h2h_audit_combatClose_n200/GATE.md`](logs/h2h_audit_combatClose_n200/GATE.md)。**已证伪**：仅靠 primary_step 锁修双穿序
 - **对照**：历史最佳本地峰 `data/restore_peaks/ops_fireform_55115028`；H2H 权威仍记 Wave I n=400（`logs/h2h_audit_waveI_seat_b/` → **50.5% / A52 / B49**）
-- **卡组**：`data/decks/starmie_froslass.csv` — 3×海星星、3×危险废墟、无 306、5 水 + 3 恶（2026-08-10：GapParallel 前恢复 P0 卡组）
+- **卡组（工作区 Ignition）**：`data/decks/starmie_froslass.csv` — 废墟×3 · 水×5 · 恶×3 · 引火×1 · 海星底座×2；Closable 回滚档仍为废墟×4、无引火
 - **OPENING 座位预设（采用）**：打手底座×1 · 土龙×2 · 愿增猿×1 · 机动×1；填充不得压过贴水/底座；`opening_bench.py` 已纳入 `sync_starmie_submission.py`
 - **本包内容（Wave U，叠在 Wave I+L 上；修线上 90447438/90443511/90444305 簇）**：
   - U1：底座海星水枪硬禁（`_ATTACH_ILLEGAL`）；可进化节节在 MAKE_ATTACKER 压过 END

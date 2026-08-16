@@ -703,6 +703,26 @@ def test_three_prize_opens_861_at_full_starmie_hp():
     assert plan.combat.froslass_build_allowed
 
 
+def test_unknown_opp_prizes_still_opens_861_insurance():
+    """Kaggle often omits prizeValue → opp_attacker_prizes=0 must not forbid BUILD_861.
+
+    Autopsy 55488542: 15/23 ready-Mega frames had opp_prz=0 and BUILD_861 forbidden,
+    so must_close Jetting while 861/Snorunt sat in hand.
+    """
+    me = _player(
+        active=_pkm(MEGA_STARMIE, hp=280, max_hp=330, energies=(WATER_BASIC,)),
+        hand=(SNORUNT, MEGA_FROSLASS, 1227),
+    )
+    # Generic basics — no megaEx/prizeValue → infer returns 0.
+    opp = _player(active=_pkm(721, hp=110), bench=(_pkm(722, hp=120),), hand_count=6)
+    plan = _plan(me, opp)
+    assert plan.facts.opp_attacker_prizes == 0
+    assert plan.facts.starmie_attacker_ready
+    assert plan.gap.need_second_attacker
+    assert plan.combat.froslass_build_allowed
+    assert "BUILD_861" not in plan.forbidden_actions
+
+
 def test_two_prize_wants_second_starmie_not_861():
     me = _player(
         active=_pkm(MEGA_STARMIE, hp=330, max_hp=330, energies=(WATER_BASIC,)),

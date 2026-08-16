@@ -8,6 +8,7 @@ from opening_cards import (
     DARK_BASIC,
     FAN_ROTOM,
     FROSLASS,
+    IGNITION,
     MEGA_FROSLASS,
     MEGA_STARMIE,
     MUNKIDORI,
@@ -65,6 +66,19 @@ def _has_energy(pokemon, allowed: frozenset[int]) -> bool:
     return False
 
 
+def _can_nebula_fuel(pokemon) -> bool:
+    """Ignition (=3C) or ≥3 attached energies unlock Nebula Beam."""
+    if pokemon is None:
+        return False
+    try:
+        ens = [e for e in (getattr(pokemon, "energies", None) or []) if e is not None]
+        if any(_si(e) == IGNITION for e in ens):
+            return True
+        return len(ens) >= 3
+    except Exception:
+        return False
+
+
 def _find_on_bench(player, card_id: int):
     try:
         for p in player.bench or []:
@@ -88,21 +102,22 @@ class BoardSnapshot:
     bench_open: int
     active_id: int
     active_has_water: bool
-    active_is_mega_starmie: bool
-    active_is_mega_froslass: bool
-    staryu_on_field: bool
-    mega_starmie_on_field: bool
-    bench_mega_starmie_has_water: bool
-    snorunt_line_on_bench: bool
-    snorunt_on_field: bool
-    froslass_104_on_field: bool
-    mega_froslass_on_field: bool
-    munkidori_on_bench: bool
-    munkidori_on_field: bool
-    munkidori_has_dark: bool
-    bench_three_core_ready: bool
-    fan_rotom_on_field: bool
-    fan_rotom_dead: bool
+    active_can_nebula: bool = False
+    active_is_mega_starmie: bool = False
+    active_is_mega_froslass: bool = False
+    staryu_on_field: bool = False
+    mega_starmie_on_field: bool = False
+    bench_mega_starmie_has_water: bool = False
+    snorunt_line_on_bench: bool = False
+    snorunt_on_field: bool = False
+    froslass_104_on_field: bool = False
+    mega_froslass_on_field: bool = False
+    munkidori_on_bench: bool = False
+    munkidori_on_field: bool = False
+    munkidori_has_dark: bool = False
+    bench_three_core_ready: bool = False
+    fan_rotom_on_field: bool = False
+    fan_rotom_dead: bool = False
     risky_ruins_online: bool = False
     # Any Staryu / Mega Starmie on field already holding Water/Prism.
     line_has_water: bool = False
@@ -167,6 +182,7 @@ def build_board_snapshot(obs) -> BoardSnapshot:
         bench_open=max(0, 5 - len(bench)),
         active_id=active_id,
         active_has_water=_has_energy(active, _WATER_IDS),
+        active_can_nebula=_can_nebula_fuel(active),
         active_is_mega_starmie=active_id == MEGA_STARMIE,
         active_is_mega_froslass=active_id == MEGA_FROSLASS,
         staryu_on_field=STARYU in field_ids,

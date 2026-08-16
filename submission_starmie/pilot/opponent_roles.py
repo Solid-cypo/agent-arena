@@ -21,6 +21,13 @@ OpponentRole = Literal[
 ]
 
 SHAYMIN = 343
+DWEBBLE = 344
+CRUSTLE = 345
+DWEBBLE_ALT = 532
+CRUSTLE_ALT = 533
+KANGASKHAN = 472
+MEGA_KANGASKHAN_EX = 756
+CORNERSTONE_OGERPON_EX = 117
 
 
 @dataclass(frozen=True)
@@ -62,6 +69,8 @@ OPPONENT_ROLES: dict[int, OpponentRoleProfile] = {
     121: _p("MAIN_ATTACKER", "DRAGAPULT", 100, 30),
     131: _p("ENGINE_BASE", "DUSKNOIR", 72, 88),  # Duskull
     133: _p("UTILITY", "DUSKNOIR", 96, 35),  # Cursed Blast
+    272: _p("SECONDARY_ATTACKER", "DRAGAPULT", 92, 55),  # Lillie's Clefairy ex
+    184: _p("SECONDARY_ATTACKER", "LATIAS", 88, 50),  # Latias ex (hammer lists)
     112: _p("UTILITY", "MUNKIDORI", 82, 68),
     235: _p("UTILITY", "BUDEW", 62, 52),
     1071: _p("UTILITY", "MEOWTH_EX", 58, 35),
@@ -89,6 +98,16 @@ OPPONENT_ROLES: dict[int, OpponentRoleProfile] = {
     839: _p("MAIN_ATTACKER_BASE", "ARCHALUDON", 72, 100),
     840: _p("MAIN_ATTACKER", "ARCHALUDON", 96, 35),
     992: _p("MAIN_ATTACKER_BASE", "ARCHALUDON", 70, 95),
+    # Crustle wall + Mega Kangaskhan (Mysterious Rock Inn blocks ex attack damage).
+    # Boss gusts Active crab OUT by bringing in Mega Kanga (high boss_priority).
+    # Rider never parks 50 on Crustle (0 damage from ex).
+    344: _p("MAIN_ATTACKER_BASE", "CRUSTLE", 74, 92),  # Dwebble
+    532: _p("MAIN_ATTACKER_BASE", "CRUSTLE", 74, 92),
+    345: _p("UTILITY", "CRUSTLE", 55, 5),  # Crustle — not a Boss-in target
+    533: _p("UTILITY", "CRUSTLE", 55, 5),
+    472: _p("MAIN_ATTACKER_BASE", "MEGA_KANGA", 78, 100),  # Kangaskhan
+    756: _p("MAIN_ATTACKER", "MEGA_KANGA", 115, 28),  # Mega Kangaskhan ex
+    117: _p("UTILITY", "CORNERSTONE", 88, 40),  # Cornerstone Mask Ogerpon ex
 }
 
 # Public-card IDs that confirm an Archaludon/Duraludon line.
@@ -98,10 +117,17 @@ ARCHALUDON_LINE_IDS = frozenset({169, 170, 190, 839, 840, 992})
 TREVENANT_LINE_IDS = frozenset({878, 879})
 
 # Dragapult (烈箭 / 「桥龙」侧) — 861 is a bad second attacker.
-DRAGAPULT_LINE_IDS = frozenset({119, 120, 121})
+# 272 = Lillie's Clefairy ex (Fairy Zone + Full Moon Rondo); seeing it is enough
+# to lock the Clefairy-Dragapult variant before 121 hits the board.
+DRAGAPULT_LINE_IDS = frozenset({119, 120, 121, 272})
 
 # Mega Lucario fast — prefer Mega Froslass as second attacker while Starmie lives.
 LUCARIO_LINE_IDS = frozenset({677, 678})
+
+# Crustle wall package (Rock Inn / Kanga).
+CRUSTLE_LINE_IDS = frozenset({DWEBBLE, CRUSTLE, DWEBBLE_ALT, CRUSTLE_ALT})
+CRUSTLE_EX_IMMUNE_IDS = frozenset({CRUSTLE, CRUSTLE_ALT})
+MEGA_KANGA_LINE_IDS = frozenset({KANGASKHAN, MEGA_KANGASKHAN_EX})
 
 # Optional sticky matchup boosts layered on the card table.  Keys are card ids.
 _MATCHUP_OVERRIDES: dict[str, dict[int, tuple[int, int]]] = {
@@ -147,8 +173,16 @@ def flower_curtain_online(field_ids: set[int] | frozenset[int] | tuple[int, ...]
     return SHAYMIN in set(field_ids)
 
 
+def is_ex_attack_immune(card_id: int) -> bool:
+    """Mysterious Rock Inn: Crustle takes no damage from attacks by Pokémon ex."""
+    return int(card_id) in CRUSTLE_EX_IMMUNE_IDS
+
+
 def is_attack_damage_protected(pokemon: object, field_ids) -> bool:
     """True when Jetting-style attack damage to this bench Pokémon is prevented."""
+    cid = int(getattr(pokemon, "id", 0) or 0)
+    if is_ex_attack_immune(cid):
+        return True
     if not flower_curtain_online(field_ids):
         return False
     return not has_rule_box(pokemon)

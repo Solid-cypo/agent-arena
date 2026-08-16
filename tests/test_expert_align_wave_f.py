@@ -124,6 +124,16 @@ def test_dragapult_bans_froslass_line():
     assert not plan.combat.froslass_build_allowed
 
 
+def test_clefairy_ex_is_dragapult_line():
+    """Autopsy 93162758: Lillie's Clefairy ex (272) locks the Clefairy-Dragapult variant."""
+    me = _player(active=_pkm(MEGA_STARMIE, energies=(WATER_BASIC,)))
+    opp = _player(active=_pkm(272, hp=190, ex=True), hand_count=5)
+    plan = _plan(me, opp)
+    assert plan.facts.opp_dragapult_threat
+    assert plan.facts.ban_froslass_line
+    assert not plan.combat.froslass_build_allowed
+
+
 def test_dragapult_continuity_does_not_start_861_build():
     """2-prize Dragapult → second Starmie, not a new 861 line (OHKO-proof)."""
     me = _player(
@@ -168,8 +178,8 @@ def test_lucario_allows_second_attacker_and_opens_861_window():
     )
 
 
-def test_dp_surplus_does_not_open_861_after_surplus861Rev_rollback():
-    """Gate FAIL on munk_dark — DP-ready alone must not sanction BUILD_861."""
+def test_dp_online_with_861_held_opens_104_upgrade():
+    """Autopsy 93324506: 104+恶猿 online + 861 held → BUILD_861 / upgrade allowed."""
     me = _player(
         active=_pkm(MEGA_STARMIE, hp=300, max_hp=330, energies=(WATER_BASIC,)),
         bench=(_pkm(104), _pkm(MUNKIDORI, energies=(DARK,))),
@@ -179,11 +189,11 @@ def test_dp_surplus_does_not_open_861_after_surplus861Rev_rollback():
     plan = _plan(me, opp)
     assert plan.facts.damage_placer_online
     assert plan.facts.munkidori_has_dark
-    assert not plan.combat.froslass_build_allowed
+    assert plan.combat.froslass_build_allowed
     obs = _obs(me, opp)
     sit = sp._compute_situation(obs)
     assert sp._synergy_core_ready(sit["board"])
-    assert not sp._mega_froslass_window_open(
+    assert sp._mega_froslass_window_open(
         obs, 0, sit["board"], sit["phase"], plan=sit["turn_plan"],
     )
 

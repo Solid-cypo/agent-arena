@@ -3,6 +3,9 @@
 Preset (user):
   Staryu×2 · Snorunt×1 · Munkidori×1 · Dunsparce×1 · flex×1
 
+Post-Mega surplus: Munkidori may go to ×2 when hand/bench allow (DP min is
+still ×1 + placer; dual Munk is optional, especially vs Crustle).
+
 Pre-Mega narrow (Field6Narrow): Staryu / Snorunt dual-line seating is gated
 so Opening does not pack both lines onto the board before Mega lands:
   - If any Staryu-line is on the field → cannot bench Snorunt-line
@@ -197,26 +200,37 @@ def can_bench_card(
 
     role = bench_role_for(int(card_id))
     caps_left = dict(CORE_ROLE_CAPS)
+    # Autopsy 93325448: after Mega lands, Munk×2 is legal surplus (DP min is ×1).
+    # play_caps raises the seat limit; caps_left keeps ×1 for flex-reserve math
+    # so a missing 2nd Munk never blocks tools / flex.
+    play_caps = dict(caps_left)
+    if mega_starmie_on_field(active_id, bench_ids):
+        play_caps["munk"] = 2
     for pid in _field_ids(active_id, bench_ids):
         r = bench_role_for(pid)
         if r in caps_left and caps_left[r] > 0:
             caps_left[r] -= 1
+        if r in play_caps and play_caps[r] > 0:
+            play_caps[r] -= 1
     # Align flex-reserve math with mutex (same as missing_core_seats).
     if not mega_starmie_on_field(active_id, bench_ids):
         field = _field_ids(active_id, bench_ids)
         if any(pid in STARYU_LINE for pid in field):
             caps_left["snorunt"] = 0
+            play_caps["snorunt"] = 0
         if any(int(pid) in SNORUNT_LINE for pid in bench_ids):
             caps_left["staryu"] = 0
+            play_caps["staryu"] = 0
 
-    fills_core = role in caps_left and caps_left[role] > 0
+    fills_core = role in play_caps and play_caps[role] > 0
     if fills_core:
         return True
     # Core over quota (2nd 土龙 / 3rd 海星 / …) must not eat the flex seat.
+    # Post-Mega: 2nd Munk already allowed via play_caps above.
     if role in CORE_ROLE_CAPS:
         return False
 
-    # Tool / unknown → single flex seat; keep opens for missing cores.
+    # Tool / unknown → single flex seat; keep opens for missing *required* cores.
     if flex_occupants(active_id, bench_ids) >= 1:
         return False
     missing = sum(caps_left.values())

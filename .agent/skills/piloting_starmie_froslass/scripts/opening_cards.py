@@ -42,10 +42,12 @@ BASIC_IDS = frozenset({
 
 WATER_ENERGY_IDS = frozenset({WATER_BASIC, PRISM})  # Prism kept for legacy sims; deck no longer runs it
 ENERGY_IDS = frozenset({WATER_BASIC, DARK_BASIC, PRISM, IGNITION})
-# Production deck (2026-07-27+): Water×5 + Dark×3 only — no Prism/Ignition.
+# Production deck (2026-08-15+): Water×5 + Dark×3 + Ignition×1 (Nebula fuel).
 DECK_BASIC_ENERGY = (WATER_BASIC, DARK_BASIC)
 # Crispin (E-CRIS-1): Basic Energy only — not Prism / Ignition
 CRISPIN_BASIC_ENERGY = (WATER_BASIC, DARK_BASIC)
+# Hilda second pick: any energy (incl. Ignition for Nebula).
+HILDA_ENERGY_IDS = frozenset({WATER_BASIC, DARK_BASIC, PRISM, IGNITION})
 
 SUPPORTER_IDS = frozenset({
     HILDA, LILLIE, CRISPIN, SALVATOR, BOSS_ORDERS, JUDGE, WALLYS_COMPASSION,
@@ -233,15 +235,25 @@ def pad_pokemon_candidates(
     *,
     on_field: set[int] | frozenset[int],
     mega_on_field: bool | None = None,
-    priority: tuple[int, ...] = POKE_PAD_OPENING_PRIORITY,
+    priority: tuple[int, ...] | None = None,
 ) -> list[int]:
-    """Legal Pad Pokémon targets not already on field, in OPENING priority order.
+    """Legal Pad Pokémon targets not already on field, in priority order.
 
     Energy is never returned (E-PAD-1). If Mega Starmie is on field, Staryu is
     skipped as the opening-line gap is already closed.
+
+    Autopsy 93317659: once the Staryu/Mega attacker line is online and Munk is
+    still missing, use POST_MEGA priority (Munk first) instead of opening.
     """
     if mega_on_field is None:
         mega_on_field = MEGA_STARMIE in on_field
+    if priority is None:
+        line_online = bool(mega_on_field or STARYU in on_field)
+        munk_missing = MUNKIDORI not in on_field
+        if line_online and munk_missing:
+            priority = POKE_PAD_POST_MEGA_PRIORITY
+        else:
+            priority = POKE_PAD_OPENING_PRIORITY
     out: list[int] = []
     for cid in priority:
         if not is_pad_legal_target(cid):

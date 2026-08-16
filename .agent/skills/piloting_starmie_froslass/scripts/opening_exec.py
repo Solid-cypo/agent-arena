@@ -289,7 +289,12 @@ def _hilda_search_v2(st: OpeningGameState, evo: int | None, energy: int | None) 
     picks: list[int] = []
     if evo is not None and evo in HILDA_EVOLUTION_IDS and evo in st.deck:
         picks.append(evo)
-    if energy is not None and energy in (WATER_BASIC, PRISM) and energy in st.deck and energy not in picks:
+    if (
+        energy is not None
+        and energy in (WATER_BASIC, PRISM, IGNITION, DARK_BASIC)
+        and energy in st.deck
+        and energy not in picks
+    ):
         picks.append(energy)
     # Fallback when expert gave nothing usable, or Mega was demoted leaving no evo.
     has_evo_pick = any(c in HILDA_EVOLUTION_IDS for c in picks)
